@@ -64,19 +64,38 @@ export default function Login() {
     const isAdminEmail = cleanEmail === 'exportacoes.extras@gmail.com' || cleanEmail === 'grupocassaminha@gmail.com';
 
     let role = isAdminEmail ? 'admin' : 'student';
-    let status = isAdminEmail ? 'active' : 'inactive';
+    let status = isAdminEmail ? 'active' : 'active';
+    let isApproved = isAdminEmail;
 
     if (!userSnap.exists()) {
       if (registrationData?.roleType && !isAdminEmail) {
         role = registrationData.roleType;
       }
-      status = (role === 'admin' || role === 'producer' || isAdminEmail) ? 'active' : 'inactive';
+      
+      // Regra de Aprovação:
+      // Se for Aluno -> Acesso DIRETO e imediato como aluno (active).
+      // Se for Produtor/Admin e não for Master -> TRAVA o registro para aprovação do Administrador Master (pending_approval).
+      if (isAdminEmail) {
+        role = 'admin';
+        status = 'active';
+        isApproved = true;
+      } else if (role === 'producer' || role === 'admin') {
+        status = 'pending_approval';
+        isApproved = false;
+      } else {
+        role = 'student';
+        status = 'active'; // Aluno tem acesso imediato à plataforma de cursos
+        isApproved = true;
+      }
       
       const payload: any = {
         uid: user.uid,
-        email: user.email,
+        email: cleanEmail,
         role: role,
+        roleType: role,
         subscriptionStatus: status,
+        isApproved: isApproved,
+        enrolledCourses: role === 'student' ? ['cfa-financial-master'] : [],
         createdAt: serverTimestamp()
       };
 
@@ -91,10 +110,11 @@ export default function Login() {
     } else {
       const data = userSnap.data();
       role = isAdminEmail ? 'admin' : (data.role || 'student');
-      status = (isAdminEmail || role === 'admin' || role === 'producer') ? 'active' : (data.subscriptionStatus || 'inactive');
+      status = isAdminEmail ? 'active' : (data.subscriptionStatus || 'active');
+      isApproved = isAdminEmail ? true : (data.isApproved !== undefined ? data.isApproved : (role === 'student' || status === 'active'));
 
       if (isAdminEmail && (data.role !== 'admin' || data.subscriptionStatus !== 'active')) {
-        await setDoc(userRef, { role: 'admin', subscriptionStatus: 'active', roleType: 'admin' }, { merge: true });
+        await setDoc(userRef, { role: 'admin', subscriptionStatus: 'active', roleType: 'admin', isApproved: true }, { merge: true });
       }
 
       if (registrationData) {
@@ -107,8 +127,12 @@ export default function Login() {
       }
     }
     
-    if (role === 'admin' || role === 'producer' || isAdminEmail) {
+    // Roteamento seguro:
+    // Apenas Master Admin ou Produtores/Admins aprovados e ativos vão para o /dashboard
+    if (isAdminEmail || ((role === 'admin' || role === 'producer') && status === 'active' && isApproved)) {
       navigate('/dashboard');
+    } else if (status === 'pending_approval' || ( (role === 'admin' || role === 'producer') && !isApproved )) {
+      navigate('/pending');
     } else if (status === 'active') {
       navigate('/library');
     } else {
@@ -277,18 +301,26 @@ export default function Login() {
                 </label>
                 <div className="relative">
                   <select
-                    className="w-full bg-surface-container-lowest border-none rounded-xl py-3.5 pl-4 pr-12 text-on-surface text-sm focus:ring-1 focus:ring-primary transition-all duration-300 outline-none font-body appearance-none cursor-pointer"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-3.5 pl-4 pr-12 text-on-surface text-sm focus:ring-1 focus:ring-primary transition-all duration-300 outline-none font-body appearance-none cursor-pointer"
                     id="roleType"
                     value={roleType}
                     onChange={(e) => setRoleType(e.target.value)}
                   >
-                    <option value="student">Aluno / Estudante</option>
-                    <option value="producer">Produtor / Administrador</option>
+                    <option value="student">🎓 Aluno / Estudante (Acesso Direto à Plataforma)</option>
+                    <option value="producer">🛡️ Produtor / Administrador (Requer Aprovação Master)</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-lg">keyboard_arrow_down</span>
                   </div>
                 </div>
+                {roleType === 'producer' && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2 text-xs text-amber-200">
+                    <span className="material-symbols-outlined text-amber-400 text-base flex-shrink-0 mt-0.5">verified_user</span>
+                    <span>
+                      <strong>Atenção:</strong> Contas de Produtor/Administrador são bloqueadas para verificação de segurança e requerem aprovação manual do Administrador Master para liberar o acesso ao painel.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

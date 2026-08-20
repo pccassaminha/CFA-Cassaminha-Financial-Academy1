@@ -141,6 +141,7 @@ export default function App() {
             onClick={() => {
               localStorage.setItem('viewAsStudent', 'false');
               window.dispatchEvent(new Event('student-view-changed'));
+              window.location.href = '/dashboard';
             }}
             className="bg-[#0e0e0e] text-[#e9c349] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-zinc-900 transition-all cursor-pointer active:scale-95 shadow-md"
           >

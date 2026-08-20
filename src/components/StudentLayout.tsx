@@ -1,6 +1,6 @@
-import React from 'react';
-import { BookOpen, Compass, User, LogOut } from 'lucide-react';
-import { logout } from '../firebase';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Compass, User, LogOut, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import { logout, auth } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
 interface StudentLayoutProps {
@@ -12,6 +12,31 @@ interface StudentLayoutProps {
 
 export default function StudentLayout({ children, activeTab, setActiveTab, onLogout }: StudentLayoutProps) {
   const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const isMasterEmail = (email?: string | null) => {
+      if (!email) return false;
+      const clean = email.trim().toLowerCase();
+      return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
+    };
+
+    const checkAdmin = () => {
+      const isSimulating = localStorage.getItem('viewAsStudent') === 'true';
+      const currentUserEmail = auth.currentUser?.email;
+      setIsAdmin(isSimulating || isMasterEmail(currentUserEmail));
+    };
+
+    checkAdmin();
+    window.addEventListener('student-view-changed', checkAdmin);
+    return () => window.removeEventListener('student-view-changed', checkAdmin);
+  }, []);
+
+  const handleReturnToAdmin = () => {
+    localStorage.setItem('viewAsStudent', 'false');
+    window.dispatchEvent(new Event('student-view-changed'));
+    window.location.href = '/dashboard';
+  };
 
   const handleLogout = async () => {
     if (onLogout) {
@@ -40,6 +65,19 @@ export default function StudentLayout({ children, activeTab, setActiveTab, onLog
               <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-mono">Academy Portal</p>
             </div>
           </div>
+
+          {isAdmin && (
+            <div className="p-3 bg-[#e9c349]/10 border-b border-[#e9c349]/20">
+              <button
+                id="btn-return-admin-sidebar"
+                onClick={handleReturnToAdmin}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-[#e9c349] text-black font-bold text-xs hover:bg-[#d4b03f] transition-all cursor-pointer shadow-md active:scale-95"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Voltar para Admin
+              </button>
+            </div>
+          )}
           
           <nav className="p-4 space-y-2">
             <button 

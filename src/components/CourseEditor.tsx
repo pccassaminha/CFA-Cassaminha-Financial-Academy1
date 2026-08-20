@@ -375,11 +375,13 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-800">
         <div className="flex items-center gap-4">
           <button 
+            id="btn-back-to-courses-list"
             onClick={onBack} 
-            className="p-2.5 bg-[#131313] border border-gray-800 rounded-xl hover:border-[#e9c349] hover:text-[#e9c349] transition-all cursor-pointer shadow-md"
-            title="Voltar para Cursos"
+            className="flex items-center gap-2 px-3 py-2 bg-[#131313] border border-gray-800 rounded-xl hover:border-[#e9c349] hover:text-[#e9c349] transition-all cursor-pointer shadow-md text-sm font-semibold text-gray-300"
+            title="Voltar para a Lista de Cursos"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 text-[#e9c349]" />
+            <span>Voltar aos Cursos</span>
           </button>
           <div>
             <div className="flex items-center gap-3">

@@ -184,13 +184,19 @@ export default function VideoLibrary() {
     navigate('/');
   };
 
+  const isMasterEmail = (email?: string | null) => {
+    if (!email) return false;
+    const clean = email.trim().toLowerCase();
+    return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
+  };
+
+  const isUserAdmin = isAdminSimulating || isMasterEmail(userProfile?.email) || isMasterEmail(auth.currentUser?.email) || userProfile?.role === 'admin';
+
   const returnToAdminView = () => {
     localStorage.setItem('viewAsStudent', 'false');
     window.dispatchEvent(new Event('student-view-changed'));
     showNotification('Retornando ao Painel Administrativo...');
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 1000);
+    window.location.href = '/dashboard';
   };
 
   // Toggle module collapse in Student view
@@ -396,16 +402,17 @@ export default function VideoLibrary() {
   return (
     <div className="bg-[#131313] text-[#e5e2e1] font-body min-h-screen flex flex-col overflow-hidden">
       
-      {/* Simulation Banner */}
-      {isAdminSimulating && (
+      {/* Simulation / Admin Return Banner */}
+      {isUserAdmin && (
         <div className="bg-[#e9c349]/10 border-b border-[#e9c349]/20 px-8 py-3 flex items-center justify-between z-50 text-xs">
           <div className="flex items-center gap-2 text-[#e9c349]">
             <span className="material-symbols-outlined text-sm animate-pulse font-bold">visibility</span>
             <span>Você está visualizando a plataforma como <strong>Aluno</strong>.</span>
           </div>
           <button 
+            id="btn-return-admin-video-library"
             onClick={returnToAdminView} 
-            className="bg-[#e9c349] text-[#131313] px-3 py-1.5 rounded-md font-bold hover:scale-[1.02] transition-transform"
+            className="bg-[#e9c349] text-[#131313] px-3 py-1.5 rounded-md font-bold hover:scale-[1.02] transition-transform cursor-pointer shadow-md"
           >
             Voltar para Administração
           </button>
@@ -430,13 +437,24 @@ export default function VideoLibrary() {
             </h1>
             <p className="text-[9px] text-[#bccabe]/50 uppercase tracking-widest mt-1 font-mono">Cassaminha Financial Academy</p>
 
-            <Link
-              to="/library"
-              className="mt-4 flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-400 hover:text-[#e9c349] bg-white/5 hover:bg-[#e9c349]/10 rounded-xl border border-white/5 hover:border-[#e9c349]/20 transition-all"
-            >
-              <span className="material-symbols-outlined text-sm">storefront</span>
-              <span>Vitrine de Cursos</span>
-            </Link>
+            <div className="flex flex-col gap-2 mt-4">
+              <Link
+                to="/library"
+                className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-400 hover:text-[#e9c349] bg-white/5 hover:bg-[#e9c349]/10 rounded-xl border border-white/5 hover:border-[#e9c349]/20 transition-all"
+              >
+                <span className="material-symbols-outlined text-sm">storefront</span>
+                <span>Vitrine de Cursos</span>
+              </Link>
+              {isUserAdmin && (
+                <button
+                  onClick={returnToAdminView}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-black bg-[#e9c349] hover:bg-[#d4b03f] rounded-xl transition-all cursor-pointer shadow-md"
+                >
+                  <span className="material-symbols-outlined text-sm">dashboard</span>
+                  <span>Painel Administrativo</span>
+                </button>
+              )}
+            </div>
 
             {/* Course Global Progress Indicator */}
             <div className="mt-6 p-4 bg-[#353534]/10 rounded-xl border border-[#353534]/20">

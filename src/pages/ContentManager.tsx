@@ -22,7 +22,7 @@ export default function ContentManager() {
       <Sidebar />
 
       {/* Main Workspace */}
-      <main className="flex-1 overflow-y-auto min-h-screen relative">
+      <main className="flex-1 overflow-y-auto min-h-screen relative ml-72">
         {/* Subtle noise texture */}
         <div 
           className="fixed inset-0 pointer-events-none z-[1] opacity-[0.02]" 
