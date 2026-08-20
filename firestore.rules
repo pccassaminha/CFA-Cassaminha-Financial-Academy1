@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Funções de verificação
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMaster() {
+      return isSignedIn() && (
+        request.auth.token.email == 'grupocassaminha@gmail.com' ||
+        request.auth.token.email == 'exportacoes.extras@gmail.com' ||
+        request.auth.token.email == 'Grupocassaminha@gmail.com'
+      );
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isMaster() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'producer'))
+      );
+    }
+    
+    function isEnrolled(courseId) {
+      return isSignedIn() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscriptionStatus == 'active') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         'enrolledCourses' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+         courseId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.enrolledCourses)
+      );
+    }
+
+    // 1. Usuários: Aluno lê/edita o próprio perfil, Admin tem acesso total.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+    }
+
+    // 2. Vitrine de Cursos: Público para leitura da vitrine; escrita restrita ao Admin.
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 3. Módulos e Aulas: Aluno lê se o curso estiver matriculado ou assinatura ativa.
+    match /modules/{moduleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        !('courseId' in resource.data) ||
+        resource.data.courseId == null ||
+        resource.data.courseId == '' ||
+        isEnrolled(resource.data.courseId)
+      ));
+      allow write: if isAdmin();
+    }
+
+    // 4. Configurações da plataforma (Cursos, Métodos de pagamento, Geral)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 5. Transações (Comprovativos de Pagamento)
+    match /transactions/{transactionId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+  }
+}
+

@@ -1,0 +1,8 @@
+{
+  "name": "CFA Cassaminha Financial Academy",
+  "description": "Plataforma de educação do Grupo Cassaminha.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
