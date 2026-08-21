@@ -81,6 +81,10 @@ export default function Dashboard() {
   const [logsSearch, setLogsSearch] = useState('');
   const [logsFilterType, setLogsFilterType] = useState<string>('all');
 
+  // History Modal State
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+
   const showNotification = (msg: string) => {
     setToastMessage(msg);
     setShowToast(true);
@@ -705,25 +709,25 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Recent Transactions & Payment References */}
+          {/* Recent Transactions & Payment References - PENDING VALIDATION ONLY */}
           <div className="bg-surface-container rounded-2xl border border-outline-variant/10 p-8 mb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
                 <div className="flex items-center gap-2 text-primary mb-1">
                   <span className="material-symbols-outlined text-base">receipt_long</span>
-                  <span className="text-xs font-bold uppercase tracking-widest font-label">Validação de Pagamentos</span>
+                  <span className="text-xs font-bold uppercase tracking-widest font-label">Validação de Pagamentos (Pendentes)</span>
                 </div>
-                <h3 className="text-xl font-extrabold font-headline text-on-surface">Transações & Referências de Pagamento</h3>
+                <h3 className="text-xl font-extrabold font-headline text-on-surface">Aguardando Aprovação de Comprovativos</h3>
               </div>
-              <span className="text-xs px-3 py-1 bg-surface-container-highest rounded-full text-stone-400 font-mono">
-                {transactions.length} Registros
+              <span className="text-xs px-3 py-1 bg-surface-container-highest rounded-full text-[#e9c349] font-mono font-bold">
+                {transactions.filter(t => !t.status || t.status === 'pending').length} Pendentes
               </span>
             </div>
 
-            {transactions.length === 0 ? (
+            {transactions.filter(t => !t.status || t.status === 'pending').length === 0 ? (
               <div className="text-center py-10 border border-dashed border-outline-variant/20 rounded-xl bg-surface-container-lowest/30">
-                <span className="material-symbols-outlined text-4xl text-stone-600 mb-2">inbox</span>
-                <p className="text-sm text-stone-400">Nenhuma transação pendente no momento.</p>
+                <span className="material-symbols-outlined text-4xl text-stone-600 mb-2">done_all</span>
+                <p className="text-sm text-stone-400">Nenhuma transação pendente de validação no momento. Todas foram processadas e arquivadas.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -733,56 +737,48 @@ export default function Dashboard() {
                       <th className="pb-3 px-3">Referência</th>
                       <th className="pb-3 px-3">Aluno</th>
                       <th className="pb-3 px-3">Curso</th>
-                      <th className="pb-3 px-3">Data</th>
+                      <th className="pb-3 px-3">Data/Hora</th>
                       <th className="pb-3 px-3">Status</th>
                       <th className="pb-3 px-3 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/5 font-body">
-                    {transactions.slice(0, 10).map((tx) => (
+                    {transactions
+                      .filter(t => !t.status || t.status === 'pending')
+                      .map((tx) => (
                       <tr key={tx.id} className="hover:bg-surface-container-highest/30 transition-colors">
                         <td className="py-3 px-3">
                           <span className="font-mono font-bold text-primary">{tx.referenceNumber || 'N/A'}</span>
                         </td>
                         <td className="py-3 px-3">
                           <p className="font-medium text-on-surface">{tx.userName || 'Aluno'}</p>
-                          <p className="text-[11px] text-stone-500">{tx.userEmail || ''}</p>
+                          <p className="text-[11px] text-stone-500">{tx.userEmail || tx.userId || ''}</p>
                         </td>
                         <td className="py-3 px-3 text-stone-300">{tx.courseTitle || 'CFA Master'}</td>
-                        <td className="py-3 px-3 text-stone-400 text-xs">
-                          {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString('pt-AO') : '-'}
+                        <td className="py-3 px-3 text-stone-400 text-xs font-mono">
+                          {tx.createdAt ? (tx.createdAt.toDate ? tx.createdAt.toDate().toLocaleString('pt-AO') : new Date(tx.createdAt).toLocaleString('pt-AO')) : '-'}
                         </td>
                         <td className="py-3 px-3">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            tx.status === 'approved' 
-                              ? 'bg-secondary/15 text-secondary border border-secondary/30'
-                              : tx.status === 'rejected'
-                              ? 'bg-error/15 text-error border border-error/30'
-                              : 'bg-primary/15 text-primary border border-primary/30 animate-pulse'
-                          }`}>
-                            {tx.status === 'approved' ? 'Aprovado' : tx.status === 'rejected' ? 'Recusado' : 'Pendente'}
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/15 text-primary border border-primary/30 animate-pulse">
+                            Pendente
                           </span>
                         </td>
                         <td className="py-3 px-3 text-right">
-                          {tx.status === 'pending' ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleApproveTransaction(tx)}
-                                className="px-3 py-1 bg-secondary text-surface font-bold text-xs rounded-lg hover:brightness-110 transition-all flex items-center gap-1 cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-xs">check</span>
-                                Aprovar
-                              </button>
-                              <button
-                                onClick={() => handleRejectTransaction(tx)}
-                                className="px-2 py-1 bg-error/20 text-error hover:bg-error/30 font-bold text-xs rounded-lg transition-all cursor-pointer"
-                              >
-                                Recusar
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-stone-500 italic">Processado</span>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleApproveTransaction(tx)}
+                              className="px-3 py-1 bg-secondary text-surface font-bold text-xs rounded-lg hover:brightness-110 transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-xs">check</span>
+                              Aprovar & Arquivar
+                            </button>
+                            <button
+                              onClick={() => handleRejectTransaction(tx)}
+                              className="px-2 py-1 bg-error/20 text-error hover:bg-error/30 font-bold text-xs rounded-lg transition-all cursor-pointer"
+                            >
+                              Recusar
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -792,12 +788,33 @@ export default function Dashboard() {
             )}
           </div>
 
+          {/* BOTÃO PARA ABRIR O HISTÓRICO DE PAGAMENTOS EM POPUP */}
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/10 p-6 mb-12 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center border border-secondary/20 flex-shrink-0">
+                <span className="material-symbols-outlined text-2xl">history</span>
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-white font-headline">Histórico de Pagamentos (Arquivados & Processados)</h4>
+                <p className="text-xs text-stone-400">Consulte transações aprovadas e recusadas com detalhes completos de data, hora, ID e curso.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setHistoryPage(1); setIsHistoryModalOpen(true); }}
+              className="px-5 py-2.5 bg-secondary text-surface font-bold text-xs rounded-xl hover:brightness-110 transition-all flex items-center gap-2 cursor-pointer shadow-md whitespace-nowrap"
+            >
+              <span className="material-symbols-outlined text-base">visibility</span>
+              <span>Abrir Histórico ({transactions.filter(t => t.status === 'approved' || t.status === 'rejected').length})</span>
+            </button>
+          </div>
+
           {/* ========================================================================= */}
-          {/* SECTION: FUNCTIONAL CHART & RECENT ACTIVITIES */}
+          {/* SECTION: FUNCTIONAL CHART */}
           {/* ========================================================================= */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="w-full">
             {/* Chart Area - 100% Functional & Interactive */}
-            <div id="card-revenue-chart" className="lg:col-span-2 bg-surface-container p-6 sm:p-8 rounded-2xl border border-outline-variant/10 flex flex-col justify-between">
+            <div id="card-revenue-chart" className="w-full bg-surface-container p-6 sm:p-8 rounded-2xl border border-outline-variant/10 flex flex-col justify-between">
               <div>
                 {/* Header Controls */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -1044,68 +1061,6 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-
-            {/* ========================================================================= */}
-            {/* Recent Activity & Logs Card */}
-            {/* ========================================================================= */}
-            <div id="card-recent-activity" className="bg-surface-container p-6 sm:p-8 rounded-2xl border border-outline-variant/10 flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <div className="flex items-center gap-2 text-secondary mb-1">
-                      <Activity className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase tracking-widest font-label">Feed da Comunidade</span>
-                    </div>
-                    <h3 className="font-bold font-headline text-lg text-white">Atividade Recente da Academia</h3>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-secondary/10 text-secondary text-[11px] font-bold border border-secondary/20">
-                    Ao Vivo
-                  </span>
-                </div>
-
-                <div className="space-y-4">
-                  {dynamicActivities.length > 0 ? (
-                    dynamicActivities.map((activity) => (
-                      <div 
-                        key={activity.id} 
-                        onClick={() => setIsLogsModalOpen(true)}
-                        className="flex gap-3.5 items-start p-2.5 rounded-xl hover:bg-surface-container-highest/40 transition-colors cursor-pointer group"
-                      >
-                        <div className={`w-8 h-8 rounded-xl bg-surface-container-highest flex items-center justify-center flex-shrink-0 ${activity.color} border border-outline-variant/10 group-hover:scale-105 transition-transform`}>
-                          <span className="material-symbols-outlined text-[16px]">{activity.icon}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-stone-200 line-clamp-2 leading-relaxed group-hover:text-primary transition-colors">
-                            {activity.text}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-stone-500 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {activity.time}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-xs text-stone-500 italic border border-dashed border-outline-variant/10 rounded-xl">
-                      Nenhuma atividade recente registrada.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Functional "Ver Logs Recorrentes" button */}
-              <button 
-                id="btn-open-audit-logs"
-                type="button"
-                onClick={() => setIsLogsModalOpen(true)}
-                className="w-full mt-6 py-3 rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/15 text-primary text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
-              >
-                <Layers className="w-4 h-4" />
-                <span>Ver Logs Recorrentes & Auditoria ({allAuditLogs.length})</span>
-              </button>
-            </div>
           </div>
         </div>
       </main>
@@ -1244,6 +1199,132 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: HISTÓRICO DE PAGAMENTOS ARQUIVADOS COM PAGINAÇÃO (20 POR PÁGINA) */}
+      {/* ========================================================================= */}
+      {isHistoryModalOpen && (() => {
+        const archived = transactions.filter(t => t.status === 'approved' || t.status === 'rejected');
+        const itemsPerPage = 20;
+        const totalPages = Math.ceil(archived.length / itemsPerPage) || 1;
+        const startIndex = (historyPage - 1) * itemsPerPage;
+        const currentItems = archived.slice(startIndex, startIndex + itemsPerPage);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-7xl w-full p-6 sm:p-8 shadow-2xl flex flex-col max-h-[88vh] animate-in fade-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-outline-variant/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center border border-secondary/20">
+                    <span className="material-symbols-outlined text-xl">history</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white font-headline">Histórico de Pagamentos (Arquivados & Processados)</h3>
+                    <p className="text-xs text-stone-400">Total de {archived.length} transações registradas no histórico</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsHistoryModalOpen(false)}
+                  className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Table Container */}
+              <div className="flex-1 overflow-y-auto py-4">
+                {archived.length === 0 ? (
+                  <div className="text-center py-16 text-stone-500 text-xs">
+                    <span className="material-symbols-outlined text-4xl mb-2 text-stone-600">folder_open</span>
+                    <p>Nenhum pagamento arquivado no histórico ainda.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs whitespace-nowrap">
+                      <thead className="uppercase text-stone-500 font-label border-b border-outline-variant/10">
+                        <tr>
+                          <th className="pb-2.5 px-2.5">Data e Hora</th>
+                          <th className="pb-2.5 px-2.5">Referência</th>
+                          <th className="pb-2.5 px-2.5">Aluno (ID / Nome)</th>
+                          <th className="pb-2.5 px-2.5">Curso Assinado</th>
+                          <th className="pb-2.5 px-2.5">Valor</th>
+                          <th className="pb-2.5 px-2.5 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/5 font-body">
+                        {currentItems.map((tx) => (
+                          <tr key={tx.id} className="hover:bg-surface-container-highest/30 transition-colors">
+                            <td className="py-2.5 px-2.5 text-stone-300 font-mono text-[11px]">
+                              {tx.createdAt ? (tx.createdAt.toDate ? tx.createdAt.toDate().toLocaleString('pt-AO') : new Date(tx.createdAt).toLocaleString('pt-AO')) : '-'}
+                            </td>
+                            <td className="py-2.5 px-2.5">
+                              <span className="font-mono font-bold text-on-surface text-xs">{tx.referenceNumber || 'N/A'}</span>
+                            </td>
+                            <td className="py-2.5 px-2.5">
+                              <p className="font-medium text-on-surface text-xs">{tx.userName || 'Aluno'}</p>
+                              <p className="text-[10px] text-stone-500 font-mono">ID: {tx.userId || 'N/A'}</p>
+                            </td>
+                            <td className="py-2.5 px-2.5 text-stone-300 font-semibold text-xs">{tx.courseTitle || 'CFA Master'}</td>
+                            <td className="py-2.5 px-2.5 text-[#e9c349] font-bold font-mono text-xs">
+                              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(tx.amount || 0)}
+                            </td>
+                            <td className="py-2.5 px-2.5 text-right">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                tx.status === 'approved' 
+                                  ? 'bg-secondary/15 text-secondary border border-secondary/30'
+                                  : 'bg-error/15 text-error border border-error/30'
+                              }`}>
+                                {tx.status === 'approved' ? 'Aprovado (Arquivado)' : 'Recusado'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Pagination and Footer */}
+              <div className="pt-4 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="text-xs text-stone-400">
+                  Mostrando <strong className="text-white">{currentItems.length}</strong> de <strong className="text-white">{archived.length}</strong> registros (Página {historyPage} de {totalPages})
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={historyPage <= 1}
+                    onClick={() => setHistoryPage(p => Math.max(p - 1, 1))}
+                    className="px-3 py-1.5 bg-surface-container-highest disabled:opacity-40 text-xs font-bold text-white rounded-xl transition-colors cursor-pointer"
+                  >
+                    Anterior
+                  </button>
+                  <span className="text-xs text-stone-400 font-mono px-2">
+                    {historyPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={historyPage >= totalPages}
+                    onClick={() => setHistoryPage(p => Math.min(p + 1, totalPages))}
+                    className="px-3 py-1.5 bg-surface-container-highest disabled:opacity-40 text-xs font-bold text-white rounded-xl transition-colors cursor-pointer"
+                  >
+                    Próxima
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryModalOpen(false)}
+                    className="ml-4 px-5 py-2 bg-secondary text-surface text-xs font-bold rounded-xl hover:brightness-110 transition-all cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

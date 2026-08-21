@@ -205,19 +205,19 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
             </p>
 
             {/* ABAS HORIZONTAIS DE MÉTODOS */}
-            <div className="flex overflow-x-auto gap-3 mb-8 pb-2 scrollbar-hide">
+            <div className="flex flex-wrap gap-2 mb-6">
               {paymentMethods.map((method, index) => (
                 <button
                   key={method.id || index}
                   type="button"
                   onClick={() => setActiveMethodIndex(index)}
-                  className={`flex-shrink-0 px-5 py-3 rounded-xl text-sm font-bold transition-all border flex items-center gap-2 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5 cursor-pointer ${
                     activeMethodIndex === index 
                       ? 'bg-[#e9c349] text-black border-[#e9c349]' 
                       : 'bg-black/50 text-gray-400 border-gray-800 hover:border-gray-600 hover:text-white'
                   }`}
                 >
-                  {method.type === 'iban' ? <Building2 className="w-4 h-4" /> : method.type === 'multicaixa' ? <CreditCard className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
+                  {method.type === 'iban' ? <Building2 className="w-3.5 h-3.5" /> : method.type === 'multicaixa' ? <CreditCard className="w-3.5 h-3.5" /> : <Smartphone className="w-3.5 h-3.5" />}
                   {method.shortName || method.bankName}
                 </button>
               ))}
@@ -227,15 +227,16 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
             {activeMethod && (
               <div className="bg-black/80 border border-gray-700 p-6 rounded-2xl w-full shadow-inner">
                 <div className="mb-4">
-                  <h4 className="font-bold text-white uppercase text-sm md:text-base text-[#e9c349]">
-                    {activeMethod.bankName}
+
+                  <h4 className="font-bold text-white text-lg md:text-xl text-[#e9c349] tracking-wide">
+                    {activeMethod.holderName}
                   </h4>
-                  <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">{activeMethod.holderName}</p>
+                  <p className="text-xs text-stone-300 mt-1 font-medium">{activeMethod.bankName}</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#131313] p-4 rounded-xl border border-gray-800 gap-4">
-                  <span className="font-mono text-white font-bold text-base md:text-lg break-words w-full select-all">
-                    {activeMethod.accountNumber}
+                  <span className="font-mono text-white font-bold text-sm md:text-base break-words w-full select-all">
+                    {activeMethod.type === 'multicaixa' ? 'Entidade & Referência acima (Pronto para copiar)' : activeMethod.accountNumber}
                   </span>
                   <button 
                     type="button"
