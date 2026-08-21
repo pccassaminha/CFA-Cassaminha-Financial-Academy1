@@ -60,6 +60,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   // Estados do Curso
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [coverImage, setCoverImage] = useState('');
   const [price, setPrice] = useState<number>(0);
   const [isPublished, setIsPublished] = useState(false);
   const [modules, setModules] = useState<Module[]>([]);
@@ -88,6 +89,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           if (isMounted) {
             setTitle(data.title || '');
             setDescription(data.description || '');
+            setCoverImage(data.coverImage || data.imageUrl || data.image || '');
             setPrice(data.price || 0);
             setIsPublished(data.isPublished ?? (data.status === 'published'));
             if (data.modules && Array.isArray(data.modules)) {
@@ -95,94 +97,21 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             }
           }
         } else {
-          // Preenchimento com dados padrão estruturados de acordo com o ID
-          let defaultTitle = 'Novo Curso Sem Título';
-          let defaultDesc = 'Descrição do curso e programa de aprendizado.';
-          let defaultPrice = 50000;
-          let defaultModules: Module[] = [];
-
-          if (courseId === 'c1') {
-            defaultTitle = 'Formação de Traders Profissionais';
-            defaultDesc = 'Domine a leitura de fluxo institucional, Smart Money Concepts, e gestão de risco matemática para mercados globais.';
-            defaultPrice = 50000;
-            defaultModules = [
-              {
-                id: 'm1',
-                title: 'Módulo 1: Fundamentos da Soberania',
-                status: 'published',
-                lessons: [
-                  {
-                    id: 'l1',
-                    moduleId: 'm1',
-                    courseId: 'c1',
-                    title: '1.1 A Mentalidade do Operador Institucional',
-                    duration: '45:20',
-                    videoSource: 'youtube',
-                    videoData: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-                    videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-                    materials: 'https://drive.google.com/exemplo'
-                  },
-                  {
-                    id: 'l2',
-                    moduleId: 'm1',
-                    courseId: 'c1',
-                    title: '1.2 Estrutura do Mercado Cambial e Bancário',
-                    duration: '38:15',
-                    videoSource: 'wistia',
-                    videoData: 'abc123wistiaid',
-                    videoUrl: 'abc123wistiaid'
-                  }
-                ]
-              },
-              {
-                id: 'm2',
-                title: 'Módulo 2: Leitura de Fluxo & SMC Avançado',
-                status: 'published',
-                lessons: [
-                  {
-                    id: 'l3',
-                    moduleId: 'm2',
-                    courseId: 'c1',
-                    title: '2.1 Liquidez Institucional e Order Blocks',
-                    duration: '52:10',
-                    videoSource: 'wistia',
-                    videoData: 'smc456wistia'
-                  }
-                ]
-              }
-            ];
-          } else if (courseId === 'c2') {
-            defaultTitle = 'Fundamentos da Soberania Financeira';
-            defaultDesc = 'Princípios essenciais de alocação de ativos em moeda forte, reservas patrimoniais e descorrelação cambial.';
-            defaultPrice = 35000;
-            defaultModules = [
-              {
-                id: 'm_sob_1',
-                title: 'Módulo 1: Mentalidade & Gestão Patrimonial',
-                status: 'published',
-                lessons: []
-              }
-            ];
-          } else if (courseId === 'c3') {
-            defaultTitle = 'Mercado de Criptoativos e Finanças Descentralizadas';
-            defaultDesc = 'Entenda a tecnologia blockchain, custódia própria segura e estratégias de DeFi para proteção patrimonial.';
-            defaultPrice = 45000;
-            defaultModules = [
-              {
-                id: 'm_crip_1',
-                title: 'Módulo 1: Introdução a Blockchain e Bitcoin',
-                status: 'published',
-                lessons: []
-              }
-            ];
-          }
-
+          // Curso novo limpo pronto para o administrador cadastrar dados reais
           if (isMounted) {
-            setTitle(defaultTitle);
-            setDescription(defaultDesc);
-            setPrice(defaultPrice);
-            setIsPublished(true);
-            setModules(defaultModules);
+            setTitle('');
+            setDescription('');
+            setCoverImage('');
+            setPrice(0);
+            setIsPublished(false);
+            setModules([
+              {
+                id: `m_${Date.now()}`,
+                title: 'Módulo 1: Introdução',
+                status: 'published',
+                lessons: []
+              }
+            ]);
           }
         }
       } catch (error) {
@@ -207,6 +136,9 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
         await setDoc(courseRef, {
           title,
           description,
+          coverImage,
+          image: coverImage,
+          imageUrl: coverImage,
           price: Number(price),
           isPublished,
           status: isPublished ? 'published' : 'draft',
@@ -220,6 +152,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           await setDoc(settingsRef, {
             id: courseId,
             title,
+            coverImage,
+            image: coverImage,
             modules,
             updatedAt: serverTimestamp()
           }, { merge: true });
@@ -235,7 +169,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     }, 1000); // Salva 1 segundo após parar de digitar
 
     return () => clearTimeout(handler);
-  }, [title, description, price, isPublished, modules, courseId, isLoading]);
+  }, [title, description, coverImage, price, isPublished, modules, courseId, isLoading]);
 
   // 3. Alternar Publicação (Publicado / Rascunho)
   const togglePublish = async () => {
@@ -257,36 +191,105 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     }
   };
 
-  // 4. Criar Novo Módulo
-  const handleAddModule = () => {
-    const moduleTitle = prompt('Nome do novo módulo:');
-    if (!moduleTitle || !moduleTitle.trim()) return;
+  // 4. Modais de Gestão de Módulos e Aulas
+  const [moduleModal, setModuleModal] = useState<{
+    isOpen: boolean;
+    mode: 'create' | 'edit';
+    moduleId?: string;
+    title: string;
+  }>({
+    isOpen: false,
+    mode: 'create',
+    title: ''
+  });
 
-    const newMod: Module = {
-      id: `m_${Date.now()}`,
-      courseId,
-      title: moduleTitle.trim(),
-      status: 'published',
-      lessons: []
-    };
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    type: 'module' | 'lesson';
+    moduleId?: string;
+    lessonId?: string;
+    itemName: string;
+  }>({
+    isOpen: false,
+    type: 'module',
+    itemName: ''
+  });
 
-    setModules([...modules, newMod]);
+  // Criar ou Editar Módulo
+  const handleOpenCreateModule = () => {
+    setModuleModal({
+      isOpen: true,
+      mode: 'create',
+      title: `Módulo ${modules.length + 1}: `
+    });
   };
 
-  // 5. Editar Nome do Módulo
-  const handleEditModule = (moduleId: string, currentTitle: string) => {
-    const newTitle = prompt('Editar nome do módulo:', currentTitle);
-    if (!newTitle || !newTitle.trim()) return;
-
-    setModules(modules.map(m => m.id === moduleId ? { ...m, title: newTitle.trim() } : m));
+  const handleOpenEditModule = (moduleId: string, currentTitle: string) => {
+    setModuleModal({
+      isOpen: true,
+      mode: 'edit',
+      moduleId,
+      title: currentTitle
+    });
   };
 
-  // 6. Apagar Módulo com Confirmação de Segurança
-  const handleDeleteModule = (moduleId: string) => {
-    const confirmDelete = window.confirm("Tem certeza? Isso apagará o módulo e todas as aulas associadas a ele.");
-    if (!confirmDelete) return;
+  const handleSaveModule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!moduleModal.title.trim()) return;
 
-    setModules(modules.filter(m => m.id !== moduleId));
+    if (moduleModal.mode === 'create') {
+      const newMod: Module = {
+        id: `m_${Date.now()}`,
+        courseId,
+        title: moduleModal.title.trim(),
+        status: 'published',
+        lessons: []
+      };
+      setModules([...modules, newMod]);
+    } else if (moduleModal.moduleId) {
+      setModules(modules.map(m => m.id === moduleModal.moduleId ? { ...m, title: moduleModal.title.trim() } : m));
+    }
+
+    setModuleModal({ isOpen: false, mode: 'create', title: '' });
+  };
+
+  // Solicitar Exclusão de Módulo
+  const promptDeleteModule = (moduleId: string, title: string) => {
+    setDeleteConfirmModal({
+      isOpen: true,
+      type: 'module',
+      moduleId,
+      itemName: title
+    });
+  };
+
+  // Solicitar Exclusão de Aula
+  const promptDeleteLesson = (moduleId: string, lessonId: string, title: string) => {
+    setDeleteConfirmModal({
+      isOpen: true,
+      type: 'lesson',
+      moduleId,
+      lessonId,
+      itemName: title
+    });
+  };
+
+  // Executar Exclusão Confirmada
+  const handleConfirmItemDelete = () => {
+    if (deleteConfirmModal.type === 'module' && deleteConfirmModal.moduleId) {
+      setModules(modules.filter(m => m.id !== deleteConfirmModal.moduleId));
+    } else if (deleteConfirmModal.type === 'lesson' && deleteConfirmModal.moduleId && deleteConfirmModal.lessonId) {
+      setModules(modules.map(mod => {
+        if (mod.id === deleteConfirmModal.moduleId) {
+          return {
+            ...mod,
+            lessons: mod.lessons.filter(l => l.id !== deleteConfirmModal.lessonId)
+          };
+        }
+        return mod;
+      }));
+    }
+    setDeleteConfirmModal({ isOpen: false, type: 'module', itemName: '' });
   };
 
   // 7. Modal de Aulas
@@ -300,19 +303,6 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     setSelectedModuleId(moduleId);
     setEditingLesson(lesson);
     setIsLessonModalOpen(true);
-  };
-
-  const handleDeleteLesson = (moduleId: string, lessonId: string) => {
-    if (!window.confirm('Excluir esta aula?')) return;
-    setModules(modules.map(mod => {
-      if (mod.id === moduleId) {
-        return {
-          ...mod,
-          lessons: mod.lessons.filter(l => l.id !== lessonId)
-        };
-      }
-      return mod;
-    }));
   };
 
   const handleSaveLesson = (lessonData: {
@@ -420,27 +410,59 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
 
       {/* Grid de Configurações Principais */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-        <div className="lg:col-span-2 space-y-5 bg-[#131313] p-6 rounded-2xl border border-gray-800 shadow-xl">
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Título do Curso</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Formação de Traders Profissionais"
-              className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-base font-semibold"
-            />
+        <div className="lg:col-span-2 space-y-6">
+          <div className="space-y-5 bg-[#131313] p-6 rounded-2xl border border-gray-800 shadow-xl">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Título do Curso</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Formação de Traders Profissionais"
+                className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-base font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Descrição Completa</label>
+              <textarea
+                rows={4}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Descreva o que o aluno vai aprender..."
+                className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-sm resize-none leading-relaxed"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Descrição Completa</label>
-            <textarea
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descreva o que o aluno vai aprender..."
-              className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-sm resize-none leading-relaxed"
-            />
+          {/* Capa do Curso (Thumbnail) */}
+          <div className="bg-[#131313] p-6 rounded-2xl border border-gray-800 space-y-4 shadow-xl">
+            <h3 className="text-lg font-bold text-[#e9c349] font-headline">Capa do Curso (Thumbnail)</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">Link da Imagem (Postimage ou Imgur)</label>
+              <input
+                type="url"
+                value={coverImage}
+                onChange={(e) => setCoverImage(e.target.value)}
+                placeholder="https://i.postimg.cc/..."
+                className="w-full bg-black border border-gray-700 text-white rounded-xl p-3 focus:border-[#e9c349] outline-none text-sm font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Hospede a imagem no Postimage, copie o "Link Direto" e cole aqui.
+              </p>
+            </div>
+
+            {/* Pré-visualização da Capa */}
+            {coverImage && (
+              <div className="w-full h-40 rounded-xl overflow-hidden border border-gray-800 mt-3 relative bg-black">
+                <img 
+                  src={coverImage} 
+                  alt="Pré-visualização da Capa" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -471,7 +493,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
 
           <div className="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-400 flex items-center gap-2">
             <span>💡</span>
-            <span>As alterações de preço e dados salvam automaticamente em tempo real.</span>
+            <span>As alterações de capa, preço e dados salvam automaticamente em tempo real.</span>
           </div>
         </div>
       </div>
@@ -486,7 +508,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           <p className="text-xs text-gray-400 mt-1">Organize os tópicos e gerencie os vídeos hospedados no YouTube ou Wistia.</p>
         </div>
         <button
-          onClick={handleAddModule}
+          id="btn-add-module"
+          onClick={handleOpenCreateModule}
           className="bg-[#e9c349] text-black px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
         >
           <Plus className="w-4 h-4" /> Novo Módulo
@@ -499,6 +522,12 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             <BookOpen className="w-10 h-10 mx-auto mb-3 text-gray-600 opacity-60" />
             <p className="text-base font-semibold text-gray-300">Nenhum módulo criado ainda.</p>
             <p className="text-xs text-gray-500 mt-1">Clique em "Novo Módulo" acima para estruturar a grade curricular.</p>
+            <button
+              onClick={handleOpenCreateModule}
+              className="mt-4 px-4 py-2 bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30 rounded-xl text-xs font-bold hover:bg-[#e9c349]/20 transition-all cursor-pointer"
+            >
+              + Adicionar Primeiro Módulo
+            </button>
           </div>
         ) : (
           modules.map((mod, index) => (
@@ -517,20 +546,23 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
 
                 <div className="flex items-center gap-2">
                   <button
+                    id={`btn-add-lesson-mod-${mod.id}`}
                     onClick={() => openAddLesson(mod.id)}
                     className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" /> Adicionar Aula
                   </button>
                   <button
-                    onClick={() => handleEditModule(mod.id, mod.title)}
+                    id={`btn-edit-mod-${mod.id}`}
+                    onClick={() => handleOpenEditModule(mod.id, mod.title)}
                     className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
                     title="Editar Título do Módulo"
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDeleteModule(mod.id)}
+                    id={`btn-delete-mod-${mod.id}`}
+                    onClick={() => promptDeleteModule(mod.id, mod.title)}
                     className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                     title="Apagar Módulo"
                   >
@@ -588,6 +620,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
 
                         <div className="flex items-center gap-2">
                           <button
+                            id={`btn-edit-lesson-${lesson.id}`}
                             onClick={() => openEditLesson(mod.id, lesson)}
                             className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
                             title="Editar Aula"
@@ -595,7 +628,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteLesson(mod.id, lesson.id)}
+                            id={`btn-delete-lesson-${lesson.id}`}
+                            onClick={() => promptDeleteLesson(mod.id, lesson.id, lesson.title)}
                             className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                             title="Excluir Aula"
                           >
@@ -611,6 +645,86 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           ))
         )}
       </div>
+
+      {/* Modal de Módulo (Criar / Renomear) */}
+      {moduleModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-gray-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-white mb-1 font-headline">
+              {moduleModal.mode === 'create' ? 'Novo Módulo' : 'Editar Módulo'}
+            </h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Informe o título e organização dos tópicos deste módulo.
+            </p>
+
+            <form onSubmit={handleSaveModule} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  Título do Módulo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={moduleModal.title}
+                  onChange={(e) => setModuleModal({ ...moduleModal, title: e.target.value })}
+                  placeholder="Ex: Módulo 1: Fundamentos e Estrutura"
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModuleModal({ ...moduleModal, isOpen: false })}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-5 py-2 rounded-xl font-bold text-xs transition-colors shadow-md"
+                >
+                  {moduleModal.mode === 'create' ? 'Criar Módulo' : 'Salvar Título'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão (Módulo / Aula) */}
+      {deleteConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-red-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-white mb-2 font-headline">
+              Excluir {deleteConfirmModal.type === 'module' ? 'Módulo' : 'Aula'}?
+            </h3>
+            <p className="text-xs text-gray-300 mb-4">
+              Tem certeza que deseja excluir "{deleteConfirmModal.itemName}"?
+              {deleteConfirmModal.type === 'module' && ' Todas as aulas deste módulo também serão excluídas.'}
+            </p>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmModal({ ...deleteConfirmModal, isOpen: false })}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmItemDelete}
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-xl font-bold text-xs transition-colors shadow-md flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Aula */}
       <LessonModal

@@ -64,7 +64,11 @@ export default function PurchaseConfirmation() {
             </div>
             <div>
               <p className="text-[10px] uppercase text-stone-400 font-label">Valor</p>
-              <p className="font-bold text-sm text-primary">Kz 150.000</p>
+              <p className="font-bold text-sm text-primary">
+                {transaction?.amount && Number(transaction.amount) > 0 
+                  ? `Kz ${Number(transaction.amount).toLocaleString('pt-AO')}` 
+                  : 'Registrado'}
+              </p>
             </div>
           </div>
         </div>

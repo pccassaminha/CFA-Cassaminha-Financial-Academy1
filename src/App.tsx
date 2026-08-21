@@ -156,9 +156,13 @@ export default function App() {
             path="/" 
             element={
               !user ? <Login /> : (
-                (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Navigate to="/dashboard" replace /> :
-                effectiveStatus === 'active' ? <Navigate to="/library" replace /> :
-                <Navigate to="/pending" replace />
+                (effectiveRole === 'admin' || effectiveRole === 'producer') ? (
+                  (effectiveStatus === 'pending_approval' || (userProfile?.isApproved === false && !isAdminEmail))
+                    ? <Navigate to="/pending" replace />
+                    : <Navigate to="/dashboard" replace />
+                ) : (
+                  <Navigate to="/library" replace />
+                )
               )
             } 
           />
@@ -189,23 +193,30 @@ export default function App() {
           
           <Route 
             path="/library" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer' || effectiveStatus === 'active') ? <StudentPortal /> : <Navigate to="/" replace />} 
+            element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
           />
           <Route 
             path="/portal" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer' || effectiveStatus === 'active') ? <StudentPortal /> : <Navigate to="/" replace />} 
+            element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
           />
           <Route 
             path="/classroom" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer' || effectiveStatus === 'active') ? <VideoLibrary /> : <Navigate to="/" replace />} 
+            element={
+              user && (
+                effectiveRole === 'admin' || 
+                effectiveRole === 'producer' || 
+                (userProfile?.enrolledCourses && userProfile.enrolledCourses.length > 0) || 
+                effectiveStatus === 'active'
+              ) ? <VideoLibrary /> : <Navigate to="/library" replace />
+            } 
           />
           <Route 
             path="/pending" 
             element={
               user ? (
-                (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Navigate to="/dashboard" replace /> :
-                effectiveStatus === 'active' ? <Navigate to="/library" replace /> :
-                <PendingSubscription />
+                ((effectiveRole === 'admin' || effectiveRole === 'producer') && (effectiveStatus === 'pending_approval' || userProfile?.isApproved === false && !isAdminEmail)) 
+                  ? <PendingSubscription /> 
+                  : <Navigate to="/" replace />
               ) : <Navigate to="/" replace />
             } 
           />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { logout, auth, db } from '../firebase';
 import WistiaPlayer from '../components/WistiaPlayer';
@@ -40,34 +40,15 @@ interface UserProfile {
   lessonViews?: Record<string, number>;
 }
 
-// Fallback course data
-const defaultCourse: Course = {
-  id: 'c1',
-  title: 'Formação de Traders Profissionais',
-  modules: [
-    {
-      id: 'm1',
-      title: 'Módulo 1: Fundamentos da Soberania',
-      status: 'published',
-      lessons: [
-        { id: 'l1', title: '1.1 A Mentalidade do Operador Institucional', duration: '45:20', videoUrl: 'https://vimeo.com/123456', materials: 'https://link-para-slides.com' },
-        { id: 'l2', title: '1.2 Estrutura do Mercado Cambial', duration: '32:15', videoUrl: '', materials: '' }
-      ]
-    },
-    {
-      id: 'm2',
-      title: 'Módulo 2: Análise Macroeconômica',
-      status: 'draft',
-      lessons: []
-    }
-  ]
-};
+interface VideoLibraryProps {
+  courseId?: string;
+}
 
-export default function VideoLibrary() {
+export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   const navigate = useNavigate();
   
   // Real-time states
-  const [course, setCourse] = useState<Course>(defaultCourse);
+  const [course, setCourse] = useState<Course>({ id: '', title: '', modules: [] });
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdminSimulating, setIsAdminSimulating] = useState(false);
@@ -86,9 +67,7 @@ export default function VideoLibrary() {
 
   // Comment section
   const [comment, setComment] = useState('');
-  const [commentsByLesson, setCommentsByLesson] = useState<Record<string, Array<{ author: string; text: string }>>>({
-    'l1': [{ author: 'João S.', text: 'Excelente introdução! Mudou completamente minha visão sobre liquidez.' }]
-  });
+  const [commentsByLesson, setCommentsByLesson] = useState<Record<string, Array<{ author: string; text: string }>>>({});
 
   const showNotification = (msg: string) => {
     setToastMessage(msg);
@@ -128,29 +107,63 @@ export default function VideoLibrary() {
 
   // Monitor Course collection in Real-Time
   useEffect(() => {
-    const courseRef = doc(db, 'settings', 'course');
-    const unsubscribeCourse = onSnapshot(courseRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as Course;
-        setCourse(data);
-        
-        // Auto-select first lesson if none selected yet
-        if (data.modules && data.modules.length > 0) {
-          const publishedModules = data.modules.filter(m => m.status === 'published');
-          const modulesToSearch = publishedModules.length > 0 ? publishedModules : data.modules;
-          const firstModule = modulesToSearch[0];
-          if (firstModule && firstModule.lessons && firstModule.lessons.length > 0) {
-            setActiveLesson(firstModule.lessons[0]);
-            setActiveModuleId(firstModule.id);
+    let unsubscribeCourse = () => {};
+
+    if (courseId) {
+      const targetRef = doc(db, 'courses', courseId);
+      unsubscribeCourse = onSnapshot(targetRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as Course;
+          setCourse({
+            id: snap.id,
+            title: data.title || 'Curso CFA',
+            modules: Array.isArray(data.modules) ? data.modules : []
+          });
+          
+          // Auto-select first lesson if none selected yet
+          if (data.modules && data.modules.length > 0) {
+            const publishedModules = data.modules.filter(m => m.status === 'published');
+            const modulesToSearch = publishedModules.length > 0 ? publishedModules : data.modules;
+            const firstModule = modulesToSearch[0];
+            if (firstModule && firstModule.lessons && firstModule.lessons.length > 0) {
+              setActiveLesson(firstModule.lessons[0]);
+              setActiveModuleId(firstModule.id);
+            }
           }
         }
-      }
-    }, (err) => {
-      console.error("Failed to fetch course real-time snapshot:", err);
-    });
+      }, (err) => {
+        console.error("Erro ao buscar dados do curso em tempo real:", err);
+      });
+    } else {
+      // If no courseId in URL, query the courses collection for the first available course
+      const coursesRef = collection(db, 'courses');
+      unsubscribeCourse = onSnapshot(coursesRef, (snap) => {
+        if (!snap.empty) {
+          const firstDoc = snap.docs[0];
+          const data = firstDoc.data() as Course;
+          setCourse({
+            id: firstDoc.id,
+            title: data.title || 'Curso CFA',
+            modules: Array.isArray(data.modules) ? data.modules : []
+          });
+
+          if (data.modules && data.modules.length > 0) {
+            const publishedModules = data.modules.filter(m => m.status === 'published');
+            const modulesToSearch = publishedModules.length > 0 ? publishedModules : data.modules;
+            const firstModule = modulesToSearch[0];
+            if (firstModule && firstModule.lessons && firstModule.lessons.length > 0) {
+              setActiveLesson(firstModule.lessons[0]);
+              setActiveModuleId(firstModule.id);
+            }
+          }
+        }
+      }, (err) => {
+        console.error("Erro ao buscar primeiro curso:", err);
+      });
+    }
 
     return () => unsubscribeCourse();
-  }, []);
+  }, [courseId]);
 
   // Record Lesson view automatically on active lesson selection
   useEffect(() => {

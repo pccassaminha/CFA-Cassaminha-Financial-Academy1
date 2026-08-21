@@ -19,11 +19,8 @@ export default function SalesPage() {
             <Link to="/" className="text-stone-300 hover:text-[#e9c349] font-bold text-sm px-3 py-2 transition-colors">
               Entrar
             </Link>
-            <Link to="/" state={{ register: true }} className="text-stone-300 hover:text-[#e9c349] font-bold text-sm px-3 py-2 transition-colors hidden sm:inline-block">
+            <Link to="/" state={{ register: true }} className="bg-[#e9c349] text-[#3c2f00] px-5 py-2.5 rounded-xl font-black text-sm hover:opacity-80 transition-opacity active:scale-95 duration-100 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
               Criar Conta
-            </Link>
-            <Link to="/checkout" className="bg-[#e9c349] text-[#3c2f00] px-5 py-2.5 rounded-xl font-black text-sm hover:opacity-80 transition-opacity active:scale-95 duration-100 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
-              Matricular-se
             </Link>
           </div>
         </div>
@@ -48,15 +45,14 @@ export default function SalesPage() {
               <p className="text-on-surface-variant text-lg md:text-xl max-w-xl font-body leading-relaxed">
                 Domine a arte da importação, investimentos e competências corporativas de alta performance. Um ecossistema prático para expandir seus negócios globais.
               </p>
-              <div className="flex flex-col sm:flex-row gap-6 pt-4">
-                <Link to="/checkout" className="bg-primary text-on-primary px-8 py-4 rounded-xl font-bold text-lg text-center hover:opacity-90 transition-all flex items-center justify-center gap-3">
-                  Matricular-se Agora
+              <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
+                <Link to="/" state={{ register: true }} className="w-full sm:w-auto bg-[#e9c349] text-[#3c2f00] px-8 py-4 rounded-xl font-bold text-lg text-center hover:opacity-90 transition-all flex items-center justify-center gap-3 shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
+                  Criar Conta de Aluno
                   <span className="material-symbols-outlined">arrow_forward</span>
                 </Link>
-                <div className="flex flex-col justify-center">
-                  <span className="text-on-surface-variant text-xs uppercase tracking-widest mb-1 font-label">Investimento Único</span>
-                  <span className="text-primary font-headline text-2xl font-bold tracking-tight">Kz 150.000</span>
-                </div>
+                <Link to="/" className="w-full sm:w-auto px-6 py-4 rounded-xl font-bold text-sm text-stone-300 hover:text-white bg-stone-800/80 hover:bg-stone-800 border border-stone-700/50 text-center transition-all">
+                  Já tenho conta (Entrar)
+                </Link>
               </div>
             </div>
             {/* Video/Image Presentation Frame */}
@@ -170,30 +166,28 @@ export default function SalesPage() {
           </div>
         </section>
 
-        {/* Final CTA / Value Section */}
-        <section className="max-w-4xl mx-auto px-6 py-32 text-center" id="checkout">
+        {/* Final CTA / Access Section */}
+        <section className="max-w-4xl mx-auto px-6 py-32 text-center" id="acesso">
           <div className="bg-surface-container p-12 rounded-[2rem] border border-outline-variant/20 relative overflow-hidden">
             <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-primary/5 blur-[100px] rounded-full"></div>
-            <h3 className="font-headline text-4xl font-extrabold text-on-surface mb-4">Inicie Sua Jornada Hoje</h3>
-            <p className="text-on-surface-variant mb-10 max-w-lg mx-auto">Vagas limitadas por turma para garantir mentoria e acompanhamento de alta qualidade.</p>
-            <div className="inline-block mb-12 p-1 rounded-2xl bg-surface-container-highest">
-              <div className="px-8 py-4 bg-surface-container rounded-xl border border-outline-variant/10">
-                <span className="block text-on-surface-variant text-xs uppercase tracking-widest mb-1">Total do Investimento</span>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-4xl font-headline font-bold text-primary">Kz 150.000</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-4 max-w-sm mx-auto">
-              <Link to="/checkout" className="w-full bg-primary text-on-primary py-5 rounded-xl font-bold text-xl hover:shadow-[0_0_20px_rgba(233,195,73,0.3)] transition-all">
-                Matricular-se Agora
+            <h3 className="font-headline text-4xl font-extrabold text-on-surface mb-4">Inicie Sua Jornada na CFA</h3>
+            <p className="text-on-surface-variant mb-10 max-w-lg mx-auto">Cadastre-se na plataforma para explorar os cursos, formações práticas e expandir seus conhecimentos.</p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto justify-center mb-6">
+              <Link to="/" state={{ register: true }} className="w-full sm:w-auto px-8 bg-[#e9c349] text-[#3c2f00] py-4 rounded-xl font-black text-lg hover:opacity-90 transition-all shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
+                Criar Conta de Aluno
               </Link>
-              <p className="text-on-surface-variant text-xs font-label">Pagamento Seguro via Multicaixa & Transferência</p>
+              <Link to="/" className="w-full sm:w-auto px-8 bg-stone-800 text-stone-200 border border-stone-700 py-4 rounded-xl font-bold text-lg hover:bg-stone-700 transition-all">
+                Já sou Aluno (Entrar)
+              </Link>
             </div>
+            
+            <p className="text-stone-400 text-xs font-label">Acesse suas aulas de forma segura e personalizada</p>
+
             <div className="mt-12 flex flex-wrap justify-center gap-8 opacity-50 grayscale hover:grayscale-0 transition-all">
               <span className="text-xs font-bold tracking-tighter flex items-center gap-2"><span className="material-symbols-outlined text-sm">lock</span> SSL SECURE</span>
-              <span className="text-xs font-bold tracking-tighter flex items-center gap-2"><span className="material-symbols-outlined text-sm">verified</span> EMISSÃO DE CERTIFICADO</span>
-              <span className="text-xs font-bold tracking-tighter flex items-center gap-2"><span className="material-symbols-outlined text-sm">calendar_today</span> 12 MESES DE ACESSO</span>
+              <span className="text-xs font-bold tracking-tighter flex items-center gap-2"><span className="material-symbols-outlined text-sm">verified</span> CERTIFICADO DE CONCLUSÃO</span>
+              <span className="text-xs font-bold tracking-tighter flex items-center gap-2"><span className="material-symbols-outlined text-sm">devices</span> MULTIPLATAFORMA</span>
             </div>
           </div>
         </section>

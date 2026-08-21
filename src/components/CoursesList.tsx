@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, BookOpen, Layers } from 'lucide-react';
-import { collection, getDocs, doc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Plus, Edit, Trash2, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign } from 'lucide-react';
+import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface CourseItem {
@@ -10,65 +10,157 @@ interface CourseItem {
   status: 'published' | 'draft';
   modulesCount: number;
   description?: string;
+  coverImage?: string;
 }
 
 interface CoursesListProps {
   onSelectCourse: (courseId: string) => void;
 }
 
-const defaultCourses: CourseItem[] = [
-  { id: 'c1', title: 'Formação de Traders Profissionais', price: 50000, status: 'published', modulesCount: 2 },
-  { id: 'c2', title: 'Fundamentos da Soberania Financeira', price: 35000, status: 'draft', modulesCount: 1 },
-  { id: 'c3', title: 'Mercado de Criptoativos e Finanças Descentralizadas', price: 45000, status: 'published', modulesCount: 1 },
-];
-
 export default function CoursesList({ onSelectCourse }: CoursesListProps) {
-  const [courses, setCourses] = useState<CourseItem[]>(defaultCourses);
-  const [loading, setLoading] = useState(false);
+  const [courses, setCourses] = useState<CourseItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Estados dos Modais
+  const [deletingCourse, setDeletingCourse] = useState<CourseItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [editingCourse, setEditingCourse] = useState<CourseItem | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    price: 0,
+    description: '',
+    coverImage: '',
+    isPublished: false
+  });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const [isNewCourseModalOpen, setIsNewCourseModalOpen] = useState(false);
+  const [newCourseForm, setNewCourseForm] = useState({
+    title: '',
+    price: 50000,
+    description: '',
+    coverImage: '',
+    isPublished: false
+  });
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Notificações Toast
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
 
   useEffect(() => {
-    let isMounted = true;
-    const fetchCourses = async () => {
-      setLoading(true);
-      try {
-        const querySnapshot = await getDocs(collection(db, 'courses'));
-        if (!querySnapshot.empty) {
-          const list: CourseItem[] = [];
-          querySnapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            list.push({
-              id: docSnap.id,
-              title: data.title || 'Curso Sem Título',
-              price: Number(data.price) || 0,
-              status: (data.isPublished ?? data.status === 'published') ? 'published' : 'draft',
-              modulesCount: Array.isArray(data.modules) ? data.modules.length : (data.modulesCount || 0),
-              description: data.description || ''
-            });
-          });
-          if (isMounted) setCourses(list);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar lista de cursos:", err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
+    const unsubCourses = onSnapshot(collection(db, 'courses'), (querySnapshot) => {
+      const list: CourseItem[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          title: data.title || 'Curso Sem Título',
+          price: Number(data.price) || 0,
+          status: (data.isPublished ?? data.status === 'published') ? 'published' : 'draft',
+          modulesCount: Array.isArray(data.modules) ? data.modules.length : (data.modulesCount || 0),
+          description: data.description || '',
+          coverImage: data.coverImage || data.imageUrl || data.image || ''
+        });
+      });
+      setCourses(list);
+      setLoading(false);
+    }, (err) => {
+      console.error("Erro ao carregar lista de cursos:", err);
+      setLoading(false);
+    });
 
-    fetchCourses();
-    return () => { isMounted = false; };
+    return () => unsubCourses();
   }, []);
 
-  const handleCreateNewCourse = async () => {
-    const courseTitle = prompt('Título da nova formação / curso:');
-    if (!courseTitle || !courseTitle.trim()) return;
+  // Abrir Modal de Exclusão
+  const handleOpenDeleteModal = (course: CourseItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletingCourse(course);
+  };
+
+  // Confirmar Exclusão no Firestore
+  const handleConfirmDelete = async () => {
+    if (!deletingCourse) return;
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'courses', deletingCourse.id));
+      showToast(`O curso "${deletingCourse.title}" foi excluído com sucesso!`, 'success');
+      setDeletingCourse(null);
+    } catch (err: any) {
+      console.error("Erro ao deletar curso:", err);
+      showToast('Erro ao excluir curso do banco de dados.', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Abrir Modal de Edição Rápida
+  const handleOpenEditModal = (course: CourseItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingCourse(course);
+    setEditForm({
+      title: course.title,
+      price: course.price,
+      description: course.description || '',
+      coverImage: course.coverImage || '',
+      isPublished: course.status === 'published'
+    });
+  };
+
+  // Salvar Edição Rápida
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCourse || !editForm.title.trim()) return;
+    setIsSavingEdit(true);
+
+    try {
+      const courseRef = doc(db, 'courses', editingCourse.id);
+      await updateDoc(courseRef, {
+        title: editForm.title.trim(),
+        price: Number(editForm.price) || 0,
+        description: editForm.description.trim(),
+        coverImage: editForm.coverImage.trim(),
+        image: editForm.coverImage.trim(),
+        imageUrl: editForm.coverImage.trim(),
+        isPublished: editForm.isPublished,
+        status: editForm.isPublished ? 'published' : 'draft',
+        updatedAt: serverTimestamp()
+      });
+
+      showToast(`Curso "${editForm.title.trim()}" atualizado com sucesso!`, 'success');
+      setEditingCourse(null);
+    } catch (error: any) {
+      console.error("Erro ao atualizar curso:", error);
+      showToast('Erro ao salvar dados do curso.', 'error');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Criar Novo Curso
+  const handleCreateNewCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCourseForm.title.trim()) return;
+    setIsCreating(true);
 
     const newId = `c_${Date.now()}`;
     const newCourseData = {
-      title: courseTitle.trim(),
-      description: 'Descrição do curso e estrutura de aprendizado.',
-      price: 50000,
-      isPublished: false,
-      status: 'draft',
+      title: newCourseForm.title.trim(),
+      description: newCourseForm.description.trim() || 'Descrição da formação e estrutura prática.',
+      price: Number(newCourseForm.price) || 0,
+      coverImage: newCourseForm.coverImage.trim(),
+      image: newCourseForm.coverImage.trim(),
+      imageUrl: newCourseForm.coverImage.trim(),
+      isPublished: newCourseForm.isPublished,
+      status: newCourseForm.isPublished ? 'published' : 'draft',
       modules: [
         {
           id: `m_${Date.now()}`,
@@ -83,39 +175,40 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
 
     try {
       await setDoc(doc(db, 'courses', newId), newCourseData);
-      setCourses(prev => [
-        {
-          id: newId,
-          title: courseTitle.trim(),
-          price: 50000,
-          status: 'draft',
-          modulesCount: 1
-        },
-        ...prev
-      ]);
+      showToast(`Novo curso "${newCourseForm.title.trim()}" criado com sucesso!`, 'success');
+      setIsNewCourseModalOpen(false);
+      setNewCourseForm({
+        title: '',
+        price: 50000,
+        description: '',
+        coverImage: '',
+        isPublished: false
+      });
+      // Abrir direto o editor para o criador adicionar aulas
       onSelectCourse(newId);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao criar curso:", error);
-      // Fallback local
-      onSelectCourse(newId);
+      showToast('Erro ao criar curso no banco de dados.', 'error');
+    } finally {
+      setIsCreating(false);
     }
-  };
-
-  const handleDeleteCourse = async (courseId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const confirmed = window.confirm("Tem certeza que deseja excluir este curso e toda a sua grade?");
-    if (!confirmed) return;
-
-    try {
-      await deleteDoc(doc(db, 'courses', courseId));
-    } catch (err) {
-      console.error("Erro ao deletar curso:", err);
-    }
-    setCourses(prev => prev.filter(c => c.id !== courseId));
   };
 
   return (
     <div className="p-6 lg:p-10 text-white max-w-7xl mx-auto">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed top-6 right-6 z-50 px-5 py-3.5 rounded-xl text-sm font-semibold shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-200 border ${
+          toastMessage.type === 'success' 
+            ? 'bg-[#18231c] text-emerald-400 border-emerald-500/40' 
+            : 'bg-[#2b1616] text-red-400 border-red-500/40'
+        }`}>
+          {toastMessage.type === 'success' ? <Check className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+          <span>{toastMessage.text}</span>
+        </div>
+      )}
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-10 pb-6 border-b border-gray-800">
         <div>
           <div className="flex items-center gap-2 text-[#e9c349] mb-1">
@@ -126,7 +219,8 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
           <p className="text-xs text-gray-400 mt-1">Gerencie os cursos, módulos, aulas em vídeo (Wistia/YouTube) e preços da academia.</p>
         </div>
         <button 
-          onClick={handleCreateNewCourse}
+          id="btn-new-course-header"
+          onClick={() => setIsNewCourseModalOpen(true)}
           className="bg-[#e9c349] text-black px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95 self-start sm:self-auto"
         >
           <Plus className="w-5 h-5" />
@@ -134,66 +228,431 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.map(course => (
-          <div 
-            key={course.id} 
-            className="bg-[#131313] border border-gray-800 rounded-2xl p-6 hover:border-[#e9c349]/50 transition-all shadow-xl flex flex-col justify-between group"
+      {loading ? (
+        <div className="py-20 text-center text-gray-500">
+          <p className="text-sm animate-pulse">Carregando cursos cadastrados...</p>
+        </div>
+      ) : courses.length === 0 ? (
+        <div className="bg-[#131313] border border-dashed border-gray-800 rounded-3xl p-12 text-center max-w-xl mx-auto my-8">
+          <div className="w-16 h-16 rounded-full bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2">Nenhum Curso Cadastrado</h3>
+          <p className="text-sm text-gray-400 mb-6">
+            Você ainda não possui cursos cadastrados. Clique no botão abaixo para adicionar sua primeira formação.
+          </p>
+          <button
+            id="btn-new-course-empty"
+            onClick={() => setIsNewCourseModalOpen(true)}
+            className="bg-[#e9c349] text-black px-6 py-3 rounded-xl font-bold text-sm inline-flex items-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
           >
-            <div>
-              <div className="flex justify-between items-start mb-4">
-                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md tracking-wider uppercase ${
-                  course.status === 'published' 
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
-                    : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
-                }`}>
-                  {course.status === 'published' ? 'PUBLICADO' : 'RASCUNHO'}
-                </span>
-                <div className="flex gap-1 text-gray-400">
-                  <button 
-                    onClick={() => onSelectCourse(course.id)}
-                    className="hover:text-[#e9c349] p-1.5 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
-                    title="Editar Curso"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={(e) => handleDeleteCourse(course.id, e)}
-                    className="hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
-                    title="Excluir Curso"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+            <Plus className="w-5 h-5" />
+            Cadastrar Primeiro Curso
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {courses.map((course, idx) => (
+            <div 
+              key={course.id} 
+              id={`course-card-${course.id}`}
+              className="bg-[#131313] border border-gray-800 rounded-2xl p-6 hover:border-[#e9c349]/50 transition-all shadow-xl flex flex-col justify-between group"
+            >
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md tracking-wider uppercase ${
+                    course.status === 'published' 
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+                  }`}>
+                    {course.status === 'published' ? 'PUBLICADO' : 'RASCUNHO'}
+                  </span>
+                  
+                  {/* Botões de Ação do Card: Editar e Eliminar */}
+                  <div className="flex gap-1.5 text-gray-400">
+                    <button 
+                      id={`btn-edit-course-${course.id}`}
+                      onClick={(e) => handleOpenEditModal(course, e)}
+                      className="hover:text-[#e9c349] p-2 rounded-lg hover:bg-gray-800 border border-transparent hover:border-gray-700 transition-all cursor-pointer text-gray-300"
+                      title="Editar Configurações do Curso"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button 
+                      id={`btn-delete-course-${course.id}`}
+                      onClick={(e) => handleOpenDeleteModal(course, e)}
+                      className="hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all cursor-pointer text-gray-300"
+                      title="Excluir Curso"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Imagem de Capa se existir */}
+                {course.coverImage && (
+                  <div className="w-full h-36 rounded-xl overflow-hidden mb-4 bg-black/40 border border-gray-800/80">
+                    <img 
+                      src={course.coverImage} 
+                      alt={course.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
+                
+                <h3 
+                  onClick={() => onSelectCourse(course.id)}
+                  className="text-xl font-bold mb-2 text-white group-hover:text-[#e9c349] transition-colors line-clamp-2 font-headline cursor-pointer"
+                >
+                  {course.title}
+                </h3>
+
+                {course.description && (
+                  <p className="text-xs text-gray-400 line-clamp-2 mb-3">
+                    {course.description}
+                  </p>
+                )}
+                
+                <div className="flex items-baseline gap-1 mt-3">
+                  <span className="text-lg font-bold text-[#e9c349] font-mono">
+                    {Number(course.price || 0).toLocaleString('pt-AO')}
+                  </span>
+                  <span className="text-xs text-[#e9c349]/80 font-bold">Kz</span>
                 </div>
               </div>
               
-              <h3 className="text-xl font-bold mb-2 text-white group-hover:text-[#e9c349] transition-colors line-clamp-2 font-headline">
-                {course.title}
-              </h3>
-              
-              <div className="flex items-baseline gap-1 mt-3">
-                <span className="text-lg font-bold text-[#e9c349] font-mono">
-                  {Number(course.price || 0).toLocaleString('pt-AO')}
+              <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-800/80 text-xs">
+                <span className="text-gray-400 font-mono flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-gray-500" />
+                  {course.modulesCount} {course.modulesCount === 1 ? 'Módulo' : 'Módulos'}
                 </span>
-                <span className="text-xs text-[#e9c349]/80 font-bold">Kz</span>
+                <button 
+                  id={`btn-manage-lessons-${course.id}`}
+                  onClick={() => onSelectCourse(course.id)}
+                  className="text-[#e9c349] font-bold hover:underline cursor-pointer flex items-center gap-1 text-xs"
+                >
+                  Gerenciar Aulas →
+                </button>
               </div>
             </div>
-            
-            <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-800/80 text-xs">
-              <span className="text-gray-400 font-mono flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-gray-500" />
-                {course.modulesCount} {course.modulesCount === 1 ? 'Módulo' : 'Módulos'}
-              </span>
-              <button 
-                onClick={() => onSelectCourse(course.id)}
-                className="text-[#e9c349] font-bold hover:underline cursor-pointer flex items-center gap-1 text-xs"
+          ))}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 1: CONFIRMAÇÃO DE EXCLUSÃO DE CURSO */}
+      {/* ======================================================== */}
+      {deletingCourse && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-red-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mb-4 border border-red-500/20">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-xl font-bold text-white mb-2 font-headline">Excluir Curso?</h3>
+            <p className="text-sm text-gray-300 mb-4 leading-relaxed">
+              Tem certeza que deseja excluir permanentemente o curso:
+            </p>
+
+            <div className="p-3 bg-black/60 border border-gray-800 rounded-xl mb-6">
+              <p className="font-bold text-[#e9c349] text-base">{deletingCourse.title}</p>
+              <p className="text-xs text-gray-400 mt-1 font-mono">
+                {Number(deletingCourse.price).toLocaleString('pt-AO')} Kz • {deletingCourse.modulesCount} módulos
+              </p>
+            </div>
+
+            <p className="text-xs text-red-400/90 mb-6 bg-red-950/30 p-2.5 rounded-lg border border-red-900/40">
+              ⚠️ Esta ação é irreversível. Todos os módulos e referências às aulas deste curso serão removidos.
+            </p>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                id="btn-cancel-delete"
+                onClick={() => setDeletingCourse(null)}
+                disabled={isDeleting}
+                className="px-4 py-2.5 rounded-xl font-semibold text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all cursor-pointer"
               >
-                Gerenciar Aulas →
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all cursor-pointer shadow-lg disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="animate-spin text-xs">⏳</span>
+                    <span>Excluindo...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Confirmar Exclusão</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 2: EDIÇÃO RÁPIDA DO CURSO */}
+      {/* ======================================================== */}
+      {editingCourse && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-gray-700 rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-gray-800 mb-6">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
+                  <Edit className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-headline">Editar Curso</h3>
+                  <p className="text-xs text-gray-400">Atualize os detalhes principais e preços</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingCourse(null)}
+                className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Título do Curso *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  placeholder="Ex: Formação de Traders Profissionais"
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Preço da Matrícula (Kz)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
+                    placeholder="50000"
+                    className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm font-mono focus:border-[#e9c349] outline-none"
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">
+                    Kz
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição Curta</label>
+                <textarea
+                  rows={2}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Resumo do conteúdo programático..."
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Link da Imagem de Capa (URL)</label>
+                <input
+                  type="url"
+                  value={editForm.coverImage}
+                  onChange={(e) => setEditForm({ ...editForm, coverImage: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm font-mono focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3.5 bg-black/60 border border-gray-800 rounded-xl">
+                <div>
+                  <p className="text-sm font-bold text-white">Status de Publicação</p>
+                  <p className="text-xs text-gray-400">
+                    {editForm.isPublished ? 'Visível para os alunos na plataforma' : 'Oculto (Rascunho de criação)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, isPublished: !editForm.isPublished })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    editForm.isPublished 
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                  }`}
+                >
+                  {editForm.isPublished ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                  {editForm.isPublished ? 'Publicado' : 'Rascunho'}
+                </button>
+              </div>
+
+              <div className="pt-4 flex flex-col sm:flex-row gap-2.5 justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = editingCourse.id;
+                    setEditingCourse(null);
+                    onSelectCourse(id);
+                  }}
+                  className="text-xs text-[#e9c349] hover:underline flex items-center gap-1 py-2"
+                >
+                  <span>Abrir Editor Completo de Aulas e Módulos</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="flex gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setEditingCourse(null)}
+                    disabled={isSavingEdit}
+                    className="px-4 py-2.5 rounded-xl font-semibold text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingEdit}
+                    className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all cursor-pointer shadow-lg disabled:opacity-50"
+                  >
+                    {isSavingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: CADASTRO DE NOVO CURSO */}
+      {/* ======================================================== */}
+      {isNewCourseModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-gray-700 rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-gray-800 mb-6">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-headline">Novo Curso / Formação</h3>
+                  <p className="text-xs text-gray-400">Cadastre uma nova capacitação prática para os alunos</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsNewCourseModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewCourse} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Título da Formação *</label>
+                <input
+                  type="text"
+                  required
+                  value={newCourseForm.title}
+                  onChange={(e) => setNewCourseForm({ ...newCourseForm, title: e.target.value })}
+                  placeholder="Ex: Formação de Traders Profissionais"
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Preço da Matrícula (Kz)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    value={newCourseForm.price}
+                    onChange={(e) => setNewCourseForm({ ...newCourseForm, price: Number(e.target.value) })}
+                    placeholder="50000"
+                    className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm font-mono focus:border-[#e9c349] outline-none"
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">
+                    Kz
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição Curta</label>
+                <textarea
+                  rows={2}
+                  value={newCourseForm.description}
+                  onChange={(e) => setNewCourseForm({ ...newCourseForm, description: e.target.value })}
+                  placeholder="Objetivos de aprendizagem e competências desenvolvidas..."
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Link da Imagem de Capa (URL)</label>
+                <input
+                  type="url"
+                  value={newCourseForm.coverImage}
+                  onChange={(e) => setNewCourseForm({ ...newCourseForm, coverImage: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm font-mono focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3.5 bg-black/60 border border-gray-800 rounded-xl">
+                <div>
+                  <p className="text-sm font-bold text-white">Publicar Imediatamente?</p>
+                  <p className="text-xs text-gray-400">
+                    {newCourseForm.isPublished ? 'Sim, visível imediatamente no catálogo' : 'Não, salvar como rascunho enquanto monta as aulas'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNewCourseForm({ ...newCourseForm, isPublished: !newCourseForm.isPublished })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    newCourseForm.isPublished 
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                  }`}
+                >
+                  {newCourseForm.isPublished ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                  {newCourseForm.isPublished ? 'Publicado' : 'Rascunho'}
+                </button>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsNewCourseModalOpen(false)}
+                  disabled={isCreating}
+                  className="px-4 py-2.5 rounded-xl font-semibold text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all cursor-pointer shadow-lg disabled:opacity-50"
+                >
+                  {isCreating ? 'Criando Curso...' : 'Criar e Gerenciar Aulas →'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

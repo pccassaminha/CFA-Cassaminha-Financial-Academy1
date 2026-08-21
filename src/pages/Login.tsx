@@ -72,19 +72,20 @@ export default function Login() {
         role = registrationData.roleType;
       }
       
-      // Regra de Aprovação:
-      // Se for Aluno -> Acesso DIRETO e imediato como aluno (active).
+      // Regra de Cadastro:
+      // Se for Aluno -> Cadastrado com status 'inactive' (sem assinatura ativa até se inscrever em um curso), com acesso ao portal/vitrine.
       // Se for Produtor/Admin e não for Master -> TRAVA o registro para aprovação do Administrador Master (pending_approval).
       if (isAdminEmail) {
         role = 'admin';
         status = 'active';
         isApproved = true;
       } else if (role === 'producer' || role === 'admin') {
+        role = 'producer';
         status = 'pending_approval';
         isApproved = false;
       } else {
         role = 'student';
-        status = 'active'; // Aluno tem acesso imediato à plataforma de cursos
+        status = 'inactive'; // Aluno cadastrado só terá assinatura ativa ao se inscrever/comprar um curso
         isApproved = true;
       }
       
@@ -95,7 +96,8 @@ export default function Login() {
         roleType: role,
         subscriptionStatus: status,
         isApproved: isApproved,
-        enrolledCourses: role === 'student' ? ['cfa-financial-master'] : [],
+        enrolledCourses: [], // Começa sem cursos até efetuar a matrícula
+        plan: role === 'student' ? 'Aluno Cadastrado (Sem Curso)' : 'Produtor',
         createdAt: serverTimestamp()
       };
 
@@ -110,7 +112,7 @@ export default function Login() {
     } else {
       const data = userSnap.data();
       role = isAdminEmail ? 'admin' : (data.role || 'student');
-      status = isAdminEmail ? 'active' : (data.subscriptionStatus || 'active');
+      status = isAdminEmail ? 'active' : (data.subscriptionStatus || (data.enrolledCourses && data.enrolledCourses.length > 0 ? 'active' : 'inactive'));
       isApproved = isAdminEmail ? true : (data.isApproved !== undefined ? data.isApproved : (role === 'student' || status === 'active'));
 
       if (isAdminEmail && (data.role !== 'admin' || data.subscriptionStatus !== 'active')) {
@@ -128,15 +130,14 @@ export default function Login() {
     }
     
     // Roteamento seguro:
-    // Apenas Master Admin ou Produtores/Admins aprovados e ativos vão para o /dashboard
+    // Apenas Master Admin ou Produtores/Admins aprovados vão para o /dashboard
     if (isAdminEmail || ((role === 'admin' || role === 'producer') && status === 'active' && isApproved)) {
       navigate('/dashboard');
-    } else if (status === 'pending_approval' || ( (role === 'admin' || role === 'producer') && !isApproved )) {
+    } else if (status === 'pending_approval' || ( (role === 'producer' || role === 'admin') && !isApproved )) {
       navigate('/pending');
-    } else if (status === 'active') {
-      navigate('/library');
     } else {
-      navigate('/pending');
+      // Aluno (ativo ou inativo) acessa o portal do aluno para ver cursos disponíveis e matriculados
+      navigate('/library');
     }
   };
 

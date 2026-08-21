@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
 import { PlatformSettings, Transaction } from '../types';
 
 export default function Checkout() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseIdParam = searchParams.get('courseId') || '';
+
+  const [selectedCourse, setSelectedCourse] = useState<{ id: string; title: string; price: number; coverImage?: string } | null>(null);
   const [selectedMethod, setSelectedMethod] = useState('multicaixa');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,6 +35,47 @@ export default function Checkout() {
     multicaixaActive: true,
     multicaixaName: 'GRUPO CASSAMINHA LDA'
   });
+
+  useEffect(() => {
+    const loadCourse = async () => {
+      try {
+        if (courseIdParam) {
+          const cSnap = await getDoc(doc(db, 'courses', courseIdParam));
+          if (cSnap.exists()) {
+            const data = cSnap.data();
+            setSelectedCourse({
+              id: cSnap.id,
+              title: data.title || 'Formação CFA',
+              price: Number(data.price) || 0,
+              coverImage: data.coverImage || data.imageUrl || data.image || ''
+            });
+            return;
+          }
+        }
+        // Fallback: pega o primeiro curso se houver
+        const allSnap = await getDocs(collection(db, 'courses'));
+        if (!allSnap.empty) {
+          const first = allSnap.docs[0];
+          const fData = first.data();
+          setSelectedCourse({
+            id: first.id,
+            title: fData.title || 'Formação CFA',
+            price: Number(fData.price) || 0,
+            coverImage: fData.coverImage || fData.imageUrl || fData.image || ''
+          });
+        } else {
+          setSelectedCourse({
+            id: 'curso-cfa',
+            title: 'Formação CFA',
+            price: 0
+          });
+        }
+      } catch (err) {
+        console.error("Erro ao carregar curso no checkout:", err);
+      }
+    };
+    loadCourse();
+  }, [courseIdParam]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -80,6 +125,10 @@ export default function Checkout() {
     loadSettings();
   }, []);
 
+  const coursePrice = selectedCourse ? selectedCourse.price : 0;
+  const courseTitle = selectedCourse ? selectedCourse.title : 'Formação CFA';
+  const courseId = selectedCourse ? selectedCourse.id : 'curso-cfa';
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -95,11 +144,11 @@ export default function Checkout() {
       userId: userId,
       userEmail: email || currentUser?.email || 'aluno@cassaminha.ao',
       userName: fullName || 'Aluno CFA',
-      courseId: 'cfa-financial-master',
-      courseTitle: 'CFA - Cassaminha Financial Academy',
+      courseId: courseId,
+      courseTitle: courseTitle,
       referenceNumber: cleanRef,
       paymentMethod: selectedMethod,
-      amount: 150000,
+      amount: coursePrice,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
@@ -110,7 +159,6 @@ export default function Checkout() {
 
       if (currentUser) {
         await updateDoc(doc(db, 'users', currentUser.uid), {
-          subscriptionStatus: 'active', // grant access or keep active
           fullName: fullName || currentUser.displayName || '',
           nif: nif || '',
           lastTransactionRef: cleanRef
@@ -216,160 +264,140 @@ export default function Checkout() {
             <section className="bg-surface-container p-8 rounded-xl border border-outline-variant/10">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-primary font-bold">02</div>
-                <h2 className="text-xl font-bold font-headline">Método de Pagamento</h2>
+                <div>
+                  <h2 className="text-xl font-bold font-headline">Coordenadas e Métodos de Pagamento</h2>
+                  <p className="text-xs text-stone-400 mt-0.5">Efectue o pagamento utilizando um dos métodos ativos abaixo e insira o comprovativo/referência.</p>
+                </div>
               </div>
+
+              {/* Summary of Active Payment Coordinates */}
+              <div className="mb-6 space-y-4">
+                <div className="p-4 rounded-xl bg-surface-container-lowest border border-[#e9c349]/30">
+                  <h3 className="text-sm font-bold text-[#e9c349] mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base">info</span>
+                    Dados Oficiais para Pagamento (Ativos na Plataforma)
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    {paymentSettings.multicaixaActive && (
+                      <div className="p-3 rounded-lg bg-surface-container-high/50 border border-outline-variant/20">
+                        <div className="flex items-center gap-2 font-bold text-on-surface mb-2">
+                          <span className="material-symbols-outlined text-primary text-base">payments</span>
+                          Referência Multicaixa
+                        </div>
+                        <div className="space-y-1 font-mono text-xs">
+                          <p><span className="text-stone-400">Entidade:</span> <strong className="text-[#e9c349]">{paymentSettings.multicaixaEntity}</strong></p>
+                          <p><span className="text-stone-400">Referência:</span> <strong className="text-[#e9c349]">{paymentSettings.multicaixaReference}</strong></p>
+                          <p><span className="text-stone-400">Beneficiário:</span> <span className="text-on-surface font-sans">{paymentSettings.multicaixaName || 'GRUPO CASSAMINHA LDA'}</span></p>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentSettings.ibanActive && (
+                      <div className="p-3 rounded-lg bg-surface-container-high/50 border border-outline-variant/20">
+                        <div className="flex items-center gap-2 font-bold text-on-surface mb-2">
+                          <span className="material-symbols-outlined text-primary text-base">account_balance</span>
+                          Transferência Bancária (IBAN)
+                        </div>
+                        <div className="space-y-1 font-mono text-xs">
+                          <p><span className="text-stone-400">Banco:</span> <span className="text-on-surface font-sans font-bold">{paymentSettings.bankName}</span></p>
+                          <p className="break-all"><span className="text-stone-400">IBAN:</span> <strong className="text-[#e9c349] select-all">{paymentSettings.iban}</strong></p>
+                          <p><span className="text-stone-400">Titular:</span> <span className="text-on-surface font-sans">{paymentSettings.ibanAccountName || 'GRUPO CASSAMINHA'}</span></p>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentSettings.expressActive && (
+                      <div className="p-3 rounded-lg bg-surface-container-high/50 border border-outline-variant/20">
+                        <div className="flex items-center gap-2 font-bold text-on-surface mb-2">
+                          <span className="material-symbols-outlined text-primary text-base">speed</span>
+                          Multicaixa Express
+                        </div>
+                        <div className="space-y-1 font-mono text-xs">
+                          <p><span className="text-stone-400">Telemóvel:</span> <strong className="text-[#e9c349]">{paymentSettings.expressPhone}</strong></p>
+                          <p><span className="text-stone-400">Titular:</span> <span className="text-on-surface font-sans">{paymentSettings.expressName || 'GRUPO CASSAMINHA LDA'}</span></p>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentSettings.kwikActive && (
+                      <div className="p-3 rounded-lg bg-surface-container-high/50 border border-outline-variant/20">
+                        <div className="flex items-center gap-2 font-bold text-on-surface mb-2">
+                          <span className="material-symbols-outlined text-primary text-base">qr_code_2</span>
+                          Transferência KWIK
+                        </div>
+                        <div className="space-y-1 font-mono text-xs">
+                          <p><span className="text-stone-400">Chave KWIK:</span> <strong className="text-[#e9c349] select-all">{paymentSettings.kwikPhone}</strong></p>
+                          <p><span className="text-stone-400">Beneficiário:</span> <span className="text-on-surface font-sans">{paymentSettings.kwikName}</span></p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-4">
-                {/* Option: MultiCaixa */}
-                {paymentSettings.multicaixaActive && (
-                  <div className="relative group">
-                    <input 
-                      checked={selectedMethod === 'multicaixa'}
-                      onChange={() => setSelectedMethod('multicaixa')}
-                      className="peer hidden" 
-                      id="mc" 
-                      name="payment" 
-                      type="radio" 
-                      value="multicaixa" 
-                    />
-                    <label className="flex flex-col p-4 rounded-xl border border-outline-variant/20 bg-surface-container-highest/50 cursor-pointer peer-checked:border-primary peer-checked:bg-surface-container-high transition-all text-left" htmlFor="mc">
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-4">
-                          <span className="material-symbols-outlined text-primary text-xl">payments</span>
-                          <span className="font-medium text-on-surface">Referência Multicaixa</span>
-                        </div>
-                        <span className="material-symbols-outlined text-primary opacity-0 peer-checked:opacity-100">check_circle</span>
-                      </div>
-                      {selectedMethod === 'multicaixa' && (
-                        <div className="mt-4 p-4 rounded-lg bg-surface-container-lowest text-sm text-on-surface-variant animate-in fade-in duration-300">
-                          <p className="text-xs mb-3 text-stone-500 uppercase tracking-wider">Efectue o pagamento num Caixa Automático (Multicaixa) ou no seu Homebanking:</p>
-                          <div className="grid grid-cols-2 gap-4 pb-2">
-                            <div>
-                              <p className="text-[10px] uppercase text-stone-500 font-label">Entidade</p>
-                              <p className="font-mono font-bold text-base text-[#e9c349]">{paymentSettings.multicaixaEntity}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase text-stone-500 font-label">Referência</p>
-                              <p className="font-mono font-bold text-base text-[#e9c349]">{paymentSettings.multicaixaReference}</p>
-                            </div>
-                          </div>
-                          <div className="mt-2 pt-2 border-t border-outline-variant/10">
-                            <p className="text-[10px] uppercase text-stone-500 font-label">Beneficiário da Referência</p>
-                            <p className="font-bold text-sm text-on-surface">{paymentSettings.multicaixaName || 'GRUPO CASSAMINHA LDA'}</p>
-                          </div>
-                          <p className="text-xs text-secondary mt-2 flex items-center gap-1 font-semibold">
-                            <span className="material-symbols-outlined text-xs">done_all</span> Verificação instantânea após o pagamento
-                          </p>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                )}
+                <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Selecione o método utilizado:</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {paymentSettings.multicaixaActive && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMethod('multicaixa')}
+                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
+                        selectedMethod === 'multicaixa' 
+                          ? 'bg-surface-container-high border-primary text-primary shadow-md' 
+                          : 'bg-surface-container-highest/50 border-outline-variant/20 text-on-surface hover:border-outline-variant/50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-2xl">payments</span>
+                      <span className="text-xs font-bold">Multicaixa</span>
+                    </button>
+                  )}
 
-                {/* Option: Bank Transfer */}
-                {paymentSettings.ibanActive && (
-                  <div className="relative group">
-                    <input 
-                      checked={selectedMethod === 'transfer'}
-                      onChange={() => setSelectedMethod('transfer')}
-                      className="peer hidden" 
-                      id="bt" 
-                      name="payment" 
-                      type="radio" 
-                      value="transfer" 
-                    />
-                    <label className="flex flex-col p-4 rounded-xl border border-outline-variant/20 bg-surface-container-highest/50 cursor-pointer peer-checked:border-primary peer-checked:bg-surface-container-high transition-all text-left" htmlFor="bt">
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-4">
-                          <span className="material-symbols-outlined text-primary text-xl">account_balance</span>
-                          <span className="font-medium text-on-surface">Transferência Bancária (IBAN)</span>
-                        </div>
-                        <span className="material-symbols-outlined text-primary opacity-0 peer-checked:opacity-100">check_circle</span>
-                      </div>
-                      {selectedMethod === 'transfer' && (
-                        <div className="mt-4 animate-in fade-in duration-300 space-y-4">
-                          <div className="p-4 rounded-lg bg-surface-container-lowest text-sm text-on-surface-variant">
-                            <p className="text-[10px] uppercase text-stone-500 font-label">Banco</p>
-                            <p className="font-bold text-sm text-on-surface mb-2">{paymentSettings.bankName}</p>
-                            <p className="text-[10px] uppercase text-stone-500 font-label">IBAN</p>
-                            <p className="font-mono font-bold text-sm text-[#e9c349] select-all">{paymentSettings.iban}</p>
-                          </div>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                )}
+                  {paymentSettings.ibanActive && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMethod('transfer')}
+                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
+                        selectedMethod === 'transfer' 
+                          ? 'bg-surface-container-high border-primary text-primary shadow-md' 
+                          : 'bg-surface-container-highest/50 border-outline-variant/20 text-on-surface hover:border-outline-variant/50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-2xl">account_balance</span>
+                      <span className="text-xs font-bold">IBAN / Banco</span>
+                    </button>
+                  )}
 
-                {/* Option: Express */}
-                {paymentSettings.expressActive && (
-                  <div className="relative group">
-                    <input 
-                      checked={selectedMethod === 'express'}
-                      onChange={() => setSelectedMethod('express')}
-                      className="peer hidden" 
-                      id="ex" 
-                      name="payment" 
-                      type="radio" 
-                      value="express" 
-                    />
-                    <label className="flex flex-col p-4 rounded-xl border border-outline-variant/20 bg-surface-container-highest/50 cursor-pointer peer-checked:border-primary peer-checked:bg-surface-container-high transition-all text-left" htmlFor="ex">
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-4">
-                          <span className="material-symbols-outlined text-primary text-xl">speed</span>
-                          <span className="font-medium text-on-surface">Transferência Express</span>
-                        </div>
-                        <span className="material-symbols-outlined text-primary opacity-0 peer-checked:opacity-100">check_circle</span>
-                      </div>
-                      {selectedMethod === 'express' && (
-                        <div className="mt-4 animate-in fade-in duration-300 space-y-4">
-                          <div className="p-4 rounded-lg bg-surface-container-lowest text-sm text-on-surface-variant space-y-2">
-                            <div>
-                              <p className="text-[10px] uppercase text-stone-500 font-label">Contacto Express (Número)</p>
-                              <p className="font-bold text-sm text-on-surface">{paymentSettings.expressPhone}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                )}
+                  {paymentSettings.expressActive && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMethod('express')}
+                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
+                        selectedMethod === 'express' 
+                          ? 'bg-surface-container-high border-primary text-primary shadow-md' 
+                          : 'bg-surface-container-highest/50 border-outline-variant/20 text-on-surface hover:border-outline-variant/50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-2xl">speed</span>
+                      <span className="text-xs font-bold">Express</span>
+                    </button>
+                  )}
 
-                {/* Option: KWIK */}
-                {paymentSettings.kwikActive && (
-                  <div className="relative group">
-                    <input 
-                      checked={selectedMethod === 'kwik'}
-                      onChange={() => setSelectedMethod('kwik')}
-                      className="peer hidden" 
-                      id="kw" 
-                      name="payment" 
-                      type="radio" 
-                      value="kwik" 
-                    />
-                    <label className="flex flex-col p-4 rounded-xl border border-outline-variant/20 bg-surface-container-highest/50 cursor-pointer peer-checked:border-primary peer-checked:bg-surface-container-high transition-all text-left" htmlFor="kw">
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-4">
-                          <span className="material-symbols-outlined text-primary text-xl">qr_code_2</span>
-                          <span className="font-medium text-on-surface">Transferência KWIK</span>
-                        </div>
-                        <span className="material-symbols-outlined text-primary opacity-0 peer-checked:opacity-100">check_circle</span>
-                      </div>
-                      {selectedMethod === 'kwik' && (
-                        <div className="mt-4 animate-in fade-in duration-300 space-y-4">
-                          <div className="p-4 rounded-lg bg-surface-container-lowest text-sm text-on-surface-variant space-y-2">
-                            <div>
-                              <p className="text-[10px] uppercase text-stone-500 font-label">Chave KWIK (Número de Telefone, IBAN ou Nome)</p>
-                              <p className="font-mono font-bold text-sm text-[#e9c349] select-all">{paymentSettings.kwikPhone}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase text-stone-500 font-label">Beneficiário do KWIK</p>
-                              <p className="font-bold text-sm text-on-surface">{paymentSettings.kwikName}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                )}
+                  {paymentSettings.kwikActive && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMethod('kwik')}
+                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-2 ${
+                        selectedMethod === 'kwik' 
+                          ? 'bg-surface-container-high border-primary text-primary shadow-md' 
+                          : 'bg-surface-container-highest/50 border-outline-variant/20 text-on-surface hover:border-outline-variant/50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-2xl">qr_code_2</span>
+                      <span className="text-xs font-bold">KWIK</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </section>
 
@@ -414,20 +442,28 @@ export default function Checkout() {
                 <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 blur-[80px] rounded-full"></div>
                 <h2 className="text-xl font-bold font-headline mb-6">Resumo do Pedido</h2>
                 <div className="flex gap-4 mb-8">
-                  <div className="w-24 h-24 rounded-lg bg-surface-container-lowest flex-shrink-0 relative group overflow-hidden">
-                    <img alt="CFA - Cassaminha Financial Academy" className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuATm6LjqY3xQx7qi1hUvkN015tu-fQ8PRINoiFqImUmTrEo5m8FIkEghJWaIKGHNMrE5CPyDE9KNRaXbMxFeGhSBnwIfHXYm7FAYfRXUy7h0WdpNzFbAfPRIUE7t3HldQYXNtuSXoj1wcNO0JMp8yJFjmemDeFxxrELQ_4oP9sM2JkpVH8FR5J6D2gwrVQTYfq7juCdZc9VKY1TjUogDOKuRQuDocOVij80U6uVTNrBEECAmtdIJRjWqwLZg6MhsWZ1bOcrKwCPZw" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-surface-container-high to-transparent"></div>
+                  <div className="w-24 h-24 rounded-lg bg-surface-container-lowest flex-shrink-0 relative group overflow-hidden border border-outline-variant/10">
+                    {selectedCourse?.coverImage ? (
+                      <img alt={courseTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" src={selectedCourse.coverImage} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-stone-900 text-[#e9c349]">
+                        <span className="material-symbols-outlined text-3xl">school</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-surface-container-high/80 to-transparent"></div>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1 block">Acesso Vitalício</span>
-                    <h3 className="font-bold text-lg leading-tight">Acesso Completo: CFA - Cassaminha Financial Academy</h3>
-                    <p className="text-sm text-on-surface-variant mt-1">Acesso irrestrito a todos os cursos</p>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1 block">Curso CFA</span>
+                    <h3 className="font-bold text-lg leading-tight">{courseTitle}</h3>
+                    <p className="text-xs text-on-surface-variant mt-1">Acesso direto e suporte via WhatsApp</p>
                   </div>
                 </div>
                 <div className="space-y-4 pt-6 border-t border-outline-variant/20">
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Subtotal</span>
-                    <span>Kz 150.000</span>
+                    <span className="font-semibold">
+                      {coursePrice > 0 ? `Kz ${coursePrice.toLocaleString('pt-AO')}` : 'Gratuito'}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Taxas Académicas</span>
@@ -436,7 +472,9 @@ export default function Checkout() {
                   <div className="flex justify-between items-end pt-4">
                     <span className="font-headline font-bold text-lg">Total</span>
                     <div className="text-right">
-                      <span className="block text-3xl font-black text-primary font-headline tracking-tighter">Kz 150.000</span>
+                      <span className="block text-3xl font-black text-primary font-headline tracking-tighter">
+                        {coursePrice > 0 ? `Kz ${coursePrice.toLocaleString('pt-AO')}` : 'Kz 0'}
+                      </span>
                     </div>
                   </div>
                 </div>

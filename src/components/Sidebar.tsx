@@ -1,21 +1,58 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { logout } from '../firebase';
+import { logout, db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { 
+  Smartphone, 
+  Mail, 
+  Clock, 
+  X, 
+  ExternalLink, 
+  HelpCircle, 
+  MessageSquare,
+  Copy,
+  Check
+} from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [viewAsStudent, setViewAsStudent] = React.useState(() => {
+  const [viewAsStudent, setViewAsStudent] = useState(() => {
     return localStorage.getItem('viewAsStudent') === 'true';
   });
 
-  React.useEffect(() => {
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
+  const [supportEmail, setSupportEmail] = useState('suporte@grupocassaminha.com');
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  useEffect(() => {
     const handleToggle = () => {
       setViewAsStudent(localStorage.getItem('viewAsStudent') === 'true');
     };
     window.addEventListener('student-view-changed', handleToggle);
     return () => window.removeEventListener('student-view-changed', handleToggle);
+  }, []);
+
+  // Fetch support details from settings
+  useEffect(() => {
+    const fetchSupportInfo = async () => {
+      try {
+        const platSnap = await getDoc(doc(db, 'settings', 'platform'));
+        if (platSnap.exists() && platSnap.data().supportWhatsApp) {
+          setSupportWhatsApp(platSnap.data().supportWhatsApp);
+        }
+        const genSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (genSnap.exists()) {
+          if (genSnap.data().supportWhatsApp) setSupportWhatsApp(genSnap.data().supportWhatsApp);
+          if (genSnap.data().supportEmail) setSupportEmail(genSnap.data().supportEmail);
+        }
+      } catch (err) {
+        console.error('Error fetching support info:', err);
+      }
+    };
+    fetchSupportInfo();
   }, []);
 
   const toggleStudentView = () => {
@@ -29,7 +66,7 @@ export default function Sidebar() {
     }
   };
 
-  const [toastMsg, setToastMsg] = React.useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showSidebarNotice = (msg: string) => {
     setToastMsg(msg);
@@ -40,6 +77,15 @@ export default function Sidebar() {
     e.preventDefault();
     await logout();
     navigate('/');
+  };
+
+  const cleanWhatsApp = supportWhatsApp.replace(/[^0-9]/g, '') || '244923456789';
+  const whatsappUrl = `https://wa.me/${cleanWhatsApp}?text=${encodeURIComponent('Olá, preciso de suporte na plataforma CFA (Cassaminha Financial Academy).')}`;
+
+  const copyEmailToClipboard = () => {
+    navigator.clipboard.writeText(supportEmail);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
   };
 
   return (
@@ -166,14 +212,15 @@ export default function Sidebar() {
           </button>
         </div>
         <div className="space-y-1">
-          <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); showSidebarNotice('Suporte: envie email para suporte@cassaminha.ao'); }}
-            className="flex items-center gap-4 text-[#bccabe] px-4 py-2 hover:bg-[#353534]/30 rounded-lg transition-transform duration-300 hover:translate-x-1"
+          <button
+            id="btn-sidebar-support"
+            type="button"
+            onClick={() => setIsSupportModalOpen(true)}
+            className="w-full flex items-center gap-4 text-[#bccabe] px-4 py-2 hover:bg-[#353534]/30 hover:text-[#e9c349] rounded-lg transition-all duration-300 hover:translate-x-1 cursor-pointer text-left"
           >
             <span className="material-symbols-outlined text-sm">help_outline</span>
             <span className="text-sm font-medium font-body">Suporte</span>
-          </a>
+          </button>
           <a
             href="/"
             onClick={handleLogout}
@@ -185,6 +232,112 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+
+    {/* ========================================================================= */}
+    {/* MODAL DE SUPORTE DIRETO */}
+    {/* ========================================================================= */}
+    {isSupportModalOpen && (
+      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between pb-4 mb-5 border-b border-outline-variant/10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
+                <HelpCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white font-headline">Central de Suporte CFA</h3>
+                <p className="text-xs text-stone-400">Atendimento ao aluno e equipe</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsSupportModalOpen(false)}
+              className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Opção 1: WhatsApp Direto */}
+            <a
+              id="link-support-whatsapp"
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-900/40 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm text-white group-hover:text-emerald-300 transition-colors block">
+                      Conversar no WhatsApp
+                    </span>
+                    <span className="text-xs text-emerald-400 font-mono">+{cleanWhatsApp}</span>
+                  </div>
+                </div>
+                <ExternalLink className="w-4 h-4 text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </div>
+              <p className="text-[11px] text-stone-400 mt-2.5">
+                Resposta rápida para dúvidas de pagamento, matrículas e acesso aos cursos.
+              </p>
+            </a>
+
+            {/* Opção 2: E-mail de Suporte */}
+            <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/10">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm text-white block">E-mail Oficial</span>
+                    <span className="text-xs text-stone-300 font-mono select-all">{supportEmail}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyEmailToClipboard}
+                  className="p-2 text-stone-400 hover:text-[#e9c349] hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+                  title="Copiar e-mail"
+                >
+                  {copiedEmail ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-outline-variant/5">
+                <a
+                  href={`mailto:${supportEmail}`}
+                  className="text-xs text-[#e9c349] hover:underline font-semibold flex items-center gap-1"
+                >
+                  Enviar mensagem por e-mail &rarr;
+                </a>
+                {copiedEmail && (
+                  <span className="text-[10px] text-emerald-400 font-bold">Copiado!</span>
+                )}
+              </div>
+            </div>
+
+            {/* Horário de Atendimento */}
+            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-surface-container-lowest/50 border border-outline-variant/5 text-stone-400 text-xs">
+              <Clock className="w-4 h-4 text-[#e9c349] shrink-0" />
+              <span>Segunda a Sexta • 08:00 às 18:00 (WAT Luanda)</span>
+            </div>
+          </div>
+
+          <div className="pt-5 mt-5 border-t border-outline-variant/10 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setIsSupportModalOpen(false)}
+              className="px-5 py-2 bg-surface-container-highest hover:bg-surface-bright text-stone-300 hover:text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

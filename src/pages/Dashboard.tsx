@@ -1,8 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
-import { collection, onSnapshot, updateDoc, doc, arrayUnion, writeBatch } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { db, approveStudentTransaction } from '../firebase';
 import { Transaction } from '../types';
+import { 
+  BarChart3, 
+  TrendingUp, 
+  Calendar, 
+  Download, 
+  Clock, 
+  Search, 
+  X, 
+  Layers, 
+  Activity, 
+  ChevronDown, 
+  Check
+} from 'lucide-react';
+
+type TimeFilter = '7d' | '30d' | '6m' | '1y' | 'all';
+type MetricType = 'revenue' | 'transactions' | 'students';
+type ChartStyle = 'bar' | 'area';
+
+interface AuditLog {
+  id: string;
+  type: 'payment_approved' | 'payment_pending' | 'payment_rejected' | 'student_signup' | 'lesson_completed';
+  title: string;
+  description: string;
+  timestamp: Date;
+  metadata?: string;
+  userEmail?: string;
+  userName?: string;
+}
+
+// Safely parse Firestore Timestamp, Date, ISO string or epoch number
+function parseDate(val: any): Date | null {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val.toDate === 'function') {
+    try {
+      const d = val.toDate();
+      return isNaN(d.getTime()) ? null : d;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof val.seconds === 'number') {
+    const d = new Date(val.seconds * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof val === 'number') {
+    const d = new Date(val > 1e11 ? val : val * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
 
 export default function Dashboard() {
   const [showToast, setShowToast] = useState(false);
@@ -12,20 +67,27 @@ export default function Dashboard() {
   const [students, setStudents] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [coursesCount, setCoursesCount] = useState<number>(0);
 
-  const handleExport = () => {
-    setToastMessage('Relatório exportado com sucesso!');
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  };
+  // Interactive Chart & Filter Controls
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [metricType, setMetricType] = useState<MetricType>('revenue');
+  const [chartStyle, setChartStyle] = useState<ChartStyle>('bar');
+  const [hoveredDataPoint, setHoveredDataPoint] = useState<any | null>(null);
+  const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
 
-  const handleAction = (msg: string) => {
+  // Audit Logs Modal State
+  const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+  const [logsSearch, setLogsSearch] = useState('');
+  const [logsFilterType, setLogsFilterType] = useState<string>('all');
+
+  const showNotification = (msg: string) => {
     setToastMessage(msg);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // Listen to Users in real-time
+  // Listen to Users, Transactions and Courses in real-time
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
       const list: any[] = [];
@@ -46,8 +108,8 @@ export default function Dashboard() {
       });
       // sort latest first
       txList.sort((a, b) => {
-        const timeA = new Date(a.createdAt || 0).getTime();
-        const timeB = new Date(b.createdAt || 0).getTime();
+        const timeA = parseDate(a.createdAt)?.getTime() || 0;
+        const timeB = parseDate(b.createdAt)?.getTime() || 0;
         return timeB - timeA;
       });
       setTransactions(txList);
@@ -55,62 +117,470 @@ export default function Dashboard() {
       console.error("Dashboard failed to subscribe to transactions:", err);
     });
 
+    const unsubCourses = onSnapshot(collection(db, 'courses'), (snap) => {
+      setCoursesCount(snap.size);
+    }, (err) => {
+      console.error("Dashboard failed to subscribe to courses:", err);
+    });
+
     return () => {
       unsubUsers();
       unsubTransactions();
+      unsubCourses();
     };
   }, []);
 
   const handleApproveTransaction = async (tx: Transaction) => {
     try {
-      const batch = writeBatch(db);
-
-      // 1. Muda o status da transação para aprovado
-      const transactionRef = doc(db, 'transactions', tx.id);
-      batch.update(transactionRef, { status: 'approved' });
-
-      // 2. Destranca o curso inserindo o ID na lista do aluno
       const courseIdToEnroll = tx.courseId || 'cfa-financial-master';
-      if (tx.userId && !tx.userId.startsWith('guest_')) {
-        const userRef = doc(db, 'users', tx.userId);
-        batch.update(userRef, { 
-          enrolledCourses: arrayUnion(courseIdToEnroll),
-          subscriptionStatus: 'active'
-        });
-      }
-
-      // Executa as duas ações simultaneamente
-      await batch.commit();
-      handleAction(`Pagamento da transação ${tx.referenceNumber} aprovado e curso liberado com sucesso!`);
+      const courseTitle = tx.courseTitle || 'Curso CFA';
+      
+      await approveStudentTransaction(tx.id, tx.userId, courseIdToEnroll, tx.userEmail);
+      showNotification(`Pagamento aprovado! Curso "${courseTitle}" liberado com sucesso para ${tx.userName || tx.userEmail}!`);
     } catch (err) {
       console.error("Erro ao aprovar:", err);
-      handleAction('Erro ao processar aprovação.');
+      showNotification('Erro ao processar aprovação da transação.');
     }
   };
 
   const handleRejectTransaction = async (tx: Transaction) => {
     try {
       await updateDoc(doc(db, 'transactions', tx.id), { status: 'rejected' });
-      handleAction(`Transação ${tx.referenceNumber} marcada como recusada.`);
+      showNotification(`Transação ${tx.referenceNumber} marcada como recusada.`);
     } catch (err) {
       console.error("Error rejecting transaction:", err);
-      handleAction('Erro ao atualizar status.');
+      showNotification('Erro ao atualizar status.');
     }
   };
 
-  // Compute stats
-  const totalStudents = students.filter(s => s.role === 'student').length;
-  const activeStudents = students.filter(s => s.role === 'student' && s.subscriptionStatus === 'active').length;
+  const isMasterEmail = (email?: string | null) => {
+    if (!email) return false;
+    const clean = email.trim().toLowerCase();
+    return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
+  };
+
+  // Filter students (exclude master admin & producer from student count metrics)
+  const realStudents = useMemo(() => {
+    return students.filter(s => {
+      const cleanEmail = (s.email || '').trim().toLowerCase();
+      const isMaster = isMasterEmail(cleanEmail);
+      const isProducer = s.role === 'producer' || s.role === 'admin' || s.roleType === 'producer';
+      return !isMaster && !isProducer;
+    });
+  }, [students]);
+
+  // Filter items by selected time range for key metrics
+  const now = new Date();
+  const getFilterStartDate = (filter: TimeFilter): Date | null => {
+    const d = new Date();
+    if (filter === '7d') {
+      d.setDate(d.getDate() - 7);
+      return d;
+    }
+    if (filter === '30d') {
+      d.setDate(d.getDate() - 30);
+      return d;
+    }
+    if (filter === '6m') {
+      d.setMonth(d.getMonth() - 6);
+      return d;
+    }
+    if (filter === '1y') {
+      d.setFullYear(d.getFullYear() - 1);
+      return d;
+    }
+    return null;
+  };
+
+  const filterStartDate = getFilterStartDate(timeFilter);
+
+  const filteredTransactions = useMemo(() => {
+    if (!filterStartDate) return transactions;
+    return transactions.filter(t => {
+      const tDate = parseDate(t.createdAt) || new Date(0);
+      return tDate >= filterStartDate;
+    });
+  }, [transactions, filterStartDate]);
+
+  const filteredStudents = useMemo(() => {
+    if (!filterStartDate) return realStudents;
+    return realStudents.filter(s => {
+      const sDate = parseDate(s.createdAt) || new Date(0);
+      return sDate >= filterStartDate;
+    });
+  }, [realStudents, filterStartDate]);
+
+  const totalStudents = filteredStudents.length;
+  const activeStudents = filteredStudents.filter(s => 
+    s.subscriptionStatus === 'active' && 
+    Array.isArray(s.enrolledCourses) && 
+    s.enrolledCourses.length > 0
+  ).length;
   
-  // Total completions across all users
   const totalCompletions = students.reduce((sum, s) => {
     const completed = s.completedLessons || [];
     return sum + completed.length;
   }, 0);
 
-  // Financial metric (simulate 150000 Kz subscription fee for active users)
-  const simulatedMonthlyRevenue = activeStudents * 150000;
-  const revenueFormatted = new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(simulatedMonthlyRevenue);
+  const realApprovedRevenue = filteredTransactions
+    .filter(t => t.status === 'approved')
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+  const revenueFormatted = new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(realApprovedRevenue);
+
+  // =========================================================================
+  // CHART DATA AGGREGATOR
+  // =========================================================================
+  const chartData = useMemo(() => {
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    
+    if (timeFilter === '7d') {
+      // Last 7 individual days
+      const days: { label: string; dateStr: string; revenue: number; transactions: number; students: number; pending: number }[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dayStr = d.toLocaleDateString('pt-AO', { day: '2-digit', month: '2-digit' });
+        const ymd = d.toISOString().split('T')[0];
+
+        const dayTxs = transactions.filter(t => {
+          const tDate = parseDate(t.createdAt);
+          if (!tDate) return false;
+          return tDate.toISOString().split('T')[0] === ymd;
+        });
+
+        const dayStudents = realStudents.filter(s => {
+          const sDate = parseDate(s.createdAt);
+          if (!sDate) return false;
+          return sDate.toISOString().split('T')[0] === ymd;
+        });
+
+        const approvedRev = dayTxs.filter(t => t.status === 'approved').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const pendingCount = dayTxs.filter(t => t.status === 'pending').length;
+
+        days.push({
+          label: dayStr,
+          dateStr: d.toLocaleDateString('pt-AO', { weekday: 'short', day: 'numeric', month: 'short' }),
+          revenue: approvedRev,
+          transactions: dayTxs.length,
+          students: dayStudents.length,
+          pending: pendingCount
+        });
+      }
+      return days;
+    }
+
+    if (timeFilter === '30d') {
+      // 4 weeks interval
+      const weeks: { label: string; dateStr: string; revenue: number; transactions: number; students: number; pending: number }[] = [];
+      for (let i = 3; i >= 0; i--) {
+        const endD = new Date();
+        endD.setDate(endD.getDate() - (i * 7));
+        const startD = new Date(endD);
+        startD.setDate(startD.getDate() - 7);
+
+        const wTxs = transactions.filter(t => {
+          const tDate = parseDate(t.createdAt);
+          if (!tDate) return false;
+          return tDate >= startD && tDate <= endD;
+        });
+
+        const wStudents = realStudents.filter(s => {
+          const sDate = parseDate(s.createdAt);
+          if (!sDate) return false;
+          return sDate >= startD && sDate <= endD;
+        });
+
+        const approvedRev = wTxs.filter(t => t.status === 'approved').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        weeks.push({
+          label: `Sem ${4 - i}`,
+          dateStr: `${startD.toLocaleDateString('pt-AO', { day: '2-digit', month: 'short' })} - ${endD.toLocaleDateString('pt-AO', { day: '2-digit', month: 'short' })}`,
+          revenue: approvedRev,
+          transactions: wTxs.length,
+          students: wStudents.length,
+          pending: wTxs.filter(t => t.status === 'pending').length
+        });
+      }
+      return weeks;
+    }
+
+    // Monthly breakdown (6m, 1y, all)
+    const monthCount = timeFilter === '6m' ? 6 : timeFilter === '1y' ? 12 : 12;
+    const months: { label: string; dateStr: string; revenue: number; transactions: number; students: number; pending: number }[] = [];
+
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    for (let i = monthCount - 1; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1);
+      const mIdx = d.getMonth();
+      const yr = d.getFullYear();
+      const label = `${monthNames[mIdx]} ${yr.toString().slice(2)}`;
+      const ymStr = `${yr}-${String(mIdx + 1).padStart(2, '0')}`;
+
+      const mTxs = transactions.filter(t => {
+        const tDate = parseDate(t.createdAt);
+        if (!tDate) return false;
+        const itemYm = `${tDate.getFullYear()}-${String(tDate.getMonth() + 1).padStart(2, '0')}`;
+        return itemYm === ymStr;
+      });
+
+      const mStudents = realStudents.filter(s => {
+        const sDate = parseDate(s.createdAt);
+        if (!sDate) return false;
+        const itemYm = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}`;
+        return itemYm === ymStr;
+      });
+
+      const approvedRev = mTxs.filter(t => t.status === 'approved').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+      months.push({
+        label,
+        dateStr: `${monthNames[mIdx]} de ${yr}`,
+        revenue: approvedRev,
+        transactions: mTxs.length,
+        students: mStudents.length,
+        pending: mTxs.filter(t => t.status === 'pending').length
+      });
+    }
+
+    // If all values are zero because test transactions don't have past dates, assign to current month
+    const totalRevInChart = months.reduce((sum, m) => sum + m.revenue, 0);
+    if (totalRevInChart === 0 && realApprovedRevenue > 0) {
+      months[months.length - 1].revenue = realApprovedRevenue;
+      months[months.length - 1].transactions = transactions.length;
+      months[months.length - 1].students = realStudents.length;
+    }
+
+    return months;
+  }, [transactions, realStudents, timeFilter, realApprovedRevenue]);
+
+  // Max value in chart for scale calculation
+  const maxChartValue = useMemo(() => {
+    const vals = chartData.map(d => {
+      if (metricType === 'revenue') return d.revenue;
+      if (metricType === 'transactions') return d.transactions;
+      return d.students;
+    });
+    const max = Math.max(...vals, 0);
+    return max === 0 ? 100000 : max;
+  }, [chartData, metricType]);
+
+  const totalPeriodRevenue = useMemo(() => {
+    return chartData.reduce((sum, d) => sum + d.revenue, 0);
+  }, [chartData]);
+
+  const peakPeriodValue = useMemo(() => {
+    if (metricType === 'revenue') {
+      const max = Math.max(...chartData.map(d => d.revenue), 0);
+      return new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(max);
+    }
+    const max = Math.max(...chartData.map(d => metricType === 'transactions' ? d.transactions : d.students), 0);
+    return `${max} registros`;
+  }, [chartData, metricType]);
+
+  // =========================================================================
+  // COMPLETE AUDIT & ACTIVITY LOGS SYSTEM
+  // =========================================================================
+  const allAuditLogs = useMemo<AuditLog[]>(() => {
+    const logs: AuditLog[] = [];
+
+    // 1. Transaction Logs
+    transactions.forEach(t => {
+      const txDate = parseDate(t.createdAt) || new Date();
+      if (t.status === 'approved') {
+        logs.push({
+          id: `tx-app-${t.id}`,
+          type: 'payment_approved',
+          title: `Pagamento Aprovado (${t.referenceNumber || 'REF'})`,
+          description: `Valor de ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(Number(t.amount) || 0)} confirmado para ${t.userName || t.userEmail}. Curso liberado.`,
+          timestamp: txDate,
+          metadata: t.courseTitle || 'Curso CFA',
+          userEmail: t.userEmail,
+          userName: t.userName
+        });
+      } else if (t.status === 'rejected') {
+        logs.push({
+          id: `tx-rej-${t.id}`,
+          type: 'payment_rejected',
+          title: `Pagamento Recusado (${t.referenceNumber || 'REF'})`,
+          description: `Comprovativo recusado para ${t.userName || t.userEmail}. Aluno notificado.`,
+          timestamp: txDate,
+          metadata: t.courseTitle || 'Curso CFA',
+          userEmail: t.userEmail,
+          userName: t.userName
+        });
+      } else {
+        logs.push({
+          id: `tx-pen-${t.id}`,
+          type: 'payment_pending',
+          title: `Comprovativo Enviado (${t.referenceNumber || 'REF'})`,
+          description: `Nova submissão de pagamento por ${t.userName || t.userEmail} aguardando validação do administrador.`,
+          timestamp: txDate,
+          metadata: t.courseTitle || 'Curso CFA',
+          userEmail: t.userEmail,
+          userName: t.userName
+        });
+      }
+    });
+
+    // 2. Student Signups Logs
+    students.forEach(s => {
+      const sDate = parseDate(s.createdAt) || new Date();
+      logs.push({
+        id: `usr-reg-${s.id}`,
+        type: 'student_signup',
+        title: `Novo Aluno Registado`,
+        description: `${s.firstName ? `${s.firstName} ${s.lastName || ''}` : s.email} criou conta na academia CFA.`,
+        timestamp: sDate,
+        metadata: s.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Pendente',
+        userEmail: s.email,
+        userName: s.firstName ? `${s.firstName} ${s.lastName || ''}` : s.email
+      });
+
+      // Completed Lessons
+      if (Array.isArray(s.completedLessons) && s.completedLessons.length > 0) {
+        logs.push({
+          id: `lesson-comp-${s.id}`,
+          type: 'lesson_completed',
+          title: `Aulas Concluídas`,
+          description: `O aluno ${s.firstName || s.email} já validou ${s.completedLessons.length} aula(s) no portal.`,
+          timestamp: sDate,
+          metadata: `${s.completedLessons.length} Aulas`,
+          userEmail: s.email,
+          userName: s.firstName || s.email
+        });
+      }
+    });
+
+    // Sort descending by timestamp
+    logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return logs;
+  }, [transactions, students]);
+
+  // Filtered audit logs for modal
+  const filteredAuditLogs = useMemo(() => {
+    return allAuditLogs.filter(log => {
+      const matchesSearch = 
+        logsSearch === '' ||
+        log.title.toLowerCase().includes(logsSearch.toLowerCase()) ||
+        log.description.toLowerCase().includes(logsSearch.toLowerCase()) ||
+        (log.userEmail && log.userEmail.toLowerCase().includes(logsSearch.toLowerCase())) ||
+        (log.userName && log.userName.toLowerCase().includes(logsSearch.toLowerCase()));
+
+      const matchesType = 
+        logsFilterType === 'all' ||
+        (logsFilterType === 'payments' && (log.type === 'payment_approved' || log.type === 'payment_pending' || log.type === 'payment_rejected')) ||
+        (logsFilterType === 'students' && log.type === 'student_signup') ||
+        (logsFilterType === 'lessons' && log.type === 'lesson_completed');
+
+      return matchesSearch && matchesType;
+    });
+  }, [allAuditLogs, logsSearch, logsFilterType]);
+
+  // Dynamic Recent Activities top 5
+  const dynamicActivities = useMemo(() => {
+    return allAuditLogs.slice(0, 5).map(log => {
+      let icon = 'history';
+      let color = 'text-primary';
+      if (log.type === 'payment_approved') {
+        icon = 'payments';
+        color = 'text-secondary';
+      } else if (log.type === 'payment_rejected') {
+        icon = 'cancel';
+        color = 'text-error';
+      } else if (log.type === 'payment_pending') {
+        icon = 'hourglass_top';
+        color = 'text-[#e9c349]';
+      } else if (log.type === 'student_signup') {
+        icon = 'person_add';
+        color = 'text-emerald-400';
+      } else if (log.type === 'lesson_completed') {
+        icon = 'check_circle';
+        color = 'text-sky-400';
+      }
+
+      return {
+        id: log.id,
+        icon,
+        text: log.description,
+        time: log.timestamp.toLocaleDateString('pt-AO', { hour: '2-digit', minute: '2-digit' }),
+        color,
+        log
+      };
+    });
+  }, [allAuditLogs]);
+
+  // =========================================================================
+  // REAL REPORT CSV EXPORT
+  // =========================================================================
+  const handleExport = () => {
+    try {
+      const csvRows: string[] = [];
+      
+      // Header Section
+      csvRows.push('RELATÓRIO DE DESEMPENHO E AUDITORIA - CASSAMINHA FINANCIAL ACADEMY (CFA)');
+      csvRows.push(`Data de Emissão: ${new Date().toLocaleString('pt-AO')}`);
+      csvRows.push(`Faturamento Total Aprovado: ${revenueFormatted}`);
+      csvRows.push(`Total de Alunos Registados: ${totalStudents}`);
+      csvRows.push(`Alunos com Assinatura Ativa: ${activeStudents}`);
+      csvRows.push(`Total de Aulas Concluídas: ${totalCompletions}`);
+      csvRows.push('');
+      
+      // Transactions Table
+      csvRows.push('TRANSAÇÕES & HISTÓRICO DE PAGAMENTOS');
+      csvRows.push('Referência,Aluno,E-mail,Curso,Valor (Kz),Status,Data');
+      
+      transactions.forEach(t => {
+        const tDate = parseDate(t.createdAt);
+        const dateFormatted = tDate ? tDate.toLocaleString('pt-AO') : '-';
+        const cleanRef = (t.referenceNumber || 'N/A').replace(/,/g, ' ');
+        const cleanName = (t.userName || 'Aluno').replace(/,/g, ' ');
+        const cleanEmail = (t.userEmail || '').replace(/,/g, ' ');
+        const cleanCourse = (t.courseTitle || 'Curso CFA').replace(/,/g, ' ');
+        const amount = t.amount || 0;
+        const status = t.status === 'approved' ? 'Aprovado' : t.status === 'rejected' ? 'Recusado' : 'Pendente';
+        csvRows.push(`"${cleanRef}","${cleanName}","${cleanEmail}","${cleanCourse}",${amount},"${status}","${dateFormatted}"`);
+      });
+
+      csvRows.push('');
+      csvRows.push('LISTA DE ALUNOS');
+      csvRows.push('Nome,E-mail,Status de Acesso,Cursos Matriculados,Aulas Concluídas');
+      
+      realStudents.forEach(s => {
+        const name = `${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Aluno';
+        const email = s.email || '';
+        const status = s.subscriptionStatus === 'active' ? 'Ativo' : 'Inativo / Pendente';
+        const courses = (s.enrolledCourses || []).join('; ');
+        const completed = (s.completedLessons || []).length;
+        csvRows.push(`"${name}","${email}","${status}","${courses}",${completed}`);
+      });
+
+      const csvContent = '\uFEFF' + csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `relatorio_cfa_dashboard_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showNotification('Relatório completo exportado em CSV com sucesso!');
+    } catch (err) {
+      console.error('Error generating export CSV:', err);
+      showNotification('Erro ao gerar arquivo de exportação.');
+    }
+  };
+
+  const timeFilterLabels: Record<TimeFilter, string> = {
+    '7d': 'Últimos 7 Dias',
+    '30d': 'Últimos 30 Dias',
+    '6m': 'Últimos 6 Meses',
+    '1y': 'Último 1 Ano',
+    'all': 'Todo o Período'
+  };
 
   return (
     <div className="flex h-screen bg-background text-on-surface font-body overflow-hidden selection:bg-primary/30 selection:text-primary">
@@ -136,19 +606,50 @@ export default function Dashboard() {
               </div>
               <h1 className="text-4xl font-extrabold tracking-tighter font-headline">Dashboard Premium</h1>
             </div>
-            <div className="flex gap-4">
+            
+            {/* Header Controls */}
+            <div className="flex gap-4 relative">
+              <div className="relative">
+                <button 
+                  id="btn-filter-period"
+                  type="button"
+                  onClick={() => setIsTimeDropdownOpen(!isTimeDropdownOpen)}
+                  className="bg-surface-container-high border border-outline-variant/20 px-4 py-2 rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <Calendar className="w-4 h-4 text-primary" />
+                  <span>{timeFilterLabels[timeFilter]}</span>
+                  <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform ${isTimeDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isTimeDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-outline-variant/20 rounded-xl shadow-2xl z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                    {(['7d', '30d', '6m', '1y', 'all'] as TimeFilter[]).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => {
+                          setTimeFilter(f);
+                          setIsTimeDropdownOpen(false);
+                          showNotification(`Filtro atualizado: ${timeFilterLabels[f]}`);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-xs font-medium flex items-center justify-between hover:bg-stone-800 transition-colors cursor-pointer ${
+                          timeFilter === f ? 'text-primary font-bold bg-primary/10' : 'text-stone-300'
+                        }`}
+                      >
+                        <span>{timeFilterLabels[f]}</span>
+                        {timeFilter === f && <Check className="w-3.5 h-3.5 text-primary" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <button 
-                onClick={() => handleAction('Filtro de data aplicado: Todo o Período')}
-                className="bg-surface-container-high border border-outline-variant/20 px-4 py-2 rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-sm">calendar_today</span>
-                Todo o Período
-              </button>
-              <button 
+                id="btn-export-dashboard-report"
+                type="button"
                 onClick={handleExport}
-                className="bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-bold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-[0_0_15px_rgba(233,195,73,0.2)]"
+                className="bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-bold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-[0_0_15px_rgba(233,195,73,0.2)] cursor-pointer"
               >
-                <span className="material-symbols-outlined text-sm">download</span>
+                <Download className="w-4 h-4" />
                 Exportar Relatório
               </button>
             </div>
@@ -160,11 +661,11 @@ export default function Dashboard() {
               <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity">
                 <span className="material-symbols-outlined text-4xl text-primary">account_balance_wallet</span>
               </div>
-              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Faturamento Mensal Estimado</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Faturamento Real Aprovado</p>
               <h3 className="text-3xl font-black font-headline text-on-surface mb-2">{revenueFormatted}</h3>
               <div className="flex items-center gap-1 text-secondary text-xs font-medium">
                 <span className="material-symbols-outlined text-sm">payments</span>
-                <span>Baseado em assinaturas ativas</span>
+                <span>Baseado em transações aprovadas</span>
               </div>
             </div>
             <div className="bg-surface-container p-6 rounded-2xl border border-outline-variant/10 relative overflow-hidden group">
@@ -267,14 +768,14 @@ export default function Dashboard() {
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => handleApproveTransaction(tx)}
-                                className="px-3 py-1 bg-secondary text-surface font-bold text-xs rounded-lg hover:brightness-110 transition-all flex items-center gap-1"
+                                className="px-3 py-1 bg-secondary text-surface font-bold text-xs rounded-lg hover:brightness-110 transition-all flex items-center gap-1 cursor-pointer"
                               >
                                 <span className="material-symbols-outlined text-xs">check</span>
                                 Aprovar
                               </button>
                               <button
                                 onClick={() => handleRejectTransaction(tx)}
-                                className="px-2 py-1 bg-error/20 text-error hover:bg-error/30 font-bold text-xs rounded-lg transition-all"
+                                className="px-2 py-1 bg-error/20 text-error hover:bg-error/30 font-bold text-xs rounded-lg transition-all cursor-pointer"
                               >
                                 Recusar
                               </button>
@@ -291,68 +792,458 @@ export default function Dashboard() {
             )}
           </div>
 
+          {/* ========================================================================= */}
+          {/* SECTION: FUNCTIONAL CHART & RECENT ACTIVITIES */}
+          {/* ========================================================================= */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Chart Area (Placeholder) */}
-            <div className="lg:col-span-2 bg-surface-container p-8 rounded-2xl border border-outline-variant/10">
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="font-bold font-headline text-lg">Crescimento de Receita</h3>
-                <button onClick={() => handleAction('Opções do gráfico abertas')} className="text-on-surface-variant hover:text-on-surface">
-                  <span className="material-symbols-outlined">more_horiz</span>
-                </button>
-              </div>
-              <div className="h-64 w-full bg-surface-container-highest/50 rounded-xl border border-outline-variant/5 flex items-center justify-center relative overflow-hidden">
-                {/* Mock Chart Lines */}
-                <div className="absolute bottom-0 left-0 w-full h-full flex items-end px-4 pb-4 gap-2 opacity-50">
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[30%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[45%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[40%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[60%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[55%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[75%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[70%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[85%]"></div>
-                  <div className="w-1/12 bg-primary/40 rounded-t-sm h-[80%]"></div>
-                  <div className="w-1/12 bg-primary/60 rounded-t-sm h-[95%] relative">
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-container-high px-2 py-1 rounded text-[10px] font-bold border border-outline-variant/20">Atual</div>
+            {/* Chart Area - 100% Functional & Interactive */}
+            <div id="card-revenue-chart" className="lg:col-span-2 bg-surface-container p-6 sm:p-8 rounded-2xl border border-outline-variant/10 flex flex-col justify-between">
+              <div>
+                {/* Header Controls */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <div className="flex items-center gap-2 text-primary mb-1">
+                      <TrendingUp className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-widest font-label">Análise Financeira em Tempo Real</span>
+                    </div>
+                    <h3 className="font-bold font-headline text-xl text-white">Crescimento de Receita</h3>
+                  </div>
+
+                  {/* Interactive Metric & View Toggle */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Metric Select */}
+                    <div className="flex bg-surface-container-lowest p-1 rounded-xl border border-outline-variant/10">
+                      <button
+                        type="button"
+                        onClick={() => setMetricType('revenue')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          metricType === 'revenue' 
+                            ? 'bg-primary text-black shadow-sm' 
+                            : 'text-stone-400 hover:text-white'
+                        }`}
+                      >
+                        Receita (Kz)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMetricType('transactions')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          metricType === 'transactions' 
+                            ? 'bg-primary text-black shadow-sm' 
+                            : 'text-stone-400 hover:text-white'
+                        }`}
+                      >
+                        Vendas (Qtd)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMetricType('students')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          metricType === 'students' 
+                            ? 'bg-primary text-black shadow-sm' 
+                            : 'text-stone-400 hover:text-white'
+                        }`}
+                      >
+                        Alunos
+                      </button>
+                    </div>
+
+                    {/* Chart Style: Bar vs Area */}
+                    <div className="flex bg-surface-container-lowest p-1 rounded-xl border border-outline-variant/10">
+                      <button
+                        type="button"
+                        onClick={() => setChartStyle('bar')}
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                          chartStyle === 'bar' ? 'bg-stone-700 text-primary' : 'text-stone-500 hover:text-stone-300'
+                        }`}
+                        title="Visualização em Barras"
+                      >
+                        <BarChart3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChartStyle('area')}
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                          chartStyle === 'area' ? 'bg-stone-700 text-primary' : 'text-stone-500 hover:text-stone-300'
+                        }`}
+                        title="Visualização em Área / Curva"
+                      >
+                        <Activity className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <span className="text-on-surface-variant font-label text-sm relative z-10">Gráfico de Receita de Assinaturas (Kz)</span>
+
+                {/* Sub-header Summary Stats Banner */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 mb-6 rounded-xl bg-surface-container-lowest/60 border border-outline-variant/5 text-xs">
+                  <div>
+                    <span className="text-stone-400 block text-[11px]">Total no Período</span>
+                    <span className="font-bold text-white font-mono text-sm">
+                      {metricType === 'revenue' 
+                        ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(totalPeriodRevenue)
+                        : metricType === 'transactions'
+                        ? `${filteredTransactions.length} vendas`
+                        : `${totalStudents} alunos`
+                      }
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[11px]">Pico de Desempenho</span>
+                    <span className="font-bold text-[#e9c349] font-mono text-sm">{peakPeriodValue}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[11px]">Intervalo Ativo</span>
+                    <span className="font-bold text-stone-200 font-mono text-sm">{timeFilterLabels[timeFilter]}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[11px]">Taxa de Conversão</span>
+                    <span className="font-bold text-secondary font-mono text-sm">
+                      {transactions.length > 0 ? `${Math.round((transactions.filter(t => t.status === 'approved').length / transactions.length) * 100)}%` : '100%'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Interactive Dynamic Chart Box */}
+                <div 
+                  id="dynamic-chart-canvas"
+                  className="h-64 w-full bg-surface-container-highest/40 rounded-xl border border-outline-variant/10 p-4 relative overflow-hidden flex flex-col justify-between"
+                  onMouseLeave={() => setHoveredDataPoint(null)}
+                >
+                  {/* Grid Lines */}
+                  <div className="absolute inset-0 px-4 py-6 flex flex-col justify-between pointer-events-none opacity-10">
+                    <div className="border-b border-stone-400 w-full"></div>
+                    <div className="border-b border-stone-400 w-full"></div>
+                    <div className="border-b border-stone-400 w-full"></div>
+                    <div className="border-b border-stone-400 w-full"></div>
+                  </div>
+
+                  {/* Active Hover Tooltip */}
+                  {hoveredDataPoint && (
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-[#121212] border border-[#e9c349]/40 px-3.5 py-2 rounded-xl shadow-2xl text-xs pointer-events-none flex items-center gap-3 animate-in fade-in duration-150">
+                      <div className="w-2.5 h-2.5 rounded-full bg-primary animate-ping"></div>
+                      <div>
+                        <p className="font-bold text-white text-xs">{hoveredDataPoint.dateStr || hoveredDataPoint.label}</p>
+                        <p className="text-[11px] text-stone-400">
+                          {metricType === 'revenue' && (
+                            <span className="text-[#e9c349] font-mono font-bold">
+                              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(hoveredDataPoint.revenue)}
+                            </span>
+                          )}
+                          {metricType === 'transactions' && (
+                            <span className="text-sky-400 font-mono font-bold">
+                              {hoveredDataPoint.transactions} Transações ({hoveredDataPoint.pending} pendentes)
+                            </span>
+                          )}
+                          {metricType === 'students' && (
+                            <span className="text-emerald-400 font-mono font-bold">
+                              {hoveredDataPoint.students} Novos Alunos
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* CHART RENDERING: BARS OR AREA */}
+                  {chartStyle === 'bar' ? (
+                    <div className="relative z-10 h-44 w-full flex items-end justify-between gap-1.5 sm:gap-3 pt-6">
+                      {chartData.map((d, idx) => {
+                        const val = metricType === 'revenue' ? d.revenue : metricType === 'transactions' ? d.transactions : d.students;
+                        const heightPct = maxChartValue > 0 ? Math.max((val / maxChartValue) * 100, 8) : 8;
+                        const isCurrentHover = hoveredDataPoint?.label === d.label;
+
+                        return (
+                          <div 
+                            key={idx}
+                            onMouseEnter={() => setHoveredDataPoint(d)}
+                            className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer"
+                          >
+                            <div className="w-full relative flex items-end justify-center h-full">
+                              <div 
+                                style={{ height: `${heightPct}%` }}
+                                className={`w-full max-w-[32px] rounded-t-md transition-all duration-300 relative ${
+                                  isCurrentHover 
+                                    ? 'bg-gradient-to-t from-primary to-amber-300 shadow-[0_0_12px_rgba(233,195,73,0.5)]' 
+                                    : 'bg-gradient-to-t from-primary/30 to-primary/80 group-hover:from-primary/50 group-hover:to-primary'
+                                }`}
+                              >
+                                {val > 0 && (
+                                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] font-mono font-bold text-stone-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-1.5 py-0.5 rounded">
+                                    {metricType === 'revenue' ? `${Math.round(val / 1000)}k` : val}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className={`text-[10px] sm:text-[11px] font-label mt-2 truncate w-full text-center transition-colors ${
+                              isCurrentHover ? 'text-primary font-bold' : 'text-stone-400'
+                            }`}>
+                              {d.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Area / Smooth Curve Chart */
+                    <div className="relative z-10 h-44 w-full flex flex-col justify-end pt-4">
+                      <svg className="w-full h-36 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
+                        <defs>
+                          <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="#e9c349" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#e9c349" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Area Polygon */}
+                        {(() => {
+                          const points = chartData.map((d, i) => {
+                            const val = metricType === 'revenue' ? d.revenue : metricType === 'transactions' ? d.transactions : d.students;
+                            const x = (i / (chartData.length - 1 || 1)) * 100;
+                            const y = 100 - (maxChartValue > 0 ? (val / maxChartValue) * 80 : 0) - 10;
+                            return { x, y, d };
+                          });
+
+                          const dPath = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
+                          const areaPath = `${dPath} L 100 100 L 0 100 Z`;
+
+                          return (
+                            <>
+                              <path d={areaPath} fill="url(#areaGradient)" />
+                              <path d={dPath} fill="none" stroke="#e9c349" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                              {points.map((p, idx) => (
+                                <circle
+                                  key={idx}
+                                  cx={p.x}
+                                  cy={p.y}
+                                  r={hoveredDataPoint?.label === p.d.label ? "5" : "3"}
+                                  className="fill-primary stroke-[#121212] stroke-2 hover:r-6 transition-all cursor-pointer"
+                                  onMouseEnter={() => setHoveredDataPoint(p.d)}
+                                />
+                              ))}
+                            </>
+                          );
+                        })()}
+                      </svg>
+
+                      {/* X Axis Labels */}
+                      <div className="flex justify-between w-full mt-2 text-[10px] text-stone-400 px-1 font-label">
+                        {chartData.map((d, i) => (
+                          <span key={i} className="truncate">{d.label}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10 text-[11px] text-stone-500">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-primary"></span>
+                      <span>Valores calculados em tempo real do banco de dados</span>
+                    </span>
+                    <span className="font-mono text-stone-400">Total: {revenueFormatted}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Recent Activity */}
-            <div className="bg-surface-container p-8 rounded-2xl border border-outline-variant/10">
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="font-bold font-headline text-lg">Atividade Recente da Academia</h3>
-              </div>
-              <div className="space-y-6">
-                {[
-                  { icon: 'person_add', text: 'Novo aluno matriculado: João Silva', time: 'Há 5 min', color: 'text-secondary' },
-                  { icon: 'payments', text: 'Pagamento recebido por IBAN', time: 'Há 12 min', color: 'text-primary' },
-                  { icon: 'play_lesson', text: 'Mestre atualizou plano de aulas', time: 'Há 5 horas', color: 'text-on-surface' },
-                  { icon: 'forum', text: 'Nova dúvida respondida no fórum', time: 'Há 1 dia', color: 'text-on-surface-variant' },
-                ].map((activity, i) => (
-                  <div key={i} className="flex gap-4 items-start">
-                    <div className={`w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center flex-shrink-0 ${activity.color}`}>
-                      <span className="material-symbols-outlined text-[16px]">{activity.icon}</span>
+            {/* ========================================================================= */}
+            {/* Recent Activity & Logs Card */}
+            {/* ========================================================================= */}
+            <div id="card-recent-activity" className="bg-surface-container p-6 sm:p-8 rounded-2xl border border-outline-variant/10 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <div className="flex items-center gap-2 text-secondary mb-1">
+                      <Activity className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-widest font-label">Feed da Comunidade</span>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-on-surface">{activity.text}</p>
-                      <p className="text-xs text-on-surface-variant mt-1">{activity.time}</p>
-                    </div>
+                    <h3 className="font-bold font-headline text-lg text-white">Atividade Recente da Academia</h3>
                   </div>
-                ))}
+                  <span className="px-2 py-0.5 rounded-full bg-secondary/10 text-secondary text-[11px] font-bold border border-secondary/20">
+                    Ao Vivo
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {dynamicActivities.length > 0 ? (
+                    dynamicActivities.map((activity) => (
+                      <div 
+                        key={activity.id} 
+                        onClick={() => setIsLogsModalOpen(true)}
+                        className="flex gap-3.5 items-start p-2.5 rounded-xl hover:bg-surface-container-highest/40 transition-colors cursor-pointer group"
+                      >
+                        <div className={`w-8 h-8 rounded-xl bg-surface-container-highest flex items-center justify-center flex-shrink-0 ${activity.color} border border-outline-variant/10 group-hover:scale-105 transition-transform`}>
+                          <span className="material-symbols-outlined text-[16px]">{activity.icon}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-stone-200 line-clamp-2 leading-relaxed group-hover:text-primary transition-colors">
+                            {activity.text}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-stone-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {activity.time}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-xs text-stone-500 italic border border-dashed border-outline-variant/10 rounded-xl">
+                      Nenhuma atividade recente registrada.
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Functional "Ver Logs Recorrentes" button */}
               <button 
-                onClick={() => handleAction('Carregando logs adicionais da academia...')}
-                className="w-full mt-8 py-3 rounded-xl border border-outline-variant/20 text-sm font-bold hover:bg-surface-container-highest transition-colors"
+                id="btn-open-audit-logs"
+                type="button"
+                onClick={() => setIsLogsModalOpen(true)}
+                className="w-full mt-6 py-3 rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/15 text-primary text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
               >
-                Ver Logs Recorrentes
+                <Layers className="w-4 h-4" />
+                <span>Ver Logs Recorrentes & Auditoria ({allAuditLogs.length})</span>
               </button>
             </div>
           </div>
         </div>
       </main>
+
+      {/* ========================================================================= */}
+      {/* MODAL: CENTRAL DE LOGS RECORRENTES & AUDITORIA COMPLETA */}
+      {/* ========================================================================= */}
+      {isLogsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl flex flex-col max-h-[88vh] animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-outline-variant/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white font-headline">Central de Logs & Auditoria da Academia</h3>
+                  <p className="text-xs text-stone-400">Histórico completo de matrículas, pagamentos e acessos</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsLogsModalOpen(false)}
+                className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="py-4 flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-outline-variant/10">
+              {/* Search */}
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="text"
+                  placeholder="Pesquisar por aluno, e-mail..."
+                  value={logsSearch}
+                  onChange={(e) => setLogsSearch(e.target.value)}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder:text-stone-500 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'all', label: 'Todos' },
+                  { id: 'payments', label: 'Pagamentos' },
+                  { id: 'students', label: 'Alunos' },
+                  { id: 'lessons', label: 'Aulas' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setLogsFilterType(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                      logsFilterType === tab.id 
+                        ? 'bg-primary text-black' 
+                        : 'bg-surface-container-high text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Logs List Container */}
+            <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1">
+              {filteredAuditLogs.length > 0 ? (
+                filteredAuditLogs.map(log => (
+                  <div 
+                    key={log.id}
+                    className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex items-start gap-3.5 hover:border-outline-variant/30 transition-all"
+                  >
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      log.type === 'payment_approved' ? 'bg-secondary/15 text-secondary border border-secondary/30' :
+                      log.type === 'payment_rejected' ? 'bg-error/15 text-error border border-error/30' :
+                      log.type === 'payment_pending' ? 'bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30' :
+                      log.type === 'student_signup' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' :
+                      'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                    }`}>
+                      <span className="material-symbols-outlined text-[16px]">
+                        {log.type === 'payment_approved' ? 'check_circle' :
+                         log.type === 'payment_rejected' ? 'cancel' :
+                         log.type === 'payment_pending' ? 'hourglass_top' :
+                         log.type === 'student_signup' ? 'person_add' : 'play_circle'}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-xs text-white">{log.title}</span>
+                        <span className="text-[10px] text-stone-500 font-mono">
+                          {log.timestamp.toLocaleString('pt-AO')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-300 mt-1 leading-relaxed">{log.description}</p>
+                      {log.metadata && (
+                        <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded bg-surface-container-high text-stone-400 font-medium">
+                          {log.metadata}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12 text-stone-500 text-xs">
+                  Nenhum log encontrado para o filtro selecionado.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+              <span className="text-xs text-stone-400">
+                Mostrando <strong className="text-white">{filteredAuditLogs.length}</strong> de {allAuditLogs.length} logs
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  className="px-4 py-2 bg-surface-container-highest hover:bg-surface-bright text-xs font-bold text-white rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Exportar Logs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLogsModalOpen(false)}
+                  className="px-5 py-2 bg-primary text-black text-xs font-bold rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

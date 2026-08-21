@@ -1,13 +1,48 @@
 import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  sendPasswordResetEmail 
+} from 'firebase/auth';
+import { 
+  initializeFirestore,
+  getFirestore,
+  doc, 
+  setDoc, 
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  arrayUnion,
+  serverTimestamp,
+  getDocFromServer
+} from 'firebase/firestore';
 
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Use auto-detect long polling to ensure smooth connectivity in sandboxed iframe environments
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId);
+
 export const googleProvider = new GoogleAuthProvider();
+
+// Test connection on boot gracefully
+(async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    // Suppress offline connection warning in logs
+  }
+})();
 
 export interface NewStudentPayload {
   firstName: string;
@@ -31,6 +66,9 @@ export const adminCreateStudentAccount = async (
     const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email.trim(), pass);
     const newUid = userCredential.user.uid;
 
+    const selectedCourses = studentData.enrolledCourses || [];
+    const hasCourses = selectedCourses.length > 0;
+
     const userRef = doc(db, 'users', newUid);
     await setDoc(userRef, {
       uid: newUid,
@@ -41,9 +79,9 @@ export const adminCreateStudentAccount = async (
       phoneNumber: studentData.phoneNumber || '',
       role: 'student',
       roleType: 'student',
-      subscriptionStatus: 'active',
-      enrolledCourses: studentData.enrolledCourses || [],
-      plan: studentData.plan || 'Aluno Matriculado',
+      subscriptionStatus: hasCourses ? 'active' : 'inactive',
+      enrolledCourses: selectedCourses,
+      plan: hasCourses ? (studentData.plan || 'Aluno Matriculado') : 'Aluno Cadastrado (Sem Curso)',
       createdAt: serverTimestamp(),
       createdBy: auth.currentUser?.email || 'admin'
     });
@@ -57,6 +95,51 @@ export const adminCreateStudentAccount = async (
       await deleteApp(secondaryApp);
     } catch (_) {}
     console.error('Error creating student account as admin:', error);
+    throw error;
+  }
+};
+
+export const approveStudentTransaction = async (
+  transactionId: string, 
+  userId?: string, 
+  courseId: string = 'cfa-financial-master',
+  userEmail?: string
+) => {
+  try {
+    // 1. Atualiza o status da transação para 'approved'
+    const txRef = doc(db, 'transactions', transactionId);
+    await updateDoc(txRef, { 
+      status: 'approved',
+      approvedAt: serverTimestamp(),
+      approvedBy: auth.currentUser?.email || 'admin'
+    });
+
+    const targetCourseId = courseId || 'cfa-financial-master';
+
+    // 2. Inteligência: Insere o ID exato do curso comprado no array de cursos do usuário
+    if (userId && !userId.startsWith('guest_')) {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        enrolledCourses: arrayUnion(targetCourseId),
+        subscriptionStatus: 'active'
+      });
+    } else if (userEmail) {
+      // Caso a transação tenha sido feita por guest com email cadastrado
+      const q = query(collection(db, 'users'), where('email', '==', userEmail.trim().toLowerCase()));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const foundDoc = snap.docs[0];
+        await updateDoc(doc(db, 'users', foundDoc.id), {
+          enrolledCourses: arrayUnion(targetCourseId),
+          subscriptionStatus: 'active'
+        });
+      }
+    }
+
+    console.log(`Curso ${targetCourseId} liberado com sucesso para a transação ${transactionId}`);
+    return true;
+  } catch (error) {
+    console.error("Erro ao aprovar transação e liberar curso:", error);
     throw error;
   }
 };

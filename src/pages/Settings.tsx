@@ -1,89 +1,290 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PlatformSettings } from '../types';
+import { 
+  Building2, 
+  Globe, 
+  Smartphone, 
+  Mail, 
+  Coins, 
+  Clock, 
+  Upload, 
+  CreditCard, 
+  ShieldCheck, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Lock, 
+  CheckCircle2, 
+  AlertCircle,
+  Save,
+  RotateCcw,
+  X,
+  ChevronRight,
+  Sparkles,
+  Layers,
+  ArrowUpRight
+} from 'lucide-react';
+
+interface CustomRole {
+  id: string;
+  name: string;
+  description: string;
+  modulesCount: string;
+  isSystem?: boolean;
+}
 
 export default function Settings() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [platformName, setPlatformName] = useState('CFA - Cassaminha Financial Academy');
-  const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
+  const [toastType, setToastType] = useState<'success' | 'info' | 'error'>('success');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Modal Visibility States for the 3 individual popups
+  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
+
+  // Sub-modal for creating/editing a single role inside permissions modal
+  const [roleModal, setRoleModal] = useState<{
+    isOpen: boolean;
+    mode: 'create' | 'edit';
+    roleId?: string;
+    name: string;
+    description: string;
+    modulesCount: string;
+  }>({
+    isOpen: false,
+    mode: 'create',
+    name: '',
+    description: '',
+    modulesCount: '6/12'
+  });
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 1. Global Platform Identity State
+  const [platformName, setPlatformName] = useState('CFA - Cassaminha Financial Academy');
+  const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
+  const [supportEmail, setSupportEmail] = useState('suporte@grupocassaminha.com');
+  const [defaultCurrency, setDefaultCurrency] = useState('Kz');
+  const [timezone, setTimezone] = useState('WAT (UTC+01:00) Luanda');
+  const [logoUrl, setLogoUrl] = useState('https://lh3.googleusercontent.com/aida-public/AB6AXuDg2ourU5Dm8zztnRMw1EG-AbEnTx0VlZWThpzNsgGPyWHEL1ss5WBn84MjWdUQKNE1UhZAny2CIo8ADOYPyQHL6Yhh1HYmrBfSuXBw2SgFukSalREb8HRwGYnT1S3rnmDLdJ93ZXINZTkuECd-VIvvZiivD69ZoxJrZXnHv8zZtpXiY9HEvrFz_beufZBHHBmIasC0EQOj0swhfv8vTMS78-LutwUNzvH0ngirGht36W7rPZXjagZCm2_k4GMbtwu-STyJPlTlXg');
+
+  // 2. Payment Channels State
   const [paymentSettings, setPaymentSettings] = useState({
     iban: 'AO06 0040 0000 7829 1048 1018 2',
     ibanActive: true,
     bankName: 'BFA (Banco de Fomento Angola)',
+    ibanAccountName: 'GRUPO CASSAMINHA LDA',
+    
     expressIban: 'AO06 0040 0000 7829 1048 1018 2',
     expressActive: true,
     expressPhone: '923 456 789',
     expressName: 'GRUPO CASSAMINHA LDA',
+    
     kwikPhone: '923 456 789',
     kwikActive: true,
     kwikName: 'GRUPOCASSAMINHA',
+    
     multicaixaEntity: '12345',
     multicaixaReference: '884 920 311',
     multicaixaActive: true,
     multicaixaName: 'GRUPO CASSAMINHA LDA'
   });
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const paymentDoc = await getDoc(doc(db, 'settings', 'payment'));
-        if (paymentDoc.exists()) {
-          setPaymentSettings(prev => ({ ...prev, ...paymentDoc.data() }));
-        }
-        
-        const generalDoc = await getDoc(doc(db, 'settings', 'general'));
-        if (generalDoc.exists()) {
-          const genData = generalDoc.data();
-          if (genData.platformName) setPlatformName(genData.platformName);
-          if (genData.supportWhatsApp) setSupportWhatsApp(genData.supportWhatsApp);
-        }
+  // 3. Roles & Permissions State
+  const [roles, setRoles] = useState<CustomRole[]>([
+    { id: 'super_admin', name: 'Super Admin', description: 'Acesso Total e irrestrito ao sistema', modulesCount: '∞', isSystem: true },
+    { id: 'content_curator', name: 'Curador de Conteúdo', description: 'Gestão de Cursos, Módulos e Trilhas', modulesCount: '8/12' },
+    { id: 'community_mod', name: 'Moderador da Comunidade', description: 'Gestão de Fóruns, Dúvidas e Alunos', modulesCount: '4/12' }
+  ]);
 
-        const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
-        if (platformDoc.exists()) {
-          const pData = platformDoc.data() as PlatformSettings;
-          if (pData.supportWhatsApp) setSupportWhatsApp(pData.supportWhatsApp);
-        }
-      } catch (err) {
-        console.error("Failed to load settings:", err);
+  const showNotification = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToastMessage(msg);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3500);
+  };
+
+  // Load settings from Firestore
+  const fetchSettings = async () => {
+    try {
+      // 1. Payment Settings
+      const paymentDoc = await getDoc(doc(db, 'settings', 'payment'));
+      if (paymentDoc.exists()) {
+        setPaymentSettings(prev => ({ ...prev, ...paymentDoc.data() }));
       }
-    };
+      
+      // 2. General Settings
+      const generalDoc = await getDoc(doc(db, 'settings', 'general'));
+      if (generalDoc.exists()) {
+        const genData = generalDoc.data();
+        if (genData.platformName) setPlatformName(genData.platformName);
+        if (genData.supportWhatsApp) setSupportWhatsApp(genData.supportWhatsApp);
+        if (genData.supportEmail) setSupportEmail(genData.supportEmail);
+        if (genData.defaultCurrency) setDefaultCurrency(genData.defaultCurrency);
+        if (genData.timezone) setTimezone(genData.timezone);
+        if (genData.logoUrl) setLogoUrl(genData.logoUrl);
+      }
+
+      // 3. Platform Settings doc
+      const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
+      if (platformDoc.exists()) {
+        const pData = platformDoc.data() as PlatformSettings;
+        if (pData.supportWhatsApp) setSupportWhatsApp(pData.supportWhatsApp);
+        if (pData.platformName) setPlatformName(pData.platformName);
+        if (pData.logoUrl) setLogoUrl(pData.logoUrl);
+        if (pData.defaultCurrency) setDefaultCurrency(pData.defaultCurrency);
+      }
+
+      // 4. Roles doc
+      const rolesDoc = await getDoc(doc(db, 'settings', 'roles'));
+      if (rolesDoc.exists() && Array.isArray(rolesDoc.data().list)) {
+        setRoles(rolesDoc.data().list);
+      }
+    } catch (err) {
+      console.error("Failed to load settings:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchSettings();
   }, []);
 
-  const handleSaveAll = async () => {
+  // Save Global Identity only
+  const handleSaveIdentity = async () => {
     setIsSaving(true);
     try {
       const cleanWhatsApp = supportWhatsApp.replace(/[^0-9]/g, '');
-      const platformPayload: PlatformSettings = {
+
+      const generalPayload = {
+        platformName: platformName.trim(),
         supportWhatsApp: cleanWhatsApp,
-        platformName
+        supportEmail: supportEmail.trim(),
+        defaultCurrency,
+        timezone,
+        logoUrl,
+        updatedAt: new Date().toISOString()
       };
 
-      await setDoc(doc(db, 'settings', 'payment'), paymentSettings);
-      await setDoc(doc(db, 'settings', 'general'), { platformName, supportWhatsApp: cleanWhatsApp }, { merge: true });
+      const platformPayload: PlatformSettings = {
+        supportWhatsApp: cleanWhatsApp,
+        platformName: platformName.trim(),
+        logoUrl,
+        defaultCurrency
+      };
+
+      await setDoc(doc(db, 'settings', 'general'), generalPayload, { merge: true });
       await setDoc(doc(db, 'settings', 'platform'), platformPayload, { merge: true });
-      
+
       setSupportWhatsApp(cleanWhatsApp);
-      showNotification('Todas as configurações salvas com sucesso!');
+      showNotification('Identidade da plataforma salva com sucesso!', 'success');
+      setIsIdentityModalOpen(false);
     } catch (err) {
-      console.error("Error saving settings:", err);
-      showNotification('Erro ao conectar ao Firebase para salvar.');
+      console.error("Error saving identity to Firebase:", err);
+      showNotification('Erro ao salvar identidade.', 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const showNotification = (msg: string) => {
-    setToastMessage(msg);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+  // Save Payment Settings only
+  const handleSavePayments = async () => {
+    setIsSaving(true);
+    try {
+      await setDoc(doc(db, 'settings', 'payment'), paymentSettings, { merge: true });
+      showNotification('Canais de pagamento salvos com sucesso!', 'success');
+      setIsPaymentModalOpen(false);
+    } catch (err) {
+      console.error("Error saving payments to Firebase:", err);
+      showNotification('Erro ao salvar pagamentos.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // Save Roles to Firebase
+  const handleSaveRolesToDb = async (updatedRoles: CustomRole[]) => {
+    try {
+      await setDoc(doc(db, 'settings', 'roles'), { list: updatedRoles, updatedAt: new Date().toISOString() }, { merge: true });
+    } catch (err) {
+      console.error("Error saving roles to Firebase:", err);
+    }
+  };
+
+  // Upload Logo from Device
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      showNotification('O arquivo deve ter no máximo 2MB.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setLogoUrl(event.target.result as string);
+        showNotification('Novo logotipo carregado com sucesso!', 'info');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Save Role Create / Edit inside modal
+  const handleSaveRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleModal.name.trim()) return;
+
+    let updatedRoles: CustomRole[];
+    if (roleModal.mode === 'create') {
+      const newRole: CustomRole = {
+        id: `role_${Date.now()}`,
+        name: roleModal.name.trim(),
+        description: roleModal.description.trim() || 'Nível personalizado de acesso',
+        modulesCount: roleModal.modulesCount || '6/12'
+      };
+      updatedRoles = [...roles, newRole];
+      setRoles(updatedRoles);
+      showNotification(`Nível "${newRole.name}" adicionado!`, 'success');
+    } else if (roleModal.roleId) {
+      updatedRoles = roles.map(r => r.id === roleModal.roleId ? {
+        ...r,
+        name: roleModal.name.trim(),
+        description: roleModal.description.trim(),
+        modulesCount: roleModal.modulesCount
+      } : r);
+      setRoles(updatedRoles);
+      showNotification(`Nível "${roleModal.name}" atualizado!`, 'success');
+    } else {
+      updatedRoles = roles;
+    }
+
+    handleSaveRolesToDb(updatedRoles);
+    setRoleModal({ isOpen: false, mode: 'create', name: '', description: '', modulesCount: '6/12' });
+  };
+
+  // Delete Role
+  const handleDeleteRole = (roleId: string, roleName: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o nível de permissão "${roleName}"?`)) {
+      const updatedRoles = roles.filter(r => r.id !== roleId);
+      setRoles(updatedRoles);
+      handleSaveRolesToDb(updatedRoles);
+      showNotification(`Nível "${roleName}" removido.`, 'info');
+    }
+  };
+
+  // Count active payment channels
+  const activePaymentsCount = [
+    paymentSettings.ibanActive,
+    paymentSettings.expressActive,
+    paymentSettings.kwikActive,
+    paymentSettings.multicaixaActive
+  ].filter(Boolean).length;
 
   return (
     <div className="font-body text-on-surface antialiased overflow-x-hidden min-h-screen bg-[#131313]">
@@ -91,484 +292,864 @@ export default function Settings() {
       
       <Sidebar />
 
-      <main className="ml-72 min-h-screen pt-10 pb-20 px-12 relative">
+      <main className="ml-72 min-h-screen pt-10 pb-20 px-8 lg:px-12 relative">
         {/* Toast Notification */}
         {showToast && (
-          <div className="fixed top-4 right-4 z-[9999] bg-surface-container-high border border-primary/30 text-on-surface px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-            <span className="material-symbols-outlined text-primary">check_circle</span>
+          <div className={`fixed top-4 right-4 z-[9999] bg-[#1a1a1a] border ${
+            toastType === 'error' ? 'border-red-500/50 text-red-400' : 'border-[#e9c349]/50 text-white'
+          } px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4`}>
+            {toastType === 'error' ? (
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 text-[#e9c349] shrink-0" />
+            )}
             <span className="text-sm font-bold">{toastMessage}</span>
           </div>
         )}
 
+        {/* Hidden File Input for Logo Upload */}
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleLogoFileUpload} 
+          accept="image/png, image/jpeg, image/svg+xml, image/webp" 
+          className="hidden" 
+        />
+
         {/* Header */}
-        <header className="mb-12 flex justify-between items-end">
+        <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-outline-variant/10">
           <div>
-            <p className="font-label text-sm text-primary tracking-[0.3em] uppercase mb-2">Sovereign Curator</p>
-            <h2 className="font-headline text-5xl font-extrabold tracking-tight">Painel de Configurações</h2>
+            <p className="font-label text-xs text-[#e9c349] tracking-[0.3em] uppercase mb-1 font-bold">Gestão & Sistema</p>
+            <h2 className="font-headline text-3xl lg:text-4xl font-extrabold tracking-tight text-white">Painel de Configurações</h2>
+            <p className="text-xs text-stone-400 mt-1">Clique em qualquer bloco abaixo para abrir o pop-up e configurar seus dados.</p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <button 
-              onClick={() => showNotification('Alterações descartadas.')}
-              className="px-6 py-2 bg-surface-container-highest text-on-surface font-semibold rounded-xl hover:bg-surface-bright transition-colors"
+              id="btn-discard-settings"
+              onClick={() => {
+                fetchSettings();
+                showNotification('Dados sincronizados com o servidor.', 'info');
+              }}
+              className="px-5 py-2.5 bg-surface-container-highest text-stone-300 hover:text-white font-semibold text-xs rounded-xl hover:bg-surface-bright transition-colors flex items-center gap-2 cursor-pointer"
             >
-              Descartar
-            </button>
-            <button 
-              disabled={isSaving}
-              onClick={handleSaveAll}
-              className={`px-8 py-2 bg-gradient-to-r from-primary to-primary-container text-on-primary font-bold rounded-xl shadow-[0_4px_20px_rgba(233,195,73,0.3)] hover:brightness-110 transition-all ${isSaving ? 'opacity-50 cursor-wait' : ''}`}
-            >
-              {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+              <RotateCcw className="w-3.5 h-3.5" />
+              Recarregar
             </button>
           </div>
         </header>
 
-        {/* Bento Grid Configuration */}
-        <div className="grid grid-cols-12 gap-6">
-          {/* Global Identity Section */}
-          <section className="col-span-12 lg:col-span-8 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10">
-            <div className="flex items-center gap-3 mb-8">
-              <span className="material-symbols-outlined text-primary">public</span>
-              <h3 className="font-headline text-xl font-bold tracking-tight">Identidade Global da Plataforma</h3>
+        {/* 3 Main Interactive Buttons / Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          
+          {/* BUTTON 1: Identidade Global da Plataforma */}
+          <section 
+            id="card-btn-identity"
+            onClick={() => setIsIdentityModalOpen(true)}
+            className="group relative bg-surface-container-low hover:bg-surface-container rounded-2xl p-6 sm:p-7 border border-outline-variant/10 hover:border-[#e9c349]/50 shadow-lg hover:shadow-[0_8px_30px_rgba(233,195,73,0.15)] transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#e9c349]/10 group-hover:bg-[#e9c349] text-[#e9c349] group-hover:text-black flex items-center justify-center border border-[#e9c349]/20 transition-all">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <span className="p-2 rounded-xl bg-surface-container-highest group-hover:bg-[#e9c349]/20 text-stone-400 group-hover:text-[#e9c349] transition-colors">
+                  <ArrowUpRight className="w-4 h-4" />
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349] block mb-1">Módulo 1</span>
+                <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
+                  Identidade Global
+                </h3>
+                <p className="text-xs text-stone-400 mt-1.5 line-clamp-2">
+                  Nome da academia, WhatsApp de suporte, e-mail oficial, moeda padrão e logotipo.
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-outline-variant/10 text-xs">
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Nome:</span>
+                  <span className="font-bold text-white truncate max-w-[140px]">{platformName}</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Moeda / Fuso:</span>
+                  <span className="font-mono text-[#e9c349] font-bold">{defaultCurrency} • WAT</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>WhatsApp:</span>
+                  <span className="font-mono text-stone-300 font-medium">{supportWhatsApp}</span>
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-xs font-label uppercase tracking-widest text-gray-500 mb-2">Nome da Plataforma</label>
-                  <input 
-                    className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-3 px-4 font-medium outline-none" 
-                    type="text" 
-                    value={platformName}
-                    onChange={(e) => setPlatformName(e.target.value)}
-                  />
+
+            <div className="mt-6 pt-4 border-t border-outline-variant/10">
+              <div className="w-full py-2.5 px-4 bg-surface-container-highest group-hover:bg-[#e9c349] text-stone-300 group-hover:text-black font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                <span>Editar Identidade</span>
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+          </section>
+
+          {/* BUTTON 2: Canais de Pagamento (Angola) */}
+          <section 
+            id="card-btn-payments"
+            onClick={() => setIsPaymentModalOpen(true)}
+            className="group relative bg-surface-container-low hover:bg-surface-container rounded-2xl p-6 sm:p-7 border border-outline-variant/10 hover:border-[#e9c349]/50 shadow-lg hover:shadow-[0_8px_30px_rgba(233,195,73,0.15)] transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#e9c349]/10 group-hover:bg-[#e9c349] text-[#e9c349] group-hover:text-black flex items-center justify-center border border-[#e9c349]/20 transition-all">
+                  <CreditCard className="w-6 h-6" />
+                </div>
+                <span className="p-2 rounded-xl bg-surface-container-highest group-hover:bg-[#e9c349]/20 text-stone-400 group-hover:text-[#e9c349] transition-colors">
+                  <ArrowUpRight className="w-4 h-4" />
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349] block mb-1">Módulo 2</span>
+                <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
+                  Canais de Pagamento
+                </h3>
+                <p className="text-xs text-stone-400 mt-1.5 line-clamp-2">
+                  Configuração de IBAN bancário, Multicaixa Express, KWIK Instantâneo e Referência.
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-outline-variant/10 text-xs">
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Status dos Canais:</span>
+                  <span className="font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full text-[11px]">
+                    {activePaymentsCount} de 4 Ativos
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Banco Padrão:</span>
+                  <span className="font-bold text-white truncate max-w-[140px]">{paymentSettings.bankName || 'BFA'}</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Beneficiário:</span>
+                  <span className="font-mono text-stone-300 truncate max-w-[140px]">{paymentSettings.ibanAccountName || 'GRUPO CASSAMINHA'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-outline-variant/10">
+              <div className="w-full py-2.5 px-4 bg-surface-container-highest group-hover:bg-[#e9c349] text-stone-300 group-hover:text-black font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                <span>Configurar Pagamentos</span>
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+          </section>
+
+          {/* BUTTON 3: Gestão de Permissões */}
+          <section 
+            id="card-btn-permissions"
+            onClick={() => setIsPermissionsModalOpen(true)}
+            className="group relative bg-surface-container-low hover:bg-surface-container rounded-2xl p-6 sm:p-7 border border-outline-variant/10 hover:border-[#e9c349]/50 shadow-lg hover:shadow-[0_8px_30px_rgba(233,195,73,0.15)] transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#e9c349]/10 group-hover:bg-[#e9c349] text-[#e9c349] group-hover:text-black flex items-center justify-center border border-[#e9c349]/20 transition-all">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <span className="p-2 rounded-xl bg-surface-container-highest group-hover:bg-[#e9c349]/20 text-stone-400 group-hover:text-[#e9c349] transition-colors">
+                  <ArrowUpRight className="w-4 h-4" />
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349] block mb-1">Módulo 3</span>
+                <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
+                  Gestão de Permissões
+                </h3>
+                <p className="text-xs text-stone-400 mt-1.5 line-clamp-2">
+                  Níveis de acesso, permissões administrativas e limites de visualização de módulos.
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-outline-variant/10 text-xs">
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Cargos Criados:</span>
+                  <span className="font-bold text-[#e9c349] font-mono">{roles.length} Níveis</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Nível Principal:</span>
+                  <span className="font-bold text-white">Super Admin (∞)</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Proteção do Sistema:</span>
+                  <span className="text-stone-300 font-mono">RBAC Ativo</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-outline-variant/10">
+              <div className="w-full py-2.5 px-4 bg-surface-container-highest group-hover:bg-[#e9c349] text-stone-300 group-hover:text-black font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                <span>Gerenciar Permissões</span>
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        {/* System Status Footer */}
+        <footer className="mt-12 flex flex-col sm:flex-row items-center justify-between px-6 py-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/5 gap-3">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-stone-400">Banco de Dados Firestore: Online</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-stone-400">Latência: 24ms</span>
+            </div>
+          </div>
+          <div className="text-[10px] uppercase font-bold tracking-widest text-stone-500 font-mono">
+            CFA Core v2.8 • Sovereign Production
+          </div>
+        </footer>
+      </main>
+
+      {/* ========================================================================= */}
+      {/* POPUP 1: IDENTIDADE GLOBAL DA PLATAFORMA */}
+      {/* ========================================================================= */}
+      {isIdentityModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-outline-variant/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
+                  <Globe className="w-5 h-5" />
                 </div>
                 <div>
-                  <label className="block text-xs font-label uppercase tracking-widest text-gray-500 mb-2">
-                    WhatsApp de Suporte (Sem o + ou espaços)
+                  <h3 className="text-xl font-bold text-white font-headline">Identidade Global da Plataforma</h3>
+                  <p className="text-xs text-stone-400">Preencha e salve os dados principais da instituição.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsIdentityModalOpen(false)}
+                className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {/* Platform Name */}
+              <div>
+                <label className="block text-xs font-label uppercase tracking-widest text-stone-300 font-bold mb-1.5">
+                  Nome da Plataforma *
+                </label>
+                <input 
+                  className="w-full bg-black/60 border border-outline-variant/20 focus:border-[#e9c349] focus:ring-1 focus:ring-[#e9c349] rounded-xl text-white py-2.5 px-4 text-sm font-medium outline-none transition-all" 
+                  type="text" 
+                  value={platformName}
+                  onChange={(e) => setPlatformName(e.target.value)}
+                  placeholder="Ex: CFA - Cassaminha Financial Academy"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* WhatsApp de Suporte */}
+                <div>
+                  <label className="block text-xs font-label uppercase tracking-widest text-stone-300 font-bold mb-1.5">
+                    WhatsApp de Suporte *
                   </label>
                   <div className="relative">
                     <input 
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-3 px-4 pl-10 font-mono text-sm font-medium outline-none" 
+                      className="w-full bg-black/60 border border-outline-variant/20 focus:border-[#e9c349] focus:ring-1 focus:ring-[#e9c349] rounded-xl text-white py-2.5 px-4 pl-10 font-mono text-sm font-medium outline-none transition-all" 
                       type="text" 
                       placeholder="Ex: 244923456789"
                       value={supportWhatsApp}
                       onChange={(e) => setSupportWhatsApp(e.target.value)}
                     />
-                    <span className="material-symbols-outlined absolute left-3 top-3 text-stone-400 text-sm">chat</span>
+                    <Smartphone className="w-4 h-4 absolute left-3.5 top-3 text-[#e9c349]" />
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">Ex: <code className="text-primary font-mono font-bold">244923456789</code> (Utilizado para envio de comprovativos e atendimento dos alunos)</p>
+                  <p className="text-[11px] text-stone-500 mt-1">Ex: <code className="text-[#e9c349] font-mono font-bold">244923456789</code></p>
                 </div>
+
+                {/* E-mail de Suporte */}
                 <div>
-                  <label className="block text-xs font-label uppercase tracking-widest text-gray-500 mb-2">Moeda Padrão</label>
-                  <div className="flex items-center gap-4 bg-surface-container-highest rounded-lg px-4 py-3">
-                    <span className="font-bold text-primary">Kz</span>
-                    <span className="text-on-surface">Kwanza (Angola)</span>
-                    <span className="material-symbols-outlined ml-auto text-gray-500">expand_more</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-label uppercase tracking-widest text-gray-500 mb-2">Fuso Horário</label>
-                  <div className="flex items-center gap-4 bg-surface-container-highest rounded-lg px-4 py-3">
-                    <span className="material-symbols-outlined text-gray-500 text-sm">schedule</span>
-                    <span className="text-on-surface">WAT (UTC+01:00) Luanda</span>
-                    <span className="material-symbols-outlined ml-auto text-gray-500 text-sm">lock</span>
+                  <label className="block text-xs font-label uppercase tracking-widest text-stone-300 font-bold mb-1.5">
+                    E-mail Oficial
+                  </label>
+                  <div className="relative">
+                    <input 
+                      className="w-full bg-black/60 border border-outline-variant/20 focus:border-[#e9c349] focus:ring-1 focus:ring-[#e9c349] rounded-xl text-white py-2.5 px-4 pl-10 text-sm font-medium outline-none transition-all" 
+                      type="email" 
+                      placeholder="Ex: suporte@grupocassaminha.com"
+                      value={supportEmail}
+                      onChange={(e) => setSupportEmail(e.target.value)}
+                    />
+                    <Mail className="w-4 h-4 absolute left-3.5 top-3 text-[#e9c349]" />
                   </div>
                 </div>
               </div>
-              <div 
-                onClick={() => showNotification('Abrindo seletor de arquivos...')}
-                className="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant/30 rounded-xl bg-surface-container-lowest/50 p-6 group cursor-pointer hover:border-primary/50 transition-colors"
+
+              {/* Currency & Timezone Selectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-label uppercase tracking-widest text-stone-300 font-bold mb-1.5">Moeda Padrão</label>
+                  <div className="relative">
+                    <select
+                      value={defaultCurrency}
+                      onChange={(e) => setDefaultCurrency(e.target.value)}
+                      className="w-full bg-black/60 border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2.5 px-3.5 text-xs font-semibold outline-none cursor-pointer appearance-none"
+                    >
+                      <option value="Kz" className="bg-[#181818]">Kz - Kwanza (Angola)</option>
+                      <option value="USD" className="bg-[#181818]">USD - Dólar ($)</option>
+                      <option value="EUR" className="bg-[#181818]">EUR - Euro (€)</option>
+                      <option value="BRL" className="bg-[#181818]">BRL - Real (R$)</option>
+                    </select>
+                    <Coins className="w-3.5 h-3.5 absolute right-3 top-3 text-stone-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-label uppercase tracking-widest text-stone-300 font-bold mb-1.5">Fuso Horário</label>
+                  <div className="relative">
+                    <select
+                      value={timezone}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      className="w-full bg-black/60 border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2.5 px-3.5 text-xs font-semibold outline-none cursor-pointer appearance-none"
+                    >
+                      <option value="WAT (UTC+01:00) Luanda" className="bg-[#181818]">WAT (UTC+01:00) Luanda</option>
+                      <option value="GMT (UTC+00:00) Lisboa" className="bg-[#181818]">GMT (UTC+00:00) Lisboa</option>
+                      <option value="BRT (UTC-03:00) Brasília" className="bg-[#181818]">BRT (UTC-03:00) Brasília</option>
+                    </select>
+                    <Clock className="w-3.5 h-3.5 absolute right-3 top-3 text-stone-400 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Logo Section */}
+              <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/10 flex flex-col sm:flex-row items-center gap-4">
+                <div className="w-20 h-20 rounded-xl bg-[#111] border border-outline-variant/20 flex items-center justify-center p-2 shrink-0 overflow-hidden">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                  ) : (
+                    <Building2 className="w-8 h-8 text-stone-600" />
+                  )}
+                </div>
+                <div className="flex-1 text-center sm:text-left space-y-2">
+                  <span className="text-xs font-bold text-white block">Logotipo da Plataforma</span>
+                  <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="py-1.5 px-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Carregar Imagem
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const url = prompt('Cole a URL da imagem do logotipo:', logoUrl);
+                        if (url && url.trim()) {
+                          setLogoUrl(url.trim());
+                        }
+                      }}
+                      className="py-1.5 px-3 bg-surface-container-highest hover:bg-surface-bright text-stone-300 hover:text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                    >
+                      Colar Link Web
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-6 mt-6 border-t border-outline-variant/10">
+              <button 
+                type="button"
+                onClick={() => setIsIdentityModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
               >
-                <div className="w-24 h-24 rounded-full bg-surface-container-highest flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                  <img alt="Logo" className="w-16 h-16 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDg2ourU5Dm8zztnRMw1EG-AbEnTx0VlZWThpzNsgGPyWHEL1ss5WBn84MjWdUQKNE1UhZAny2CIo8ADOYPyQHL6Yhh1HYmrBfSuXBw2SgFukSalREb8HRwGYnT1S3rnmDLdJ93ZXINZTkuECd-VIvvZiivD69ZoxJrZXnHv8zZtpXiY9HEvrFz_beufZBHHBmIasC0EQOj0swhfv8vTMS78-LutwUNzvH0ngirGht36W7rPZXjagZCm2_k4GMbtwu-STyJPlTlXg" />
-                </div>
-                <span className="text-sm font-bold text-primary">Alterar Logotipo</span>
-                <span className="text-[10px] text-gray-500 mt-1 uppercase tracking-tighter">PNG ou SVG (Máx 2MB)</span>
-              </div>
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                disabled={isSaving}
+                onClick={handleSaveIdentity}
+                className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Salvando...' : 'Salvar Identidade'}
+              </button>
             </div>
-          </section>
+          </div>
+        </div>
+      )}
 
-          {/* API Integrations */}
-          <section className="col-span-12 lg:col-span-4 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10">
-            <div className="flex items-center gap-3 mb-8">
-              <span className="material-symbols-outlined text-primary">api</span>
-              <h3 className="font-headline text-xl font-bold tracking-tight">Integrações API</h3>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-blue-400 text-lg">payments</span>
-                  </div>
-                  <span className="text-sm font-semibold">Stripe Gateway</span>
-                </div>
-                <div className="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(147,214,160,0.6)]"></div>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-red-400 text-lg">mail</span>
-                  </div>
-                  <span className="text-sm font-semibold">SendGrid SMTP</span>
-                </div>
-                <div className="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(147,214,160,0.6)]"></div>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-surface-container-highest rounded-xl grayscale">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-gray-400 text-lg">monitoring</span>
-                  </div>
-                  <span className="text-sm font-semibold">Analytics Engine</span>
-                </div>
-                <div className="px-2 py-1 bg-surface-container text-[8px] uppercase tracking-widest font-bold rounded">Off</div>
-              </div>
-            </div>
-            <button 
-              onClick={() => showNotification('Abrindo gerenciador de chaves API...')}
-              className="w-full mt-6 py-3 border border-primary/20 text-primary text-xs font-bold uppercase tracking-widest rounded-lg hover:bg-primary/5 transition-all"
-            >
-              Gerenciar Chaves
-            </button>
-          </section>
-
-          {/* Configurações de Métodos de Recebimento de Pagamento */}
-          <section className="col-span-12 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+      {/* ========================================================================= */}
+      {/* POPUP 2: CANAIS DE PAGAMENTO (ANGOLA) */}
+      {/* ========================================================================= */}
+      {isPaymentModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-outline-variant/10">
               <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary text-3xl">payments</span>
+                <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
+                  <CreditCard className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="font-headline text-2xl font-black tracking-tight">Canais de Recebimento de Pagamento</h3>
-                  <p className="text-xs text-gray-500 mt-1">Defina os detalhes de IBAN, Express, KWIK e Referência que os alunos verão quando finalizarem a inscrição.</p>
+                  <h3 className="text-xl font-bold text-white font-headline">Canais de Pagamento (Angola)</h3>
+                  <p className="text-xs text-stone-400">Preencha os dados que serão exibidos aos alunos na matrícula/checkout.</p>
                 </div>
               </div>
-              <span className="text-[10px] bg-primary/10 border border-primary/20 text-primary uppercase tracking-widest font-bold px-3 py-1 rounded-full shrink-0">Angola Local Gateways</span>
+              <button 
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto pr-1">
+              
               {/* Canal 1: Transferência Bancária */}
-              <div className="bg-surface-container-highest/40 rounded-xl p-6 border border-outline-variant/5">
-                <div className="flex items-center justify-between mb-4 pb-4 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-primary text-xl">account_balance</span>
-                    <span className="font-headline font-bold text-lg">1. Transferência Bancária</span>
+              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#e9c349]" />
+                    <span className="font-bold text-sm text-white">1. Transferência Bancária (IBAN)</span>
                   </div>
                   <button 
+                    type="button"
                     onClick={() => setPaymentSettings(prev => ({ ...prev, ibanActive: !prev.ibanActive }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors outline-none cursor-pointer ${paymentSettings.ibanActive ? 'bg-primary' : 'bg-surface-container-lowest'}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                      paymentSettings.ibanActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                    }`}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-[#131313] transition-transform ${paymentSettings.ibanActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                      paymentSettings.ibanActive ? 'translate-x-4.5' : 'translate-x-1'
+                    }`} />
                   </button>
                 </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">Nome do Banco</label>
-                    <input 
-                      disabled={!paymentSettings.ibanActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-medium outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.bankName}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, bankName: e.target.value }))}
-                      placeholder="Ex: BFA (Banco de Fomento Angola)"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">IBAN de Recebimento</label>
-                    <input 
-                      disabled={!paymentSettings.ibanActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-mono font-medium outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.iban}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, iban: e.target.value }))}
-                      placeholder="Ex: AO06 0000 0000 0000 0000 0"
-                    />
-                  </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome do Banco</label>
+                  <input 
+                    disabled={!paymentSettings.ibanActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.bankName}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, bankName: e.target.value }))}
+                    placeholder="Ex: BFA (Banco de Fomento Angola)"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">IBAN de Recebimento</label>
+                  <input 
+                    disabled={!paymentSettings.ibanActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.iban}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, iban: e.target.value }))}
+                    placeholder="Ex: AO06 0040 0000 7829 1048 1018 2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Beneficiário</label>
+                  <input 
+                    disabled={!paymentSettings.ibanActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.ibanAccountName || ''}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, ibanAccountName: e.target.value }))}
+                    placeholder="Ex: GRUPO CASSAMINHA LDA"
+                  />
                 </div>
               </div>
 
-              {/* Canal 2: Transferência Express */}
-              <div className="bg-surface-container-highest/40 rounded-xl p-6 border border-outline-variant/5">
-                <div className="flex items-center justify-between mb-4 pb-4 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-primary text-xl">speed</span>
-                    <span className="font-headline font-bold text-lg">2. Transferência Express</span>
+              {/* Canal 2: Multicaixa Express */}
+              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-[#e9c349]" />
+                    <span className="font-bold text-sm text-white">2. Multicaixa Express</span>
                   </div>
                   <button 
+                    type="button"
                     onClick={() => setPaymentSettings(prev => ({ ...prev, expressActive: !prev.expressActive }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors outline-none cursor-pointer ${paymentSettings.expressActive ? 'bg-primary' : 'bg-surface-container-lowest'}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                      paymentSettings.expressActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                    }`}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-[#131313] transition-transform ${paymentSettings.expressActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                      paymentSettings.expressActive ? 'translate-x-4.5' : 'translate-x-1'
+                    }`} />
                   </button>
                 </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">Contacto Express (Apenas o Número)</label>
-                    <input 
-                      disabled={!paymentSettings.expressActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-medium outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.expressPhone}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressPhone: e.target.value }))}
-                      placeholder="Ex: 923 456 789"
-                    />
-                  </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Contacto Express (Telefone)</label>
+                  <input 
+                    disabled={!paymentSettings.expressActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.expressPhone}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressPhone: e.target.value }))}
+                    placeholder="Ex: 923 456 789"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome Registrado</label>
+                  <input 
+                    disabled={!paymentSettings.expressActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.expressName || ''}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressName: e.target.value }))}
+                    placeholder="Ex: GRUPO CASSAMINHA LDA"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">IBAN Associado (Opcional)</label>
+                  <input 
+                    disabled={!paymentSettings.expressActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.expressIban || ''}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressIban: e.target.value }))}
+                    placeholder="Ex: AO06 ..."
+                  />
                 </div>
               </div>
 
-              {/* Canal 3: Transferência KWIK */}
-              <div className="bg-surface-container-highest/40 rounded-xl p-6 border border-outline-variant/5">
-                <div className="flex items-center justify-between mb-4 pb-4 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-primary text-xl">qr_code_2</span>
-                    <span className="font-headline font-bold text-lg">3. Transferência KWIK</span>
+              {/* Canal 3: KWIK Instantâneo */}
+              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                  <div className="flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-[#e9c349]" />
+                    <span className="font-bold text-sm text-white">3. Transferência KWIK</span>
                   </div>
                   <button 
+                    type="button"
                     onClick={() => setPaymentSettings(prev => ({ ...prev, kwikActive: !prev.kwikActive }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors outline-none cursor-pointer ${paymentSettings.kwikActive ? 'bg-primary' : 'bg-surface-container-lowest'}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                      paymentSettings.kwikActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                    }`}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-[#131313] transition-transform ${paymentSettings.kwikActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                      paymentSettings.kwikActive ? 'translate-x-4.5' : 'translate-x-1'
+                    }`} />
                   </button>
                 </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">Chave KWIK (Número de Telefone, IBAN ou Nome)</label>
-                    <input 
-                      disabled={!paymentSettings.kwikActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-medium outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.kwikPhone}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikPhone: e.target.value }))}
-                      placeholder="Ex: 923 456 789, IBAN ou Nome"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">Nome / Apelido do Beneficiário no KWIK</label>
-                    <input 
-                      disabled={!paymentSettings.kwikActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-medium outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.kwikName}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikName: e.target.value }))}
-                      placeholder="Nome amigável registrado"
-                    />
-                  </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Chave KWIK (Número ou Apelido)</label>
+                  <input 
+                    disabled={!paymentSettings.kwikActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.kwikPhone}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikPhone: e.target.value }))}
+                    placeholder="Ex: 923 456 789 ou Nome"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome no KWIK</label>
+                  <input 
+                    disabled={!paymentSettings.kwikActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.kwikName}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikName: e.target.value }))}
+                    placeholder="Ex: GRUPOCASSAMINHA"
+                  />
                 </div>
               </div>
 
               {/* Canal 4: Referência Multicaixa */}
-              <div className="bg-surface-container-highest/40 rounded-xl p-6 border border-outline-variant/5">
-                <div className="flex items-center justify-between mb-4 pb-4 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-primary text-xl">receipt_long</span>
-                    <span className="font-headline font-bold text-lg">4. Referência Multicaixa</span>
+              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-[#e9c349]" />
+                    <span className="font-bold text-sm text-white">4. Referência Multicaixa</span>
                   </div>
                   <button 
+                    type="button"
                     onClick={() => setPaymentSettings(prev => ({ ...prev, multicaixaActive: !prev.multicaixaActive }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors outline-none cursor-pointer ${paymentSettings.multicaixaActive ? 'bg-primary' : 'bg-surface-container-lowest'}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                      paymentSettings.multicaixaActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                    }`}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-[#131313] transition-transform ${paymentSettings.multicaixaActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                      paymentSettings.multicaixaActive ? 'translate-x-4.5' : 'translate-x-1'
+                    }`} />
                   </button>
                 </div>
-                
-                <div className="space-y-4">
+
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">Entidade Multicaixa</label>
+                    <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Entidade</label>
                     <input 
                       disabled={!paymentSettings.multicaixaActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-mono font-medium outline-none disabled:opacity-40" 
+                      className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
                       type="text" 
                       value={paymentSettings.multicaixaEntity}
                       onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaEntity: e.target.value }))}
-                      placeholder="Ex: 56789"
+                      placeholder="Ex: 12345"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">Referência Padrão</label>
+                    <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Referência</label>
                     <input 
                       disabled={!paymentSettings.multicaixaActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-mono font-medium outline-none disabled:opacity-40" 
+                      className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
                       type="text" 
                       value={paymentSettings.multicaixaReference}
                       onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaReference: e.target.value }))}
-                      placeholder="Ex: 000 000 000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-gray-500 mb-1">Beneficiário da Referência</label>
-                    <input 
-                      disabled={!paymentSettings.multicaixaActive}
-                      className="w-full bg-surface-container-highest border-none focus:ring-1 focus:ring-primary rounded-lg text-on-surface py-2.5 px-3.5 text-sm font-medium outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.multicaixaName || ''}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaName: e.target.value }))}
-                      placeholder="Ex: GRUPO CASSAMINHA LDA"
+                      placeholder="Ex: 884 920 311"
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-          </section>
 
-          {/* Permissions Management */}
-          <section className="col-span-12 lg:col-span-7 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary">verified_user</span>
-                <h3 className="font-headline text-xl font-bold tracking-tight">Gestão de Permissões</h3>
+                <div>
+                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Beneficiário da Referência</label>
+                  <input 
+                    disabled={!paymentSettings.multicaixaActive}
+                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                    type="text" 
+                    value={paymentSettings.multicaixaName || ''}
+                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaName: e.target.value }))}
+                    placeholder="Ex: GRUPO CASSAMINHA LDA"
+                  />
+                </div>
               </div>
+
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-6 mt-6 border-t border-outline-variant/10">
               <button 
-                onClick={() => showNotification('Criando novo nível de permissão...')}
-                className="text-primary text-sm font-bold flex items-center gap-1"
+                type="button"
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-lg">add</span>
-                Novo Nível
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                disabled={isSaving}
+                onClick={handleSavePayments}
+                className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Salvando...' : 'Salvar Pagamentos'}
               </button>
             </div>
-            <div className="overflow-hidden">
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* POPUP 3: GESTÃO DE PERMISSÕES */}
+      {/* ========================================================================= */}
+      {isPermissionsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-outline-variant/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-headline">Gestão de Permissões & Cargos</h3>
+                  <p className="text-xs text-stone-400">Gerencie níveis de acesso e permissões a recursos.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  id="btn-add-role-modal"
+                  type="button"
+                  onClick={() => setRoleModal({
+                    isOpen: true,
+                    mode: 'create',
+                    name: '',
+                    description: '',
+                    modulesCount: '6/12'
+                  })}
+                  className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Novo Nível
+                </button>
+                <button 
+                  onClick={() => setIsPermissionsModalOpen(false)}
+                  className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto max-h-[55vh]">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-outline-variant/10">
-                    <th className="pb-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold">Cargo</th>
-                    <th className="pb-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold text-center">Módulos</th>
-                    <th className="pb-4 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold text-right">Ações</th>
+                  <tr className="border-b border-outline-variant/10 text-stone-400">
+                    <th className="pb-3 text-[10px] uppercase tracking-[0.2em] font-bold">Cargo & Descrição</th>
+                    <th className="pb-3 text-[10px] uppercase tracking-[0.2em] font-bold text-center">Módulos</th>
+                    <th className="pb-3 text-[10px] uppercase tracking-[0.2em] font-bold text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/5">
-                  <tr>
-                    <td className="py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm">Super Admin</span>
-                        <span className="text-[10px] text-gray-500">Acesso Total</span>
-                      </div>
-                    </td>
-                    <td className="py-4 text-center">
-                      <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-bold">∞</span>
-                    </td>
-                    <td className="py-4 text-right">
-                      <span className="material-symbols-outlined text-gray-600 cursor-not-allowed">lock</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm">Curador de Conteúdo</span>
-                        <span className="text-[10px] text-gray-500">Gestão de Cursos e Trilhas</span>
-                      </div>
-                    </td>
-                    <td className="py-4 text-center">
-                      <span className="text-xs px-2 py-1 bg-surface-container-highest text-on-surface-variant rounded-full font-medium">8/12</span>
-                    </td>
-                    <td className="py-4 text-right">
-                      <button 
-                        onClick={() => showNotification('Editando permissões do Curador...')}
-                        className="material-symbols-outlined text-primary text-lg hover:brightness-150 transition-all"
-                      >
-                        edit
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm">Moderador da Comunidade</span>
-                        <span className="text-[10px] text-gray-500">Gestão de Fóruns e Comentários</span>
-                      </div>
-                    </td>
-                    <td className="py-4 text-center">
-                      <span className="text-xs px-2 py-1 bg-surface-container-highest text-on-surface-variant rounded-full font-medium">4/12</span>
-                    </td>
-                    <td className="py-4 text-right">
-                      <button 
-                        onClick={() => showNotification('Editando permissões do Moderador...')}
-                        className="material-symbols-outlined text-primary text-lg hover:brightness-150 transition-all"
-                      >
-                        edit
-                      </button>
-                    </td>
-                  </tr>
+                  {roles.map((role) => (
+                    <tr key={role.id} className="hover:bg-surface-container-highest/20 transition-colors">
+                      <td className="py-3.5 pr-2">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm text-white">{role.name}</span>
+                          <span className="text-[11px] text-stone-400">{role.description}</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 text-center">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold font-mono ${
+                          role.modulesCount === '∞' 
+                            ? 'bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30' 
+                            : 'bg-surface-container-highest text-stone-300'
+                        }`}>
+                          {role.modulesCount}
+                        </span>
+                      </td>
+                      <td className="py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {role.isSystem ? (
+                            <span className="p-1.5 text-stone-500 cursor-not-allowed" title="Cargo fixo do sistema">
+                              <Lock className="w-4 h-4" />
+                            </span>
+                          ) : (
+                            <>
+                              <button 
+                                onClick={() => setRoleModal({
+                                  isOpen: true,
+                                  mode: 'edit',
+                                  roleId: role.id,
+                                  name: role.name,
+                                  description: role.description,
+                                  modulesCount: role.modulesCount
+                                })}
+                                className="p-1.5 text-stone-400 hover:text-[#e9c349] hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+                                title="Editar Permissões"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteRole(role.id, role.name)}
+                                className="p-1.5 text-stone-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                                title="Excluir Cargo"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-          </section>
 
-          {/* Audit Logs */}
-          <section className="col-span-12 lg:col-span-5 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary">history_edu</span>
-                <h3 className="font-headline text-xl font-bold tracking-tight">Logs de Auditoria</h3>
-              </div>
-              <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">Tempo Real</span>
+            <div className="flex items-center justify-end pt-6 mt-6 border-t border-outline-variant/10">
+              <button 
+                type="button"
+                onClick={() => setIsPermissionsModalOpen(false)}
+                className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-6 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md cursor-pointer"
+              >
+                Concluir
+              </button>
             </div>
-            <div className="space-y-6 relative">
-              <div className="absolute left-[15px] top-2 bottom-2 w-px bg-outline-variant/20"></div>
-              <div className="relative pl-10 flex flex-col gap-1">
-                <div className="absolute left-0 top-1 w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[14px] text-secondary">update</span>
-                </div>
-                <span className="text-xs font-bold">API Key Regenerada</span>
-                <span className="text-[10px] text-gray-500">Super Admin • Há 12 minutos</span>
-              </div>
-              <div className="relative pl-10 flex flex-col gap-1">
-                <div className="absolute left-0 top-1 w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[14px] text-primary">person_edit</span>
-                </div>
-                <span className="text-xs font-bold">Permissões Alteradas (Moderador)</span>
-                <span className="text-[10px] text-gray-500">Sistema Autônomo • Há 45 minutos</span>
-              </div>
-              <div className="relative pl-10 flex flex-col gap-1">
-                <div className="absolute left-0 top-1 w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[14px] text-red-400">warning</span>
-                </div>
-                <span className="text-xs font-bold">Tentativa de Acesso Negada</span>
-                <span className="text-[10px] text-gray-500">IP: 197.94.22.1 • Há 2 horas</span>
-              </div>
-              <div className="relative pl-10 flex flex-col gap-1">
-                <div className="absolute left-0 top-1 w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[14px] text-secondary">settings</span>
-                </div>
-                <span className="text-xs font-bold">Logo da Plataforma Atualizado</span>
-                <span className="text-[10px] text-gray-500">Super Admin • Há 5 horas</span>
-              </div>
-            </div>
-            <button 
-              onClick={() => showNotification('Carregando histórico completo de auditoria...')}
-              className="w-full mt-10 py-3 text-on-surface-variant text-xs font-bold uppercase tracking-widest hover:text-primary transition-all"
-            >
-              Ver Histórico Completo
-            </button>
-          </section>
+          </div>
         </div>
+      )}
 
-        {/* System Status Footer */}
-        <footer className="mt-12 flex items-center justify-between px-6 py-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/5">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-secondary"></span>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Database Status: Online</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-secondary"></span>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">API Latency: 42ms</span>
-            </div>
-          </div>
-          <div className="text-[10px] uppercase font-bold tracking-widest text-gray-600">
-            v2.4.0-sovereign-production
-          </div>
-        </footer>
-      </main>
+      {/* ========================================================================= */}
+      {/* SUB-MODAL: CRIAR / EDITAR CARGO INDIVIDUAL */}
+      {/* ========================================================================= */}
+      {roleModal.isOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-[#e9c349]/30 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-white mb-1 font-headline">
+              {roleModal.mode === 'create' ? 'Novo Nível de Permissão' : 'Editar Nível de Permissão'}
+            </h3>
+            <p className="text-xs text-stone-400 mb-4">
+              Defina o título do cargo e a quantidade de módulos com permissão de acesso.
+            </p>
 
-      {/* FAB for Quick Actions */}
-      <div className="fixed bottom-8 right-8 z-50">
-        <button 
-          onClick={() => showNotification('Abrindo terminal de comandos...')}
-          className="w-14 h-14 rounded-full bg-primary text-on-primary shadow-[0_8px_30px_rgba(233,195,73,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
-        >
-          <span className="material-symbols-outlined text-3xl">terminal</span>
-        </button>
-      </div>
+            <form onSubmit={handleSaveRole} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                  Nome do Cargo / Nível *
+                </label>
+                <input 
+                  type="text" 
+                  required 
+                  autoFocus
+                  value={roleModal.name} 
+                  onChange={(e) => setRoleModal({ ...roleModal, name: e.target.value })}
+                  placeholder="Ex: Tutor Assistente, Coordenador Pedagógico"
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                  Descrição das Atividades
+                </label>
+                <input 
+                  type="text" 
+                  value={roleModal.description} 
+                  onChange={(e) => setRoleModal({ ...roleModal, description: e.target.value })}
+                  placeholder="Ex: Auxilia nas dúvidas e validação de trabalhos"
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                  Acesso aos Módulos
+                </label>
+                <select
+                  value={roleModal.modulesCount}
+                  onChange={(e) => setRoleModal({ ...roleModal, modulesCount: e.target.value })}
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none"
+                >
+                  <option value="4/12">4/12 Módulos (Básico)</option>
+                  <option value="6/12">6/12 Módulos (Intermediário)</option>
+                  <option value="8/12">8/12 Módulos (Avançado)</option>
+                  <option value="12/12">12/12 Módulos (Geral)</option>
+                  <option value="∞">∞ (Acesso Total)</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3">
+                <button 
+                  type="button" 
+                  onClick={() => setRoleModal({ ...roleModal, isOpen: false })}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-5 py-2 rounded-xl font-bold text-xs transition-colors shadow-md"
+                >
+                  {roleModal.mode === 'create' ? 'Criar Cargo' : 'Salvar Permissão'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

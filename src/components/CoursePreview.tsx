@@ -22,48 +22,9 @@ interface CourseData {
   modules: CourseModule[];
 }
 
-const DEFAULT_COURSE_DATA: Record<string, CourseData> = {
-  'cfa-financial-master': {
-    title: 'A Mentalidade do Operador Institucional',
-    description: 'Aprenda como os grandes bancos e instituições operam no mercado financeiro global e aplique as mesmas estratégias na sua gestão de capital e tomada de decisão.',
-    price: 50000,
-    image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800',
-    modules: [
-      { title: 'Módulo 1: Fundamentos da Soberania Financeira', lessonCount: 4 },
-      { title: 'Módulo 2: Estrutura de Mercado & Liquidez', lessonCount: 6 },
-      { title: 'Módulo 3: Gestão de Risco Institucional', lessonCount: 5 },
-      { title: 'Módulo 4: Execução & Psicológico Operacional', lessonCount: 4 },
-    ]
-  },
-  'cfa-soberania-financeira': {
-    title: 'Fundamentos da Soberania Financeira',
-    description: 'Construa sua base sólida de investimentos, reservas estratégicas em moeda forte e independência financeira passo a passo.',
-    price: 35000,
-    image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&q=80&w=800',
-    modules: [
-      { title: 'Módulo 1: Mentalidade & Desprogramação Financeira', lessonCount: 3 },
-      { title: 'Módulo 2: Reserva Estratégica & Gestão de Caixa', lessonCount: 4 },
-      { title: 'Módulo 3: Diversificação Internacional', lessonCount: 4 },
-    ]
-  },
-  'cfa-cripto-ativos': {
-    title: 'Mercado de Criptoativos e Finanças Descentralizadas',
-    description: 'Estratégias avançadas de investimento, custódia própria blindada, segurança digital e análise fundamentalista on-chain.',
-    price: 45000,
-    image: 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1df?auto=format&fit=crop&q=80&w=800',
-    modules: [
-      { title: 'Módulo 1: Introdução ao Bitcoin & Blockchain', lessonCount: 3 },
-      { title: 'Módulo 2: Custódia Fria & Segurança Pessoal', lessonCount: 4 },
-      { title: 'Módulo 3: Protocolos DeFi & Geração de Renda', lessonCount: 5 },
-    ]
-  }
-};
-
 export default function CoursePreview({ courseId, onBack, onOpenCheckout }: CoursePreviewProps) {
-  const [course, setCourse] = useState<CourseData>(() => {
-    return DEFAULT_COURSE_DATA[courseId] || DEFAULT_COURSE_DATA['cfa-financial-master'];
-  });
-  const [loading, setLoading] = useState(false);
+  const [course, setCourse] = useState<CourseData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -74,28 +35,54 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data();
+          const rawModules = Array.isArray(data.modules) ? data.modules : [];
+          const formattedModules: CourseModule[] = rawModules.map((m: any, idx: number) => ({
+            title: m.title || `Módulo ${idx + 1}`,
+            lessonCount: Array.isArray(m.lessons) ? m.lessons.length : (m.lessonCount || 0)
+          }));
+
           setCourse({
             title: data.title || 'Curso CFA Academy',
-            description: data.description || 'Domine conceitos essenciais com instrutores de excelência.',
-            price: data.price || 50000,
-            image: data.imageUrl || data.image,
-            modules: data.modules || [
-              { title: 'Módulo 1: Fundamentos da Soberania', lessonCount: 4 },
-              { title: 'Módulo 2: Estrutura de Mercado', lessonCount: 6 },
-              { title: 'Módulo 3: Gestão de Risco', lessonCount: 5 },
-            ]
+            description: data.description || 'Treinamento prático da CFA Academy.',
+            price: Number(data.price) || 0,
+            image: data.coverImage || data.imageUrl || data.image || 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800',
+            modules: formattedModules
           });
-        } else if (DEFAULT_COURSE_DATA[courseId]) {
-          setCourse(DEFAULT_COURSE_DATA[courseId]);
+        } else {
+          setCourse(null);
         }
       } catch (err) {
-        console.warn("Utilizando dados padrão do curso:", err);
+        console.error("Erro ao carregar dados do curso:", err);
+        setCourse(null);
       } finally {
         setLoading(false);
       }
     };
     fetchCourse();
   }, [courseId]);
+
+  if (loading) {
+    return (
+      <div className="p-12 text-center text-gray-400">
+        <p className="text-sm animate-pulse">Carregando detalhes do curso...</p>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="p-6 md:p-10 max-w-3xl mx-auto text-center py-20">
+        <h2 className="text-2xl font-bold text-white mb-3">Curso não encontrado</h2>
+        <p className="text-gray-400 text-sm mb-6">Este curso não está disponível ou foi atualizado recentemente.</p>
+        <button
+          onClick={onBack}
+          className="bg-[#e9c349] text-black font-bold px-6 py-2.5 rounded-xl text-sm"
+        >
+          Voltar para a vitrine
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
