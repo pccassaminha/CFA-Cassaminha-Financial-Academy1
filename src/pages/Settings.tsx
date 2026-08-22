@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PlatformSettings } from '../types';
+import { PlatformSettings, Coupon } from '../types';
+import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { 
   Building2, 
   Globe, 
@@ -25,7 +26,12 @@ import {
   ChevronRight,
   Sparkles,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  Ticket,
+  Tag,
+  Percent,
+  DollarSign,
+  Check
 } from 'lucide-react';
 
 interface CustomRole {
@@ -45,7 +51,44 @@ export default function Settings() {
   // Modal Visibility States for the 3 individual popups
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentModalTab, setPaymentModalTab] = useState<'channels' | 'coupons'>('channels');
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
+
+  // Coupons State
+  const [coupons, setCoupons] = useState<Coupon[]>([
+    {
+      id: 'cp_cfa10',
+      code: 'CFA10',
+      type: 'percentage',
+      discountValue: 10,
+      scope: 'general',
+      active: true,
+      createdAt: new Date().toISOString()
+    }
+  ]);
+  const [availableCourses, setAvailableCourses] = useState<{ id: string; title: string }[]>([]);
+
+  // Sub-modal for creating/editing a coupon
+  const [couponForm, setCouponForm] = useState<{
+    isOpen: boolean;
+    mode: 'create' | 'edit';
+    couponId?: string;
+    code: string;
+    type: 'percentage' | 'fixed';
+    discountValue: number | string;
+    scope: 'general' | 'course';
+    courseId: string;
+    active: boolean;
+  }>({
+    isOpen: false,
+    mode: 'create',
+    code: '',
+    type: 'percentage',
+    discountValue: 10,
+    scope: 'general',
+    courseId: '',
+    active: true
+  });
 
   // Sub-modal for creating/editing a single role inside permissions modal
   const [roleModal, setRoleModal] = useState<{
@@ -75,7 +118,7 @@ export default function Settings() {
   const [supportEmail, setSupportEmail] = useState('suporte@grupocassaminha.com');
   const [defaultCurrency, setDefaultCurrency] = useState('Kz');
   const [timezone, setTimezone] = useState('WAT (UTC+01:00) Luanda');
-  const [logoUrl, setLogoUrl] = useState('https://lh3.googleusercontent.com/aida-public/AB6AXuDg2ourU5Dm8zztnRMw1EG-AbEnTx0VlZWThpzNsgGPyWHEL1ss5WBn84MjWdUQKNE1UhZAny2CIo8ADOYPyQHL6Yhh1HYmrBfSuXBw2SgFukSalREb8HRwGYnT1S3rnmDLdJ93ZXINZTkuECd-VIvvZiivD69ZoxJrZXnHv8zZtpXiY9HEvrFz_beufZBHHBmIasC0EQOj0swhfv8vTMS78-LutwUNzvH0ngirGht36W7rPZXjagZCm2_k4GMbtwu-STyJPlTlXg');
+  const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
 
   // 2. Payment Channels State
   const [paymentSettings, setPaymentSettings] = useState({
@@ -131,7 +174,7 @@ export default function Settings() {
         if (genData.supportEmail) setSupportEmail(genData.supportEmail);
         if (genData.defaultCurrency) setDefaultCurrency(genData.defaultCurrency);
         if (genData.timezone) setTimezone(genData.timezone);
-        if (genData.logoUrl) setLogoUrl(genData.logoUrl);
+        if (genData.logoUrl) setLogoUrl(getValidLogoUrl(genData.logoUrl));
       }
 
       // 3. Platform Settings doc
@@ -140,7 +183,7 @@ export default function Settings() {
         const pData = platformDoc.data() as PlatformSettings;
         if (pData.supportWhatsApp) setSupportWhatsApp(pData.supportWhatsApp);
         if (pData.platformName) setPlatformName(pData.platformName);
-        if (pData.logoUrl) setLogoUrl(pData.logoUrl);
+        if (pData.logoUrl) setLogoUrl(getValidLogoUrl(pData.logoUrl));
         if (pData.defaultCurrency) setDefaultCurrency(pData.defaultCurrency);
       }
 
@@ -148,6 +191,28 @@ export default function Settings() {
       const rolesDoc = await getDoc(doc(db, 'settings', 'roles'));
       if (rolesDoc.exists() && Array.isArray(rolesDoc.data().list)) {
         setRoles(rolesDoc.data().list);
+      }
+
+      // 5. Coupons doc
+      const couponsDoc = await getDoc(doc(db, 'settings', 'coupons'));
+      if (couponsDoc.exists() && Array.isArray(couponsDoc.data().list)) {
+        setCoupons(couponsDoc.data().list);
+      } else {
+        const couponsSnap = await getDocs(collection(db, 'coupons'));
+        if (!couponsSnap.empty) {
+          const list = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+          setCoupons(list);
+        }
+      }
+
+      // 6. Fetch courses for coupon scope
+      const coursesSnap = await getDocs(collection(db, 'courses'));
+      if (!coursesSnap.empty) {
+        const cList = coursesSnap.docs.map(d => ({
+          id: d.id,
+          title: d.data().title || 'Curso sem título'
+        }));
+        setAvailableCourses(cList);
       }
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -207,6 +272,97 @@ export default function Settings() {
       showNotification('Erro ao salvar pagamentos.', 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Save Coupons to Firebase
+  const handleSaveCouponsToDb = async (updatedCoupons: Coupon[]) => {
+    try {
+      await setDoc(doc(db, 'settings', 'coupons'), {
+        list: updatedCoupons,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error saving coupons to Firebase:", err);
+    }
+  };
+
+  const handleCouponFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = couponForm.code.trim().toUpperCase();
+    if (!cleanCode) {
+      showNotification('Insira um código válido para o cupão.', 'error');
+      return;
+    }
+
+    const val = Number(couponForm.discountValue);
+    if (isNaN(val) || val <= 0) {
+      showNotification('Insira um valor de desconto maior que zero.', 'error');
+      return;
+    }
+
+    let selectedCourseTitle = '';
+    if (couponForm.scope === 'course' && couponForm.courseId) {
+      const match = availableCourses.find(c => c.id === couponForm.courseId);
+      selectedCourseTitle = match ? match.title : '';
+    }
+
+    let updatedCoupons: Coupon[];
+    if (couponForm.mode === 'create') {
+      if (coupons.some(c => c.code.toUpperCase() === cleanCode)) {
+        showNotification(`O cupão "${cleanCode}" já existe.`, 'error');
+        return;
+      }
+      const newCoupon: Coupon = {
+        id: `cp_${Date.now()}`,
+        code: cleanCode,
+        type: couponForm.type,
+        discountValue: val,
+        scope: couponForm.scope,
+        courseId: couponForm.scope === 'course' ? couponForm.courseId : undefined,
+        courseTitle: couponForm.scope === 'course' ? selectedCourseTitle : undefined,
+        active: couponForm.active,
+        createdAt: new Date().toISOString()
+      };
+      updatedCoupons = [newCoupon, ...coupons];
+      showNotification(`Cupão "${cleanCode}" criado com sucesso!`, 'success');
+    } else if (couponForm.couponId) {
+      updatedCoupons = coupons.map(c => c.id === couponForm.couponId ? {
+        ...c,
+        code: cleanCode,
+        type: couponForm.type,
+        discountValue: val,
+        scope: couponForm.scope,
+        courseId: couponForm.scope === 'course' ? couponForm.courseId : undefined,
+        courseTitle: couponForm.scope === 'course' ? selectedCourseTitle : undefined,
+        active: couponForm.active
+      } : c);
+      showNotification(`Cupão "${cleanCode}" atualizado com sucesso!`, 'success');
+    } else {
+      updatedCoupons = coupons;
+    }
+
+    setCoupons(updatedCoupons);
+    handleSaveCouponsToDb(updatedCoupons);
+    setCouponForm(prev => ({ ...prev, isOpen: false, code: '' }));
+  };
+
+  const handleToggleCouponStatus = (couponId: string) => {
+    const updated = coupons.map(c => c.id === couponId ? { ...c, active: !c.active } : c);
+    setCoupons(updated);
+    handleSaveCouponsToDb(updated);
+    const target = updated.find(c => c.id === couponId);
+    if (target) {
+      showNotification(`Cupão "${target.code}" ${target.active ? 'ativado' : 'desativado'}.`, 'info');
+    }
+  };
+
+  const handleDeleteCoupon = (couponId: string, code: string) => {
+    if (window.confirm(`Tem certeza de que deseja eliminar o cupão "${code}"?`)) {
+      const updated = coupons.filter(c => c.id !== couponId);
+      setCoupons(updated);
+      handleSaveCouponsToDb(updated);
+      showNotification(`Cupão "${code}" eliminado.`, 'info');
     }
   };
 
@@ -414,23 +570,25 @@ export default function Settings() {
               <div className="mb-4">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349] block mb-1">Módulo 2</span>
                 <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
-                  Canais de Pagamento
+                  Pagamentos & Cupões
                 </h3>
                 <p className="text-xs text-stone-400 mt-1.5 line-clamp-2">
-                  Configuração de IBAN bancário, Multicaixa Express, KWIK Instantâneo e Referência.
+                  Dados de IBAN, Express, KWIK, Referência e gestão de cupões de desconto.
                 </p>
               </div>
 
               <div className="space-y-2 pt-2 border-t border-outline-variant/10 text-xs">
                 <div className="flex justify-between items-center text-stone-400">
-                  <span>Status dos Canais:</span>
+                  <span>Canais de Pagamento:</span>
                   <span className="font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full text-[11px]">
                     {activePaymentsCount} de 4 Ativos
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-stone-400">
-                  <span>Banco Padrão:</span>
-                  <span className="font-bold text-white truncate max-w-[140px]">{paymentSettings.bankName || 'BFA'}</span>
+                  <span>Cupões Ativos:</span>
+                  <span className="font-bold text-[#e9c349] font-mono text-[11px]">
+                    {coupons.filter(c => c.active).length} Cupões
+                  </span>
                 </div>
                 <div className="flex justify-between items-center text-stone-400">
                   <span>Beneficiário:</span>
@@ -687,19 +845,20 @@ export default function Settings() {
       )}
 
       {/* ========================================================================= */}
-      {/* POPUP 2: CANAIS DE PAGAMENTO (ANGOLA) */}
+      {/* POPUP 2: CANAIS DE PAGAMENTO & GESTÃO DE CUPÕES (ANGOLA) */}
       {/* ========================================================================= */}
       {isPaymentModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-8">
-            <div className="flex items-center justify-between pb-4 mb-6 border-b border-outline-variant/10">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-outline-variant/10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white font-headline">Canais de Pagamento (Angola)</h3>
-                  <p className="text-xs text-stone-400">Preencha os dados que serão exibidos aos alunos na matrícula/checkout.</p>
+                  <h3 className="text-xl font-bold text-white font-headline">Dados & Configuração de Pagamentos</h3>
+                  <p className="text-xs text-stone-400">Gerencie os canais de recebimento e crie cupões de desconto para o checkout.</p>
                 </div>
               </div>
               <button 
@@ -710,245 +869,592 @@ export default function Settings() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto pr-1">
-              
-              {/* Canal 1: Transferência Bancária */}
-              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
-                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#e9c349]" />
-                    <span className="font-bold text-sm text-white">1. Transferência Bancária (IBAN)</span>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setPaymentSettings(prev => ({ ...prev, ibanActive: !prev.ibanActive }))}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
-                      paymentSettings.ibanActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
-                    }`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
-                      paymentSettings.ibanActive ? 'translate-x-4.5' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome do Banco</label>
-                  <input 
-                    disabled={!paymentSettings.ibanActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.bankName}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, bankName: e.target.value }))}
-                    placeholder="Ex: BFA (Banco de Fomento Angola)"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">IBAN de Recebimento</label>
-                  <input 
-                    disabled={!paymentSettings.ibanActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.iban}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, iban: e.target.value }))}
-                    placeholder="Ex: AO06 0040 0000 7829 1048 1018 2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Beneficiário</label>
-                  <input 
-                    disabled={!paymentSettings.ibanActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.ibanAccountName || ''}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, ibanAccountName: e.target.value }))}
-                    placeholder="Ex: GRUPO CASSAMINHA LDA"
-                  />
-                </div>
-              </div>
-
-              {/* Canal 2: Multicaixa Express */}
-              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
-                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-[#e9c349]" />
-                    <span className="font-bold text-sm text-white">2. Multicaixa Express</span>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setPaymentSettings(prev => ({ ...prev, expressActive: !prev.expressActive }))}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
-                      paymentSettings.expressActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
-                    }`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
-                      paymentSettings.expressActive ? 'translate-x-4.5' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Contacto Express (Telefone)</label>
-                  <input 
-                    disabled={!paymentSettings.expressActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.expressPhone}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressPhone: e.target.value }))}
-                    placeholder="Ex: 923 456 789"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome Registrado</label>
-                  <input 
-                    disabled={!paymentSettings.expressActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.expressName || ''}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressName: e.target.value }))}
-                    placeholder="Ex: GRUPO CASSAMINHA LDA"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">IBAN Associado (Opcional)</label>
-                  <input 
-                    disabled={!paymentSettings.expressActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.expressIban || ''}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressIban: e.target.value }))}
-                    placeholder="Ex: AO06 ..."
-                  />
-                </div>
-              </div>
-
-              {/* Canal 3: KWIK Instantâneo */}
-              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
-                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-2">
-                    <Coins className="w-4 h-4 text-[#e9c349]" />
-                    <span className="font-bold text-sm text-white">3. Transferência KWIK</span>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setPaymentSettings(prev => ({ ...prev, kwikActive: !prev.kwikActive }))}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
-                      paymentSettings.kwikActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
-                    }`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
-                      paymentSettings.kwikActive ? 'translate-x-4.5' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Chave KWIK (Número ou Apelido)</label>
-                  <input 
-                    disabled={!paymentSettings.kwikActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.kwikPhone}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikPhone: e.target.value }))}
-                    placeholder="Ex: 923 456 789 ou Nome"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome no KWIK</label>
-                  <input 
-                    disabled={!paymentSettings.kwikActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.kwikName}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikName: e.target.value }))}
-                    placeholder="Ex: GRUPOCASSAMINHA"
-                  />
-                </div>
-              </div>
-
-              {/* Canal 4: Referência Multicaixa */}
-              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
-                <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-[#e9c349]" />
-                    <span className="font-bold text-sm text-white">4. Referência Multicaixa</span>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setPaymentSettings(prev => ({ ...prev, multicaixaActive: !prev.multicaixaActive }))}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
-                      paymentSettings.multicaixaActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
-                    }`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
-                      paymentSettings.multicaixaActive ? 'translate-x-4.5' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Entidade</label>
-                    <input 
-                      disabled={!paymentSettings.multicaixaActive}
-                      className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.multicaixaEntity}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaEntity: e.target.value }))}
-                      placeholder="Ex: 12345"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Referência</label>
-                    <input 
-                      disabled={!paymentSettings.multicaixaActive}
-                      className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
-                      type="text" 
-                      value={paymentSettings.multicaixaReference}
-                      onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaReference: e.target.value }))}
-                      placeholder="Ex: 884 920 311"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Beneficiário da Referência</label>
-                  <input 
-                    disabled={!paymentSettings.multicaixaActive}
-                    className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
-                    type="text" 
-                    value={paymentSettings.multicaixaName || ''}
-                    onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaName: e.target.value }))}
-                    placeholder="Ex: GRUPO CASSAMINHA LDA"
-                  />
-                </div>
-              </div>
-
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-6 mt-6 border-t border-outline-variant/10">
-              <button 
+            {/* Modal Tabs Navigation */}
+            <div className="flex gap-2 mb-6 border-b border-outline-variant/10 pb-3">
+              <button
                 type="button"
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+                onClick={() => setPaymentModalTab('channels')}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+                  paymentModalTab === 'channels'
+                    ? 'bg-[#e9c349] text-black shadow-md'
+                    : 'bg-surface-container-highest text-stone-400 hover:text-white'
+                }`}
               >
-                Cancelar
+                <CreditCard className="w-4 h-4" />
+                <span>Canais de Pagamento</span>
               </button>
-              <button 
+              <button
                 type="button"
-                disabled={isSaving}
-                onClick={handleSavePayments}
-                className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                onClick={() => setPaymentModalTab('coupons')}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+                  paymentModalTab === 'coupons'
+                    ? 'bg-[#e9c349] text-black shadow-md'
+                    : 'bg-surface-container-highest text-stone-400 hover:text-white'
+                }`}
               >
-                <Save className="w-4 h-4" />
-                {isSaving ? 'Salvando...' : 'Salvar Pagamentos'}
+                <Ticket className="w-4 h-4" />
+                <span>Gestão de Cupões</span>
+                <span className={`px-2 py-0.5 text-[10px] rounded-full font-mono ${
+                  paymentModalTab === 'coupons' ? 'bg-black text-[#e9c349]' : 'bg-surface-container-low text-stone-300'
+                }`}>
+                  {coupons.length}
+                </span>
               </button>
             </div>
+
+            {/* TAB 1: CANAIS DE PAGAMENTO */}
+            {paymentModalTab === 'channels' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[55vh] overflow-y-auto pr-1">
+                  
+                  {/* Canal 1: Transferência Bancária */}
+                  <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-[#e9c349]" />
+                        <span className="font-bold text-sm text-white">1. Transferência Bancária (IBAN)</span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentSettings(prev => ({ ...prev, ibanActive: !prev.ibanActive }))}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                          paymentSettings.ibanActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                        }`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                          paymentSettings.ibanActive ? 'translate-x-4.5' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome do Banco</label>
+                      <input 
+                        disabled={!paymentSettings.ibanActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.bankName}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, bankName: e.target.value }))}
+                        placeholder="Ex: BFA (Banco de Fomento Angola)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">IBAN de Recebimento</label>
+                      <input 
+                        disabled={!paymentSettings.ibanActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.iban}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, iban: e.target.value }))}
+                        placeholder="Ex: AO06 0040 0000 7829 1048 1018 2"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Beneficiário</label>
+                      <input 
+                        disabled={!paymentSettings.ibanActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.ibanAccountName || ''}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, ibanAccountName: e.target.value }))}
+                        placeholder="Ex: GRUPO CASSAMINHA LDA"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Canal 2: Multicaixa Express */}
+                  <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="w-4 h-4 text-[#e9c349]" />
+                        <span className="font-bold text-sm text-white">2. Multicaixa Express</span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentSettings(prev => ({ ...prev, expressActive: !prev.expressActive }))}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                          paymentSettings.expressActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                        }`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                          paymentSettings.expressActive ? 'translate-x-4.5' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Contacto Express (Telefone)</label>
+                      <input 
+                        disabled={!paymentSettings.expressActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.expressPhone}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressPhone: e.target.value }))}
+                        placeholder="Ex: 923 456 789"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome Registrado</label>
+                      <input 
+                        disabled={!paymentSettings.expressActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.expressName || ''}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressName: e.target.value }))}
+                        placeholder="Ex: GRUPO CASSAMINHA LDA"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">IBAN Associado (Opcional)</label>
+                      <input 
+                        disabled={!paymentSettings.expressActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.expressIban || ''}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, expressIban: e.target.value }))}
+                        placeholder="Ex: AO06 ..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Canal 3: KWIK Instantâneo */}
+                  <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-[#e9c349]" />
+                        <span className="font-bold text-sm text-white">3. Transferência KWIK</span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentSettings(prev => ({ ...prev, kwikActive: !prev.kwikActive }))}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                          paymentSettings.kwikActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                        }`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                          paymentSettings.kwikActive ? 'translate-x-4.5' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Chave KWIK (Número ou Apelido)</label>
+                      <input 
+                        disabled={!paymentSettings.kwikActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.kwikPhone}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikPhone: e.target.value }))}
+                        placeholder="Ex: 923 456 789 ou Nome"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Nome no KWIK</label>
+                      <input 
+                        disabled={!paymentSettings.kwikActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.kwikName}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, kwikName: e.target.value }))}
+                        placeholder="Ex: GRUPOCASSAMINHA"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Canal 4: Referência Multicaixa */}
+                  <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 space-y-3.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-[#e9c349]" />
+                        <span className="font-bold text-sm text-white">4. Referência Multicaixa</span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentSettings(prev => ({ ...prev, multicaixaActive: !prev.multicaixaActive }))}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                          paymentSettings.multicaixaActive ? 'bg-[#e9c349]' : 'bg-surface-container-highest'
+                        }`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-black transition-transform ${
+                          paymentSettings.multicaixaActive ? 'translate-x-4.5' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Entidade</label>
+                        <input 
+                          disabled={!paymentSettings.multicaixaActive}
+                          className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                          type="text" 
+                          value={paymentSettings.multicaixaEntity}
+                          onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaEntity: e.target.value }))}
+                          placeholder="Ex: 12345"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Referência</label>
+                        <input 
+                          disabled={!paymentSettings.multicaixaActive}
+                          className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono outline-none disabled:opacity-40" 
+                          type="text" 
+                          value={paymentSettings.multicaixaReference}
+                          onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaReference: e.target.value }))}
+                          placeholder="Ex: 884 920 311"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-label uppercase tracking-wider text-stone-400 font-bold mb-1">Beneficiário da Referência</label>
+                      <input 
+                        disabled={!paymentSettings.multicaixaActive}
+                        className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none disabled:opacity-40" 
+                        type="text" 
+                        value={paymentSettings.multicaixaName || ''}
+                        onChange={(e) => setPaymentSettings(prev => ({ ...prev, multicaixaName: e.target.value }))}
+                        placeholder="Ex: GRUPO CASSAMINHA LDA"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-6 mt-6 border-t border-outline-variant/10">
+                  <button 
+                    type="button"
+                    onClick={() => setIsPaymentModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleSavePayments}
+                    className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSaving ? 'Salvando...' : 'Salvar Pagamentos'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* TAB 2: GESTÃO DE CUPÕES */}
+            {paymentModalTab === 'coupons' && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10">
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-[#e9c349]" />
+                      <span>Cupões de Desconto Ativos no Sistema</span>
+                    </h4>
+                    <p className="text-xs text-stone-400 mt-0.5">
+                      Crie cupões por porcentagem (%) ou valor fixo (Kz) para aplicação no checkout do aluno.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCouponForm({
+                      isOpen: true,
+                      mode: 'create',
+                      code: '',
+                      type: 'percentage',
+                      discountValue: 10,
+                      scope: 'general',
+                      courseId: availableCourses[0]?.id || '',
+                      active: true
+                    })}
+                    className="px-4 py-2 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-xl flex items-center gap-2 transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Criar Novo Cupão</span>
+                  </button>
+                </div>
+
+                {/* FORM OVERLAY/CARD TO CREATE OR EDIT A COUPON */}
+                {couponForm.isOpen && (
+                  <form onSubmit={handleCouponFormSubmit} className="bg-surface-container-lowest p-5 rounded-2xl border border-[#e9c349]/40 space-y-4 animate-in fade-in duration-200">
+                    <div className="flex justify-between items-center pb-2 border-b border-outline-variant/10">
+                      <h5 className="text-sm font-bold text-[#e9c349] flex items-center gap-2">
+                        <Ticket className="w-4 h-4" />
+                        <span>{couponForm.mode === 'create' ? 'Novo Cupão de Desconto' : 'Editar Cupão'}</span>
+                      </h5>
+                      <button
+                        type="button"
+                        onClick={() => setCouponForm(prev => ({ ...prev, isOpen: false }))}
+                        className="text-stone-400 hover:text-white p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Code */}
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-wider text-stone-400 mb-1">
+                          Código do Cupão <span className="text-[#e9c349]">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={couponForm.code}
+                          onChange={(e) => setCouponForm(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                          placeholder="Ex: CASSAMINHA20"
+                          className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono font-bold tracking-wider uppercase outline-none"
+                        />
+                      </div>
+
+                      {/* Type toggle */}
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-wider text-stone-400 mb-1">
+                          Tipo de Desconto
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCouponForm(prev => ({ ...prev, type: 'percentage' }))}
+                            className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              couponForm.type === 'percentage'
+                                ? 'bg-[#e9c349] text-black border-[#e9c349]'
+                                : 'bg-black text-stone-400 border-outline-variant/20 hover:border-outline-variant/50'
+                            }`}
+                          >
+                            <Percent className="w-3.5 h-3.5" />
+                            <span>Porcentagem (%)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCouponForm(prev => ({ ...prev, type: 'fixed' }))}
+                            className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              couponForm.type === 'fixed'
+                                ? 'bg-[#e9c349] text-black border-[#e9c349]'
+                                : 'bg-black text-stone-400 border-outline-variant/20 hover:border-outline-variant/50'
+                            }`}
+                          >
+                            <Coins className="w-3.5 h-3.5" />
+                            <span>Valor Fixo (Kz)</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Discount Value */}
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-wider text-stone-400 mb-1">
+                          Valor do Desconto {couponForm.type === 'percentage' ? '(%)' : '(Kz)'} <span className="text-[#e9c349]">*</span>
+                        </label>
+                        <input
+                          required
+                          type="number"
+                          min="1"
+                          max={couponForm.type === 'percentage' ? "100" : undefined}
+                          value={couponForm.discountValue}
+                          onChange={(e) => setCouponForm(prev => ({ ...prev, discountValue: e.target.value }))}
+                          placeholder={couponForm.type === 'percentage' ? "Ex: 20" : "Ex: 5000"}
+                          className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs font-mono font-bold outline-none"
+                        />
+                      </div>
+
+                      {/* Scope toggle */}
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold tracking-wider text-stone-400 mb-1">
+                          Aplicabilidade (Escopo)
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCouponForm(prev => ({ ...prev, scope: 'general' }))}
+                            className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              couponForm.scope === 'general'
+                                ? 'bg-[#e9c349] text-black border-[#e9c349]'
+                                : 'bg-black text-stone-400 border-outline-variant/20 hover:border-outline-variant/50'
+                            }`}
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            <span>Todos os Cursos</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCouponForm(prev => ({ ...prev, scope: 'course' }))}
+                            className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                              couponForm.scope === 'course'
+                                ? 'bg-[#e9c349] text-black border-[#e9c349]'
+                                : 'bg-black text-stone-400 border-outline-variant/20 hover:border-outline-variant/50'
+                            }`}
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>Curso Específico</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Select Course if Scope is course */}
+                      {couponForm.scope === 'course' && (
+                        <div className="md:col-span-2">
+                          <label className="block text-[10px] uppercase font-bold tracking-wider text-stone-400 mb-1">
+                            Selecione o Curso Alvo <span className="text-[#e9c349]">*</span>
+                          </label>
+                          <select
+                            value={couponForm.courseId}
+                            onChange={(e) => setCouponForm(prev => ({ ...prev, courseId: e.target.value }))}
+                            className="w-full bg-black border border-outline-variant/20 focus:border-[#e9c349] rounded-xl text-white py-2 px-3 text-xs outline-none cursor-pointer"
+                          >
+                            <option value="">Selecione um curso...</option>
+                            {availableCourses.map(c => (
+                              <option key={c.id} value={c.id}>{c.title}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-outline-variant/10">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={couponForm.active}
+                          onChange={(e) => setCouponForm(prev => ({ ...prev, active: e.target.checked }))}
+                          className="w-4 h-4 accent-[#e9c349] rounded cursor-pointer"
+                        />
+                        <span className="text-xs text-stone-300 font-semibold">Ativar Cupão Imediatamente</span>
+                      </label>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCouponForm(prev => ({ ...prev, isOpen: false }))}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-400 hover:text-white"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Salvar Cupão</span>
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+
+                {/* COUPONS LIST TABLE */}
+                <div className="max-h-[42vh] overflow-y-auto pr-1 space-y-3">
+                  {coupons.length === 0 ? (
+                    <div className="text-center py-12 border border-dashed border-outline-variant/20 rounded-2xl bg-black/20">
+                      <Ticket className="w-10 h-10 mx-auto text-stone-600 mb-2" />
+                      <p className="text-xs text-stone-400 font-bold">Nenhum cupão cadastrado.</p>
+                      <p className="text-[11px] text-stone-500 mt-1">Clique no botão "Criar Novo Cupão" acima para disponibilizar um desconto aos seus alunos.</p>
+                    </div>
+                  ) : (
+                    coupons.map((cp) => (
+                      <div
+                        key={cp.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 hover:border-outline-variant/30 transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center font-bold shrink-0 border border-[#e9c349]/20">
+                            <Tag className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-extrabold text-[#e9c349] tracking-wider bg-black/60 px-2 py-0.5 rounded border border-[#e9c349]/30">
+                                {cp.code}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                cp.active 
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                                  : 'bg-stone-800 text-stone-500'
+                              }`}>
+                                {cp.active ? 'Ativo' : 'Inativo'}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-300 mt-1">
+                              <span className="font-bold text-white">
+                                {cp.type === 'percentage' 
+                                  ? `${cp.discountValue}% de Desconto` 
+                                  : `Kz ${Number(cp.discountValue).toLocaleString('pt-AO')} de Desconto`}
+                              </span>
+                              <span className="text-stone-600">•</span>
+                              <span className="text-stone-400">
+                                {cp.scope === 'general' 
+                                  ? 'Aplicável a Todos os Cursos' 
+                                  : `Curso: ${cp.courseTitle || cp.courseId || 'Específico'}`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                          {/* Active status switch button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCouponStatus(cp.id)}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                              cp.active 
+                                ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' 
+                                : 'bg-surface-container-highest text-stone-400 hover:text-white'
+                            }`}
+                          >
+                            {cp.active ? 'Ativado' : 'Ativar'}
+                          </button>
+
+                          {/* Edit button */}
+                          <button
+                            type="button"
+                            onClick={() => setCouponForm({
+                              isOpen: true,
+                              mode: 'edit',
+                              couponId: cp.id,
+                              code: cp.code,
+                              type: cp.type,
+                              discountValue: cp.discountValue,
+                              scope: cp.scope,
+                              courseId: cp.courseId || '',
+                              active: cp.active
+                            })}
+                            className="p-1.5 rounded-lg bg-surface-container-highest hover:bg-surface-bright text-stone-300 hover:text-white transition-colors cursor-pointer"
+                            title="Editar Cupão"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Delete button */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCoupon(cp.id, cp.code)}
+                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors cursor-pointer"
+                            title="Eliminar Cupão"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-outline-variant/10 flex justify-between items-center text-xs text-stone-400">
+                  <span>Os cupões ativos ficam disponíveis imediatamente no formulário de checkout dos alunos.</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentModalOpen(false)}
+                    className="px-4 py-2 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-xl transition-all"
+                  >
+                    Concluído
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}

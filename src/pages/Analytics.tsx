@@ -16,7 +16,10 @@ import {
   ArrowUpRight, 
   PlayCircle, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  X,
+  Search,
+  ChevronRight
 } from 'lucide-react';
 
 interface LessonStats {
@@ -65,6 +68,11 @@ export default function Analytics() {
   const [selectedModuleId, setSelectedModuleId] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'views' | 'completions' | 'rate'>('views');
+
+  // Performance Modal & Lesson Filter States
+  const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
+  const [lessonSearchQuery, setLessonSearchQuery] = useState('');
+  const [selectedLessonId, setSelectedLessonId] = useState<string>('all');
 
   // Pagination & Accordion states
   const [currentPage, setCurrentPage] = useState(1);
@@ -266,6 +274,31 @@ export default function Analytics() {
       return b.completionRate - a.completionRate || b.views - a.views;
     });
   }, [activeCourses, realStudents, users, selectedCourseId, selectedModuleId, sortBy]);
+
+  // Modal Filtered Lesson Statistics
+  const modalFilteredLessons = useMemo(() => {
+    return lessonStats.filter(stat => {
+      if (selectedLessonId !== 'all' && stat.id !== selectedLessonId) {
+        return false;
+      }
+      if (lessonSearchQuery.trim() !== '') {
+        const q = lessonSearchQuery.toLowerCase();
+        const matchTitle = stat.title.toLowerCase().includes(q);
+        const matchModule = stat.moduleTitle.toLowerCase().includes(q);
+        const matchCourse = stat.courseTitle.toLowerCase().includes(q);
+        return matchTitle || matchModule || matchCourse;
+      }
+      return true;
+    });
+  }, [lessonStats, selectedLessonId, lessonSearchQuery]);
+
+  // Paginated lesson statistics for Modal
+  const modalPaginatedLessons = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return modalFilteredLessons.slice(startIndex, startIndex + itemsPerPage);
+  }, [modalFilteredLessons, currentPage]);
+
+  const modalTotalPages = Math.ceil(modalFilteredLessons.length / itemsPerPage);
 
   // Paginated lesson statistics
   const paginatedLessonStats = useMemo(() => {
@@ -507,163 +540,334 @@ export default function Analytics() {
 
 
 
-          {/* Top Content Table (Sincronizado com os Cursos Reais) */}
-          <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden mb-12 shadow-xl">
-            <div className="p-6 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-primary" />
-                  <h3 className="font-bold font-headline text-lg text-white">Desempenho Detalhado por Aula</h3>
-                </div>
-                <p className="text-xs text-stone-400 mt-0.5">
-                  Visualizações, conclusões e taxa de retenção por aula em cada formação.
-                </p>
+          {/* Quadro de Desempenho (Compact Trigger Card) */}
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/10 p-6 mb-12 shadow-xl hover:border-[#e9c349]/30 transition-all flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/20 flex items-center justify-center shrink-0">
+                <BarChart3 className="w-6 h-6" />
               </div>
-
-              {/* Sorting filters */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-stone-400 font-label uppercase">Ordenar por:</span>
-                <div className="flex bg-surface-container-high p-1 rounded-xl border border-outline-variant/10">
-                  <button
-                    onClick={() => setSortBy('views')}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      sortBy === 'views' 
-                        ? 'bg-primary text-black shadow-sm' 
-                        : 'text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Clicks
-                  </button>
-                  <button
-                    onClick={() => setSortBy('completions')}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      sortBy === 'completions' 
-                        ? 'bg-primary text-black shadow-sm' 
-                        : 'text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Conclusões
-                  </button>
-                  <button
-                    onClick={() => setSortBy('rate')}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      sortBy === 'rate' 
-                        ? 'bg-primary text-black shadow-sm' 
-                        : 'text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Taxa (%)
-                  </button>
+              <div>
+                <h3 className="font-bold font-headline text-lg text-white">Quadro de Desempenho por Aula e Curso</h3>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  Consulte retenção, cliques e conclusões por cada aula ou curso individualmente.
+                </p>
+                <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] font-mono text-stone-400">
+                  <span className="bg-surface-container-high px-2.5 py-0.5 rounded-full border border-outline-variant/10 text-stone-300">
+                    {totalLessonsCount} Aulas Rastreáveis
+                  </span>
+                  <span>•</span>
+                  <span className="text-primary font-bold">{totalViewsCount} Clicks Totais</span>
+                  <span>•</span>
+                  <span className="text-emerald-400 font-bold">{totalCompletionsCount} Conclusões</span>
                 </div>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              {loading ? (
-                <div className="p-12 text-center text-sm text-stone-500 italic">
-                  <p className="animate-pulse">Calculando estatísticas em tempo real com o banco de dados...</p>
-                </div>
-              ) : lessonStats.length === 0 ? (
-                <div className="p-12 text-center text-stone-400">
-                  <PlayCircle className="w-12 h-12 mx-auto mb-3 opacity-30 text-[#e9c349]" />
-                  <p className="font-bold text-white text-base">Nenhuma aula cadastrada ainda</p>
-                  <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
-                    Adicione módulos e vídeos nos cursos para acompanhar métricas de retenção e cliques.
-                  </p>
-                  <Link 
-                    to="/content" 
-                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-[#e9c349] text-black font-bold text-xs rounded-xl hover:bg-[#d4b03f] transition-all"
+            <button
+              id="btn-open-performance-modal"
+              onClick={() => setIsPerformanceModalOpen(true)}
+              className="bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold px-6 py-3 rounded-xl flex items-center gap-2 text-sm shadow-md transition-all cursor-pointer hover:scale-105 shrink-0"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Ver Desempenho Detalhado</span>
+            </button>
+          </div>
+
+          {/* Modal Quadro de Desempenho */}
+          {isPerformanceModalOpen && (
+            <div className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
+              <div 
+                className="bg-[#181818] border border-outline-variant/20 rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl my-8 flex flex-col max-h-[90vh]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="p-6 border-b border-outline-variant/10 flex items-center justify-between gap-4 bg-surface-container">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/20 flex items-center justify-center shrink-0">
+                      <BarChart3 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold font-headline text-xl text-white">Quadro de Desempenho por Aula & Curso</h3>
+                      <p className="text-xs text-stone-400">
+                        Selecione o curso, o módulo ou filtre por uma aula específica para analisar métricas detalhadas.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsPerformanceModalOpen(false)}
+                    className="w-9 h-9 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-stone-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
                   >
-                    Cadastrar Conteúdo Agora →
-                  </Link>
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              ) : (
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-surface-container-highest/50 text-on-surface-variant font-label uppercase tracking-wider text-xs border-b border-outline-variant/10">
-                    <tr>
-                      <th className="p-4 font-semibold">Aula & Duração</th>
-                      <th className="p-4 font-semibold">Módulo</th>
-                      <th className="p-4 font-semibold">Curso Pertencente</th>
-                      <th className="p-4 font-semibold text-center">Visualizações (Clicks)</th>
-                      <th className="p-4 font-semibold text-center">Alunos que Concluíram</th>
-                      <th className="p-4 font-semibold text-center">Taxa de Conclusão</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant/5">
-                    {paginatedLessonStats.map((stat) => (
-                      <tr key={stat.id} className="hover:bg-surface-container-highest/30 transition-colors">
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center shrink-0 border border-[#e9c349]/20">
-                              <PlayCircle className="w-4 h-4" />
-                            </div>
+
+                {/* Modal Controls / Filters */}
+                <div className="p-6 border-b border-outline-variant/10 bg-surface-container-high/40 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-3 flex-1">
+                    {/* Course Select */}
+                    <div className="flex items-center bg-black border border-outline-variant/20 rounded-xl px-3 py-2 text-xs">
+                      <BookOpen className="w-4 h-4 text-[#e9c349] mr-2 shrink-0" />
+                      <select 
+                        value={selectedCourseId}
+                        onChange={(e) => {
+                          setSelectedCourseId(e.target.value);
+                          setSelectedModuleId('all');
+                          setSelectedLessonId('all');
+                          setCurrentPage(1);
+                        }}
+                        className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer pr-1"
+                      >
+                        <option value="all" className="bg-[#181818] text-white">Todos os Cursos ({courses.length})</option>
+                        {courses.map(c => (
+                          <option key={c.id} value={c.id} className="bg-[#181818] text-white">{c.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Module Select */}
+                    <div className="flex items-center bg-black border border-outline-variant/20 rounded-xl px-3 py-2 text-xs">
+                      <Layers className="w-4 h-4 text-secondary mr-2 shrink-0" />
+                      <select 
+                        value={selectedModuleId}
+                        disabled={selectedCourseId === 'all'}
+                        onChange={(e) => {
+                          setSelectedModuleId(e.target.value);
+                          setSelectedLessonId('all');
+                          setCurrentPage(1);
+                        }}
+                        className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer pr-1 disabled:opacity-50"
+                      >
+                        <option value="all" className="bg-[#181818] text-white">
+                          {selectedCourseId === 'all' ? 'Selecione um curso' : `Todos os Módulos (${availableModules.length})`}
+                        </option>
+                        {availableModules.map((m: any) => (
+                          <option key={m.id} value={m.id} className="bg-[#181818] text-white">{m.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Specific Lesson Select */}
+                    <div className="flex items-center bg-black border border-outline-variant/20 rounded-xl px-3 py-2 text-xs max-w-[220px]">
+                      <PlayCircle className="w-4 h-4 text-primary mr-2 shrink-0" />
+                      <select 
+                        value={selectedLessonId}
+                        onChange={(e) => {
+                          setSelectedLessonId(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer truncate"
+                      >
+                        <option value="all" className="bg-[#181818] text-white">Todas as Aulas ({lessonStats.length})</option>
+                        {lessonStats.map(stat => (
+                          <option key={stat.id} value={stat.id} className="bg-[#181818] text-white">
+                            {stat.title} ({stat.courseTitle})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative flex-1 min-w-[180px]">
+                      <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={lessonSearchQuery}
+                        onChange={(e) => {
+                          setLessonSearchQuery(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        placeholder="Pesquisar por aula..."
+                        className="w-full bg-black border border-outline-variant/20 rounded-xl pl-9 pr-3 py-2 text-xs text-white outline-none focus:border-[#e9c349]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sort Controls */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] text-stone-400 uppercase font-mono">Ordenar:</span>
+                    <div className="flex bg-black p-1 rounded-xl border border-outline-variant/20">
+                      <button
+                        onClick={() => setSortBy('views')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                          sortBy === 'views' ? 'bg-[#e9c349] text-black' : 'text-stone-400 hover:text-white'
+                        }`}
+                      >
+                        Clicks
+                      </button>
+                      <button
+                        onClick={() => setSortBy('completions')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                          sortBy === 'completions' ? 'bg-[#e9c349] text-black' : 'text-stone-400 hover:text-white'
+                        }`}
+                      >
+                        Conclusões
+                      </button>
+                      <button
+                        onClick={() => setSortBy('rate')}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                          sortBy === 'rate' ? 'bg-[#e9c349] text-black' : 'text-stone-400 hover:text-white'
+                        }`}
+                      >
+                        Taxa (%)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Body / Table / Card */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  {/* Highlight card if specific lesson is selected */}
+                  {selectedLessonId !== 'all' && (
+                    (() => {
+                      const selectedLesson = lessonStats.find(s => s.id === selectedLessonId);
+                      if (!selectedLesson) return null;
+                      return (
+                        <div className="mb-6 bg-gradient-to-r from-[#e9c349]/10 via-surface-container to-surface-container border border-[#e9c349]/30 rounded-2xl p-6">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                             <div>
-                              <span className="font-semibold text-on-surface block leading-snug">{stat.title}</span>
-                              <span className="text-[11px] font-mono text-stone-400">⏱ {stat.duration}</span>
+                              <span className="text-[10px] font-mono uppercase tracking-widest text-[#e9c349] font-bold">
+                                {selectedLesson.courseTitle} • {selectedLesson.moduleTitle}
+                              </span>
+                              <h4 className="text-xl font-extrabold text-white mt-1 flex items-center gap-2">
+                                <PlayCircle className="w-5 h-5 text-[#e9c349]" />
+                                {selectedLesson.title}
+                              </h4>
+                            </div>
+                            <span className="text-xs font-mono text-stone-300 bg-black/40 px-3 py-1 rounded-full border border-white/10 self-start md:self-auto">
+                              ⏱ Duração: {selectedLesson.duration}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10">
+                            <div className="bg-black/50 p-4 rounded-xl border border-white/5">
+                              <span className="text-[11px] text-stone-400 uppercase font-mono block">Visualizações (Clicks)</span>
+                              <span className="text-2xl font-black font-mono text-primary mt-1 block">{selectedLesson.views}</span>
+                            </div>
+                            <div className="bg-black/50 p-4 rounded-xl border border-white/5">
+                              <span className="text-[11px] text-stone-400 uppercase font-mono block">Alunos com Conclusão</span>
+                              <span className="text-2xl font-black font-mono text-white mt-1 block">{selectedLesson.completions}</span>
+                            </div>
+                            <div className="bg-black/50 p-4 rounded-xl border border-white/5">
+                              <span className="text-[11px] text-stone-400 uppercase font-mono block">Taxa de Conclusão</span>
+                              <span className="text-2xl font-black font-mono text-emerald-400 mt-1 block">{selectedLesson.completionRate}%</span>
                             </div>
                           </div>
-                        </td>
-                        <td className="p-4 text-xs font-medium text-stone-300">
-                          {stat.moduleTitle}
-                        </td>
-                        <td className="p-4 text-xs">
-                          <span className="font-semibold text-[#e9c349] bg-[#e9c349]/10 px-2.5 py-1 rounded-md border border-[#e9c349]/20">
-                            {stat.courseTitle}
-                          </span>
-                        </td>
-                        <td className="p-4 text-center font-bold font-mono text-primary text-base">
-                          {stat.views}
-                        </td>
-                        <td className="p-4 text-center font-bold font-mono text-on-surface text-base">
-                          {stat.completions}
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold font-mono ${
-                            stat.completionRate >= 50 
-                              ? 'bg-secondary/15 text-secondary border border-secondary/30' 
-                              : stat.completionRate > 0 
-                              ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
-                              : 'bg-stone-800 text-stone-400'
-                          }`}>
-                            {stat.completionRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                        </div>
+                      );
+                    })()
+                  )}
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="p-4 bg-[#181818] border-t border-outline-variant/10 flex items-center justify-between gap-4">
-                <span className="text-xs text-stone-400 font-mono">
-                  Mostrando {Math.min(lessonStats.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(lessonStats.length, currentPage * itemsPerPage)} de {lessonStats.length} aulas
-                </span>
-                
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="p-1.5 rounded-lg bg-[#282828] border border-outline-variant/10 text-stone-400 hover:text-white disabled:opacity-40 disabled:hover:text-stone-400 transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-                  </button>
-                  <span className="text-xs text-white font-bold font-mono">
-                    Pág. {currentPage} de {totalPages}
+                  {/* Table of Lessons */}
+                  {loading ? (
+                    <div className="p-12 text-center text-sm text-stone-500 italic">
+                      <p className="animate-pulse">Carregando dados das aulas...</p>
+                    </div>
+                  ) : modalFilteredLessons.length === 0 ? (
+                    <div className="p-12 text-center text-stone-400">
+                      <PlayCircle className="w-12 h-12 mx-auto mb-3 opacity-30 text-[#e9c349]" />
+                      <p className="font-bold text-white text-base">Nenhuma aula encontrada</p>
+                      <p className="text-xs text-stone-500 mt-1">Tente ajustar os filtros ou o termo de pesquisa.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-outline-variant/10">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-surface-container-highest/60 text-on-surface-variant font-label uppercase tracking-wider text-xs border-b border-outline-variant/10">
+                          <tr>
+                            <th className="p-3.5 font-semibold">Aula & Duração</th>
+                            <th className="p-3.5 font-semibold">Módulo</th>
+                            <th className="p-3.5 font-semibold">Curso Pertencente</th>
+                            <th className="p-3.5 font-semibold text-center">Visualizações (Clicks)</th>
+                            <th className="p-3.5 font-semibold text-center">Alunos Concluíram</th>
+                            <th className="p-3.5 font-semibold text-center">Taxa (%)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-outline-variant/5">
+                          {modalPaginatedLessons.map((stat) => (
+                            <tr 
+                              key={stat.id} 
+                              onClick={() => setSelectedLessonId(stat.id)}
+                              className={`hover:bg-surface-container-highest/40 transition-colors cursor-pointer ${
+                                selectedLessonId === stat.id ? 'bg-[#e9c349]/10' : ''
+                              }`}
+                            >
+                              <td className="p-3.5">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center shrink-0 border border-[#e9c349]/20">
+                                    <PlayCircle className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-white block leading-snug">{stat.title}</span>
+                                    <span className="text-[10px] font-mono text-stone-400">⏱ {stat.duration}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-3.5 text-xs text-stone-300">{stat.moduleTitle}</td>
+                              <td className="p-3.5 text-xs">
+                                <span className="font-semibold text-[#e9c349] bg-[#e9c349]/10 px-2 py-0.5 rounded border border-[#e9c349]/20">
+                                  {stat.courseTitle}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-center font-bold font-mono text-primary">{stat.views}</td>
+                              <td className="p-3.5 text-center font-bold font-mono text-white">{stat.completions}</td>
+                              <td className="p-3.5 text-center">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold font-mono ${
+                                  stat.completionRate >= 50 
+                                    ? 'bg-secondary/15 text-secondary border border-secondary/30' 
+                                    : stat.completionRate > 0 
+                                    ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+                                    : 'bg-stone-800 text-stone-400'
+                                }`}>
+                                  {stat.completionRate}%
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer / Pagination */}
+                <div className="p-4 bg-surface-container border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <span className="text-xs text-stone-400 font-mono">
+                    Mostrando {Math.min(modalFilteredLessons.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(modalFilteredLessons.length, currentPage * itemsPerPage)} de {modalFilteredLessons.length} aulas
                   </span>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className="p-1.5 rounded-lg bg-[#282828] border border-outline-variant/10 text-stone-400 hover:text-white disabled:opacity-40 disabled:hover:text-stone-400 transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                  </button>
+
+                  <div className="flex items-center gap-3">
+                    {modalTotalPages > 1 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          className="p-1.5 rounded-lg bg-[#282828] border border-outline-variant/10 text-stone-400 hover:text-white disabled:opacity-40 transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                        </button>
+                        <span className="text-xs text-white font-bold font-mono">
+                          Pág. {currentPage} de {modalTotalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(modalTotalPages, prev + 1))}
+                          disabled={currentPage === modalTotalPages}
+                          className="p-1.5 rounded-lg bg-[#282828] border border-outline-variant/10 text-stone-400 hover:text-white disabled:opacity-40 transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => setIsPerformanceModalOpen(false)}
+                      className="bg-stone-800 hover:bg-stone-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
         </div>
       </main>

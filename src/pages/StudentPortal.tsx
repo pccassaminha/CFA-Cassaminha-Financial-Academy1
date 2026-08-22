@@ -8,13 +8,14 @@ import { BookOpen, Home, User, LogOut, Compass } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { logout, auth, db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 
 export default function StudentPortal() {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<'catalog' | 'my-courses' | 'profile' | 'preview' | 'checkout'>('catalog');
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string>('');
+  const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_CFA_LOGO);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -23,14 +24,14 @@ export default function StudentPortal() {
         if (generalDoc.exists()) {
           const genData = generalDoc.data();
           if (genData.logoUrl) {
-            setLogoUrl(genData.logoUrl);
+            setLogoUrl(getValidLogoUrl(genData.logoUrl));
           }
         }
         const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
         if (platformDoc.exists()) {
           const pData = platformDoc.data();
           if (pData.logoUrl) {
-            setLogoUrl(pData.logoUrl);
+            setLogoUrl(getValidLogoUrl(pData.logoUrl));
           }
         }
       } catch (err) {

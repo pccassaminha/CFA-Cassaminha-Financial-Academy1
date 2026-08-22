@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { 
   BookOpen, 
   ArrowRight, 
@@ -29,7 +30,7 @@ interface Course {
 
 export default function SalesPage() {
   const navigate = useNavigate();
-  const [logoUrl, setLogoUrl] = useState('');
+  const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -53,11 +54,11 @@ export default function SalesPage() {
       try {
         const generalDoc = await getDoc(doc(db, 'settings', 'general'));
         if (generalDoc.exists() && generalDoc.data().logoUrl) {
-          setLogoUrl(generalDoc.data().logoUrl);
+          setLogoUrl(getValidLogoUrl(generalDoc.data().logoUrl));
         }
         const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
         if (platformDoc.exists() && platformDoc.data().logoUrl) {
-          setLogoUrl(platformDoc.data().logoUrl);
+          setLogoUrl(getValidLogoUrl(platformDoc.data().logoUrl));
         }
       } catch (err) {
         console.error("Error loading logo in Sales page:", err);

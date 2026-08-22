@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { loginWithGoogle, loginWithEmail, registerWithEmail, sendResetEmail, db } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,18 +24,18 @@ export default function Login() {
   // Status message states
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [logoUrl, setLogoUrl] = useState('');
+  const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
 
   useEffect(() => {
     const fetchLogo = async () => {
       try {
         const generalDoc = await getDoc(doc(db, 'settings', 'general'));
         if (generalDoc.exists() && generalDoc.data().logoUrl) {
-          setLogoUrl(generalDoc.data().logoUrl);
+          setLogoUrl(getValidLogoUrl(generalDoc.data().logoUrl));
         }
         const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
         if (platformDoc.exists() && platformDoc.data().logoUrl) {
-          setLogoUrl(platformDoc.data().logoUrl);
+          setLogoUrl(getValidLogoUrl(platformDoc.data().logoUrl));
         }
       } catch (err) {
         console.error("Error loading logo in Login page:", err);

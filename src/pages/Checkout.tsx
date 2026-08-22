@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
-import { PlatformSettings, Transaction } from '../types';
+import { PlatformSettings, Transaction, Coupon } from '../types';
+import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -18,7 +19,15 @@ export default function Checkout() {
   const [referenceNumber, setReferenceNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
-  const [logoUrl, setLogoUrl] = useState('');
+  const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
+
+  // Coupon States
+  const [couponsList, setCouponsList] = useState<Coupon[]>([]);
+  const [showCouponInput, setShowCouponInput] = useState(false);
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponSuccessMsg, setCouponSuccessMsg] = useState<string | null>(null);
 
   const [paymentSettings, setPaymentSettings] = useState({
     iban: 'AO06 0040 0000 7829 1048 1018 2',
@@ -103,7 +112,7 @@ export default function Checkout() {
         if (platformSnap.exists()) {
           const pData = platformSnap.data() as PlatformSettings;
           if (pData.supportWhatsApp) setSupportWhatsApp(pData.supportWhatsApp);
-          if (pData.logoUrl) setLogoUrl(pData.logoUrl);
+          if (pData.logoUrl) setLogoUrl(getValidLogoUrl(pData.logoUrl));
         }
         
         const genRef = doc(db, 'settings', 'general');
@@ -113,8 +122,20 @@ export default function Checkout() {
           if (genData.supportWhatsApp && !supportWhatsApp) {
             setSupportWhatsApp(genData.supportWhatsApp);
           }
-          if (genData.logoUrl && !logoUrl) {
-            setLogoUrl(genData.logoUrl);
+          if (genData.logoUrl) {
+            setLogoUrl(getValidLogoUrl(genData.logoUrl));
+          }
+        }
+
+        // Load Coupons
+        const couponsRef = doc(db, 'settings', 'coupons');
+        const couponsSnap = await getDoc(couponsRef);
+        if (couponsSnap.exists() && Array.isArray(couponsSnap.data().list)) {
+          setCouponsList(couponsSnap.data().list);
+        } else {
+          const cSnap = await getDocs(collection(db, 'coupons'));
+          if (!cSnap.empty) {
+            setCouponsList(cSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon)));
           }
         }
       } catch (err) {
@@ -137,6 +158,54 @@ export default function Checkout() {
   const courseTitle = selectedCourse ? selectedCourse.title : 'Formação CFA';
   const courseId = selectedCourse ? selectedCourse.id : 'curso-cfa';
 
+  // Calculate discount and final amount
+  let discountAmount = 0;
+  if (appliedCoupon) {
+    if (appliedCoupon.type === 'percentage') {
+      discountAmount = (coursePrice * appliedCoupon.discountValue) / 100;
+    } else if (appliedCoupon.type === 'fixed') {
+      discountAmount = Number(appliedCoupon.discountValue);
+    }
+    if (discountAmount > coursePrice) discountAmount = coursePrice;
+  }
+  const finalPrice = Math.max(0, coursePrice - discountAmount);
+
+  const handleApplyCoupon = () => {
+    setCouponError(null);
+    setCouponSuccessMsg(null);
+    const clean = couponCodeInput.trim().toUpperCase();
+    if (!clean) {
+      setCouponError('Por favor, digite o código do cupão.');
+      return;
+    }
+
+    const match = couponsList.find(c => c.code.toUpperCase() === clean);
+    if (!match) {
+      setCouponError('Cupão de desconto inválido ou inexistente.');
+      return;
+    }
+
+    if (!match.active) {
+      setCouponError('Este cupão de desconto não está mais ativo.');
+      return;
+    }
+
+    if (match.scope === 'course' && match.courseId && match.courseId !== courseId) {
+      setCouponError(`Cupão válido apenas para o curso "${match.courseTitle || 'específico'}".`);
+      return;
+    }
+
+    setAppliedCoupon(match);
+    setCouponSuccessMsg(`Cupão "${match.code}" aplicado com sucesso!`);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput('');
+    setCouponError(null);
+    setCouponSuccessMsg(null);
+  };
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -156,7 +225,10 @@ export default function Checkout() {
       courseTitle: courseTitle,
       referenceNumber: cleanRef,
       paymentMethod: selectedMethod,
-      amount: coursePrice,
+      amount: finalPrice,
+      originalAmount: coursePrice,
+      discountAmount: discountAmount,
+      appliedCoupon: appliedCoupon ? appliedCoupon.code : undefined,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
@@ -477,15 +549,97 @@ export default function Checkout() {
                       {coursePrice > 0 ? `Kz ${coursePrice.toLocaleString('pt-AO')}` : 'Gratuito'}
                     </span>
                   </div>
+
+                  {/* Coupon UI section */}
+                  <div className="py-3 px-4 rounded-xl bg-surface-container-highest/60 border border-outline-variant/15 text-xs space-y-2">
+                    {!appliedCoupon ? (
+                      <div>
+                        {!showCouponInput ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCouponInput(true)}
+                            className="text-[#e9c349] font-bold hover:underline flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm">confirmation_number</span>
+                            Tem um cupão de desconto? Clique aqui
+                          </button>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="block text-[11px] font-bold text-stone-300">Digite seu cupão de desconto:</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={couponCodeInput}
+                                onChange={(e) => setCouponCodeInput(e.target.value)}
+                                placeholder="EX: CFA2025"
+                                className="flex-1 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-mono outline-none focus:border-[#e9c349]"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleApplyCoupon}
+                                className="bg-[#e9c349] text-black font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-[#d8b338] transition-colors cursor-pointer"
+                              >
+                                Aplicar
+                              </button>
+                            </div>
+                            {couponError && (
+                              <p className="text-red-400 text-[11px] font-medium flex items-center gap-1">
+                                <span className="material-symbols-outlined text-xs">error</span>
+                                {couponError}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between text-emerald-400">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-sm">verified</span>
+                          <div>
+                            <span className="font-bold font-mono uppercase">{appliedCoupon.code}</span>
+                            <span className="text-[10px] text-stone-400 block">
+                              ({appliedCoupon.type === 'percentage' ? `${appliedCoupon.discountValue}% OFF` : `Kz ${Number(appliedCoupon.discountValue).toLocaleString('pt-AO')} OFF`})
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveCoupon}
+                          className="text-stone-400 hover:text-red-400 text-[11px] underline cursor-pointer"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-emerald-400 font-semibold">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">sell</span>
+                        Desconto (Cupão)
+                      </span>
+                      <span>- Kz {discountAmount.toLocaleString('pt-AO')}</span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Taxas Académicas</span>
                     <span className="text-secondary">Kz 0</span>
                   </div>
-                  <div className="flex justify-between items-end pt-4">
-                    <span className="font-headline font-bold text-lg">Total</span>
+
+                  <div className="flex justify-between items-end pt-4 border-t border-outline-variant/10">
+                    <div>
+                      <span className="font-headline font-bold text-lg block">Total</span>
+                      {discountAmount > 0 && (
+                        <span className="text-[11px] text-stone-400 line-through">
+                          Kz {coursePrice.toLocaleString('pt-AO')}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-right">
                       <span className="block text-3xl font-black text-primary font-headline tracking-tighter">
-                        {coursePrice > 0 ? `Kz ${coursePrice.toLocaleString('pt-AO')}` : 'Kz 0'}
+                        {finalPrice > 0 ? `Kz ${finalPrice.toLocaleString('pt-AO')}` : 'Gratuito'}
                       </span>
                     </div>
                   </div>

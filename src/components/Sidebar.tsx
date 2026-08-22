@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { logout, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { 
   Smartphone, 
   Mail, 
@@ -22,6 +23,7 @@ export default function Sidebar() {
     return localStorage.getItem('viewAsStudent') === 'true';
   });
 
+  const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_CFA_LOGO);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
   const [supportEmail, setSupportEmail] = useState('suporte@grupocassaminha.com');
@@ -35,24 +37,26 @@ export default function Sidebar() {
     return () => window.removeEventListener('student-view-changed', handleToggle);
   }, []);
 
-  // Fetch support details from settings
+  // Fetch support and logo details from settings
   useEffect(() => {
-    const fetchSupportInfo = async () => {
+    const fetchSettingsInfo = async () => {
       try {
-        const platSnap = await getDoc(doc(db, 'settings', 'platform'));
-        if (platSnap.exists() && platSnap.data().supportWhatsApp) {
-          setSupportWhatsApp(platSnap.data().supportWhatsApp);
-        }
         const genSnap = await getDoc(doc(db, 'settings', 'general'));
         if (genSnap.exists()) {
           if (genSnap.data().supportWhatsApp) setSupportWhatsApp(genSnap.data().supportWhatsApp);
           if (genSnap.data().supportEmail) setSupportEmail(genSnap.data().supportEmail);
+          if (genSnap.data().logoUrl) setLogoUrl(getValidLogoUrl(genSnap.data().logoUrl));
+        }
+        const platSnap = await getDoc(doc(db, 'settings', 'platform'));
+        if (platSnap.exists()) {
+          if (platSnap.data().supportWhatsApp) setSupportWhatsApp(platSnap.data().supportWhatsApp);
+          if (platSnap.data().logoUrl) setLogoUrl(getValidLogoUrl(platSnap.data().logoUrl));
         }
       } catch (err) {
-        console.warn('Could not fetch real-time support info (offline fallback active):', err);
+        console.warn('Could not fetch real-time settings info (offline fallback active):', err);
       }
     };
-    fetchSupportInfo();
+    fetchSettingsInfo();
   }, []);
 
   const toggleStudentView = () => {
@@ -96,22 +100,32 @@ export default function Sidebar() {
           <span className="text-xs font-bold">{toastMsg}</span>
         </div>
       )}
-      <aside className="fixed left-0 top-0 h-full flex flex-col pt-24 pb-8 bg-[#0e0e0e] w-72 border-r border-[#353534]/30 z-40">
-      <div className="px-8 mb-10 flex items-center gap-3">
-        <div className="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center">
-          <span className="material-symbols-outlined text-on-primary-container" style={{ fontVariationSettings: "'FILL' 1" }}>
-            school
-          </span>
+      <aside className="fixed left-0 top-0 h-full flex flex-col pt-20 pb-8 bg-[#0e0e0e] w-72 border-r border-[#353534]/30 z-40">
+        <div className="px-6 mb-6">
+          <Link to="/dashboard" className="block">
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt="Logo CFA" 
+                className="max-h-14 w-auto object-contain mx-0 drop-shadow" 
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#e9c349] text-black font-bold rounded-xl flex items-center justify-center font-headline text-base">
+                  CFA
+                </div>
+                <div>
+                  <h2 className="font-headline font-bold text-base leading-tight text-white">CFA</h2>
+                  <p className="text-[9px] uppercase tracking-widest text-[#e9c349] font-mono">Cassaminha Financial Academy</p>
+                </div>
+              </div>
+            )}
+          </Link>
+          <p className="text-[10px] text-stone-400 font-body mt-2">
+            Uma empresa do <strong className="text-[#e9c349]">Grupo Cassaminha</strong>
+          </p>
         </div>
-        <div>
-          <h2 className="font-headline font-bold text-lg leading-tight tracking-tight text-on-surface">CFA</h2>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-primary font-label">Cassaminha Financial Academy</p>
-        </div>
-      </div>
-      <div className="px-8 mb-6">
-        <p className="text-[10px] text-on-surface-variant font-body">Uma empresa do <strong className="text-primary">Grupo Cassaminha</strong></p>
-      </div>
-      <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-1 overflow-y-auto">
         <Link
           to="/dashboard"
           className={`flex items-center gap-4 px-4 py-3 mx-2 my-1 font-headline font-medium transition-transform duration-300 rounded-lg ${
@@ -189,28 +203,7 @@ export default function Sidebar() {
           <span>Ver como Aluno</span>
         </button>
       </nav>
-      <div className="mt-auto px-4">
-        <div className="p-4 rounded-xl bg-surface-container-high mb-6 border border-primary/10">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-primary font-bold uppercase tracking-widest mb-1 font-label">Status</span>
-            {location.pathname === '/library' ? (
-              <span className="text-xs font-bold text-primary font-body">78%</span>
-            ) : null}
-          </div>
-          {location.pathname === '/library' ? (
-            <div className="w-full bg-surface-container-lowest h-1.5 rounded-full overflow-hidden mb-4">
-              <div className="bg-primary h-full w-[78%]"></div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-headline font-bold text-sm text-on-surface">Status Premium</span>
-              <span className="w-2 h-2 bg-secondary rounded-full"></span>
-            </div>
-          )}
-          <button onClick={() => showSidebarNotice('Upgrade de status disponível em breve.')} className="w-full py-2 text-xs font-headline font-bold text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors cursor-pointer">
-            Status Premium
-          </button>
-        </div>
+      <div className="mt-auto px-4 pt-4 border-t border-[#353534]/30">
         <div className="space-y-1">
           <button
             id="btn-sidebar-support"

@@ -1,3 +1,16 @@
+export interface Coupon {
+  id: string;
+  code: string; // Ex: "PROMO10", "CASSAMINHA20"
+  type: 'percentage' | 'fixed'; // Porcentagem (%) ou Valor Fixo (Kz)
+  discountValue: number; // Ex: 10 para 10% ou 5000 para 5.000 Kz
+  scope: 'general' | 'course'; // 'general' = todos os cursos, 'course' = curso específico
+  courseId?: string; // ID do curso se for específico
+  courseTitle?: string; // Título do curso para exibição
+  active: boolean; // Ativo / Inativo
+  createdAt?: string;
+  usageCount?: number;
+}
+
 export interface PlatformSettings {
   supportWhatsApp: string; // Ex: "244900000000" (Sem o + ou espaços)
   platformName?: string;
@@ -15,6 +28,9 @@ export interface Transaction {
   referenceNumber: string; // NOVO: Número da transação/referência
   paymentMethod?: string;
   amount?: number;
+  originalAmount?: number;
+  discountAmount?: number;
+  appliedCoupon?: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: any;
   proofUrl?: string;
