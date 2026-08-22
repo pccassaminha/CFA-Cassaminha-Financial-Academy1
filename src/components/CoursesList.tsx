@@ -455,13 +455,13 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição Curta</label>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição & Links</label>
                 <textarea
-                  rows={2}
+                  rows={5}
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  placeholder="Resumo do conteúdo programático..."
-                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-none"
+                  placeholder="Escreva a descrição e cole links úteis..."
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-y"
                 />
               </div>
 
@@ -589,13 +589,13 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição Curta</label>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição & Links</label>
                 <textarea
-                  rows={2}
+                  rows={5}
                   value={newCourseForm.description}
                   onChange={(e) => setNewCourseForm({ ...newCourseForm, description: e.target.value })}
-                  placeholder="Objetivos de aprendizagem e competências desenvolvidas..."
-                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-none"
+                  placeholder="Escreva a descrição e cole links úteis..."
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-y"
                 />
               </div>
 

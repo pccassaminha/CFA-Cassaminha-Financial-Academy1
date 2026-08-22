@@ -1,4 +1,5 @@
 import React from 'react';
+import { extractWistiaId } from '../utils/wistia';
 
 interface WistiaPlayerProps {
   videoId: string;
@@ -13,13 +14,7 @@ export default function WistiaPlayer({ videoId }: WistiaPlayerProps) {
     );
   }
 
-  // Se o usuário passar uma URL completa do Wistia (ex: https://fast.wistia.net/embed/iframe/abc123xyz ou https://xxx.wistia.com/medias/abc123xyz), extrai apenas o ID
-  let cleanId = videoId.trim();
-  if (cleanId.includes('wistia.net/embed/iframe/')) {
-    cleanId = cleanId.split('wistia.net/embed/iframe/')[1].split('?')[0];
-  } else if (cleanId.includes('wistia.com/medias/')) {
-    cleanId = cleanId.split('wistia.com/medias/')[1].split('?')[0];
-  }
+  const cleanId = extractWistiaId(videoId);
 
   return (
     <div className="w-full aspect-video rounded-2xl overflow-hidden shadow-2xl border border-outline-variant/30 bg-black">
@@ -27,7 +22,6 @@ export default function WistiaPlayer({ videoId }: WistiaPlayerProps) {
         src={`https://fast.wistia.net/embed/iframe/${cleanId}?videoFoam=true`}
         title="CFA Video Player"
         allow="autoplay; fullscreen"
-        allowTransparency={true}
         frameBorder="0"
         scrolling="no"
         className="w-full h-full"

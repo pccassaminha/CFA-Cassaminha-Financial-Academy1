@@ -4,6 +4,7 @@ import { doc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firesto
 import { onAuthStateChanged } from 'firebase/auth';
 import { logout, auth, db } from '../firebase';
 import WistiaPlayer from '../components/WistiaPlayer';
+import { LinkifiedText } from '../components/LinkifiedText';
 
 interface Lesson {
   id: string;
@@ -28,6 +29,7 @@ interface Module {
 interface Course {
   id: string;
   title: string;
+  description?: string;
   modules: Module[];
 }
 
@@ -117,12 +119,13 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
           setCourse({
             id: snap.id,
             title: data.title || 'Curso CFA',
+            description: data.description || '',
             modules: Array.isArray(data.modules) ? data.modules : []
           });
           
           // Auto-select first lesson if none selected yet
           if (data.modules && data.modules.length > 0) {
-            const publishedModules = data.modules.filter(m => m.status === 'published');
+            const publishedModules = data.modules.filter(m => !m.status || m.status === 'published');
             const modulesToSearch = publishedModules.length > 0 ? publishedModules : data.modules;
             const firstModule = modulesToSearch[0];
             if (firstModule && firstModule.lessons && firstModule.lessons.length > 0) {
@@ -266,7 +269,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   // Helper to get total course progress
   const getCourseProgress = () => {
     const allPublishedLessons = course.modules
-      .filter(m => m.status === 'published')
+      .filter(m => !m.status || m.status === 'published')
       .flatMap(m => m.lessons);
 
     if (allPublishedLessons.length === 0) return 0;
@@ -286,7 +289,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
     if (!activeLesson || !course.modules) return;
 
     // Flatten overall lessons list to cycle easily
-    const publishedModules = course.modules.filter(m => m.status === 'published');
+    const publishedModules = course.modules.filter(m => !m.status || m.status === 'published');
     const allLessons = publishedModules.flatMap(m => m.lessons.map(l => ({ ...l, moduleId: m.id })));
     const currentIndex = allLessons.findIndex(l => l.id === activeLesson.id);
 
@@ -302,7 +305,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   const handlePrevLesson = () => {
     if (!activeLesson || !course.modules) return;
 
-    const publishedModules = course.modules.filter(m => m.status === 'published');
+    const publishedModules = course.modules.filter(m => !m.status || m.status === 'published');
     const allLessons = publishedModules.flatMap(m => m.lessons.map(l => ({ ...l, moduleId: m.id })));
     const currentIndex = allLessons.findIndex(l => l.id === activeLesson.id);
 
@@ -415,22 +418,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   return (
     <div className="bg-[#131313] text-[#e5e2e1] font-body min-h-screen flex flex-col overflow-hidden">
       
-      {/* Simulation / Admin Return Banner */}
-      {isUserAdmin && (
-        <div className="bg-[#e9c349]/10 border-b border-[#e9c349]/20 px-8 py-3 flex items-center justify-between z-50 text-xs">
-          <div className="flex items-center gap-2 text-[#e9c349]">
-            <span className="material-symbols-outlined text-sm animate-pulse font-bold">visibility</span>
-            <span>Você está visualizando a plataforma como <strong>Aluno</strong>.</span>
-          </div>
-          <button 
-            id="btn-return-admin-video-library"
-            onClick={returnToAdminView} 
-            className="bg-[#e9c349] text-[#131313] px-3 py-1.5 rounded-md font-bold hover:scale-[1.02] transition-transform cursor-pointer shadow-md"
-          >
-            Voltar para Administração
-          </button>
-        </div>
-      )}
+
 
       <div className="flex-1 flex overflow-hidden">
         {/* Toast Notification */}
@@ -488,8 +476,8 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
             <div className="space-y-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-widest px-4">Módulos do Curso</p>
 
-              {course.modules && course.modules.filter(m => m.status === 'published').length > 0 ? (
-                course.modules.filter(m => m.status === 'published').map((module) => {
+              {course.modules && course.modules.filter(m => !m.status || m.status === 'published').length > 0 ? (
+                course.modules.filter(m => !m.status || m.status === 'published').map((module) => {
                   const isCollapsed = !!collapsedSidebarModules[module.id];
                   const progress = getModuleProgress(module);
                   return (
@@ -635,14 +623,11 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                     </button>
                   </div>
 
-                  {/* Details section & Comment Discussion board */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 space-y-6">
+                  {/* Details section & Comments */}
+                  <div className="space-y-8 max-w-4xl">
+                    <div className="space-y-6">
                       <div>
                         <h1 className="text-2xl font-black text-[#e5e2e1] mb-3">{activeLesson.title}</h1>
-                        <p className="text-gray-400 leading-relaxed text-sm">
-                          Domine as habilidades técnicas oferecidas pela Cassamía Financial Academy. Acompanhe os materiais de apoio e utilize o campo de discussões ao lado caso tenha dúvidas sobre os ensinamentos.
-                        </p>
                       </div>
                       
                       {activeLesson.materials && (
@@ -668,30 +653,42 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                         </div>
                       )}
                     </div>
-                    
-                    {/* Discussion List */}
-                    <div className="bg-[#353534]/10 rounded-2xl border border-[#353534]/20 p-6 flex flex-col h-[350px]">
+
+                    {/* Producer description placed above comments */}
+                    <div className="p-6 bg-[#181818] rounded-2xl border border-[#353534]/30 space-y-3">
+                      <h3 className="text-xs font-bold text-[#e9c349] uppercase tracking-wider flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base">info</span>
+                        Descrição & Orientações do Produtor
+                      </h3>
+                      <LinkifiedText 
+                        text={course.description || 'Descrição completa do treinamento e orientações disponibilizadas pelo produtor.'} 
+                        className="text-gray-300 text-sm" 
+                      />
+                    </div>
+
+                    {/* Discussion List / Comments Zone */}
+                    <div className="bg-[#353534]/10 rounded-2xl border border-[#353534]/20 p-6 lg:p-8 flex flex-col">
                       <h3 className="font-bold mb-4 text-xs uppercase tracking-wider text-gray-400 flex items-center gap-2">
                         <span className="material-symbols-outlined text-[#e9c349] text-base">forum</span>
-                        Comentários ({comments.length})
+                        Comentários & Dúvidas dos Alunos ({comments.length})
                       </h3>
-                      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-1 scrollbar-thin">
+                      <div className="space-y-4 mb-6 max-h-[450px] overflow-y-auto pr-2 scrollbar-thin">
                         {comments.length > 0 ? (
                           comments.map((c, i) => (
-                            <div key={i} className="text-xs bg-[#111]/30 p-2.5 rounded-lg border border-[#353534]/10">
+                            <div key={i} className="text-xs bg-[#121212]/80 p-4 rounded-xl border border-[#353534]/20">
                               <span className="font-bold text-[#e9c349]">{c.author}</span>
-                              <p className="text-gray-300 mt-1">{c.text}</p>
+                              <p className="text-gray-300 mt-1.5 leading-relaxed">{c.text}</p>
                             </div>
                           ))
                         ) : (
-                          <div className="text-gray-500 italic text-[11px] text-center pt-8">
-                            Nenhum comentário enviado para esta aula. Seja o primeiro a comentar!
+                          <div className="text-gray-500 italic text-xs text-center py-8">
+                            Nenhum comentário enviado para esta aula. Seja o primeiro a participar da discussão!
                           </div>
                         )}
                       </div>
                       
                       <form 
-                        className="relative mt-auto"
+                        className="relative"
                         onSubmit={(e) => {
                           e.preventDefault();
                           if (comment.trim()) {
@@ -709,11 +706,11 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                           type="text" 
                           value={comment}
                           onChange={(e) => setComment(e.target.value)}
-                          placeholder="Envie sua dúvida..." 
-                          className="w-full bg-[#121212] border border-[#353534]/50 rounded-lg pl-3 pr-10 py-2.5 text-xs focus:outline-none focus:border-[#e9c349]/50 transition-colors" 
+                          placeholder="Escreva sua dúvida ou comentário sobre a aula..." 
+                          className="w-full bg-[#121212] border border-[#353534]/50 rounded-xl pl-4 pr-12 py-3.5 text-xs text-white focus:outline-none focus:border-[#e9c349]/50 transition-colors" 
                         />
-                        <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 text-[#e9c349] hover:opacity-80">
-                          <span className="material-symbols-outlined text-[16px]">send</span>
+                        <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#e9c349] hover:opacity-80">
+                          <span className="material-symbols-outlined text-[18px]">send</span>
                         </button>
                       </form>
                     </div>

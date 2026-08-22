@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check } from 'lucide-react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { LinkifiedText } from './LinkifiedText';
 
 interface CoursePreviewProps {
   courseId: string;
@@ -25,6 +26,41 @@ interface CourseData {
 export default function CoursePreview({ courseId, onBack, onOpenCheckout }: CoursePreviewProps) {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [enrolledSuccess, setEnrolledSuccess] = useState(false);
+
+  const handleFreeEnroll = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      alert('Por favor, faça login ou cadastre-se para acessar o curso gratuito.');
+      return;
+    }
+    try {
+      setIsEnrolling(true);
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      let enrolled: string[] = [];
+      if (userSnap.exists()) {
+        enrolled = Array.isArray(userSnap.data().enrolledCourses) ? userSnap.data().enrolledCourses : [];
+      }
+      if (!enrolled.includes(courseId)) {
+        enrolled.push(courseId);
+        await setDoc(userRef, { enrolledCourses: enrolled }, { merge: true });
+      }
+      setEnrolledSuccess(true);
+      setTimeout(() => {
+        window.location.hash = '#my-courses';
+        window.dispatchEvent(new Event('student-view-changed'));
+        // Or trigger reload/back
+        onBack();
+      }, 1500);
+    } catch (err) {
+      console.error("Erro ao matricular em curso gratuito:", err);
+      alert('Erro ao liberar acesso ao curso. Tente novamente.');
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -106,9 +142,10 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
             <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-4 font-headline leading-tight">
               {course.title}
             </h1>
-            <p className="text-gray-400 leading-relaxed text-base md:text-lg">
-              {course.description}
-            </p>
+            <LinkifiedText 
+              text={course.description || 'Descrição completa do treinamento e orientações.'} 
+              className="text-gray-400 text-base md:text-lg" 
+            />
           </div>
 
           <div>
@@ -191,24 +228,39 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
 
             <div className="mb-6">
               <span className="text-xs uppercase text-gray-400 font-bold tracking-wider">Investimento Total</span>
-              <div className="text-3xl font-extrabold text-[#e9c349] font-headline mt-1">
-                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(course.price)}
+              <div className={`text-3xl font-extrabold font-headline mt-1 ${!course.price || course.price === 0 ? 'text-emerald-400' : 'text-[#e9c349]'}`}>
+                {!course.price || course.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(course.price)}
               </div>
               <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-[#e9c349]" /> Pagamento único via Multicaixa / Express
+                <Clock className="w-3.5 h-3.5 text-[#e9c349]" /> {!course.price || course.price === 0 ? 'Acesso livre e imediato ao conteúdo' : 'Pagamento único via Multicaixa / Express'}
               </p>
             </div>
             
-            <button 
-              id="btn-buy-course-preview"
-              onClick={onOpenCheckout}
-              className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-4 rounded-xl hover:bg-[#d4b03f] active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base"
-            >
-              Comprar Curso
-            </button>
+            {enrolledSuccess ? (
+              <div className="w-full bg-emerald-500 text-black font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg text-base">
+                <Check className="w-5 h-5" /> Acesso Liberado com Sucesso!
+              </div>
+            ) : !course.price || course.price === 0 ? (
+              <button 
+                id="btn-access-free-course"
+                onClick={handleFreeEnroll}
+                disabled={isEnrolling}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-4 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isEnrolling ? 'Liberando Acesso...' : 'Acessar Curso Gratuitamente'}
+              </button>
+            ) : (
+              <button 
+                id="btn-buy-course-preview"
+                onClick={onOpenCheckout}
+                className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-4 rounded-xl hover:bg-[#d4b03f] active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base"
+              >
+                Comprar Curso
+              </button>
+            )}
             
             <p className="text-xs text-center text-gray-500 mt-4 leading-relaxed">
-              Acesso liberado imediatamente após validação do comprovativo pelo suporte.
+              {!course.price || course.price === 0 ? 'Assista aos vídeos do YouTube e estude os módulos sem restrições.' : 'Acesso liberado imediatamente após validação do comprovativo pelo suporte.'}
             </p>
           </div>
         </div>

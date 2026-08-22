@@ -3,7 +3,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Play } from 'lucide-react';
 
-interface Course {
+export interface Course {
   id: string;
   title: string;
   description: string;
@@ -12,7 +12,7 @@ interface Course {
   isPublished: boolean;
 }
 
-interface StudentCatalogProps {
+export interface StudentCatalogProps {
   onSelectCourse: (course: Course) => void; 
 }
 
@@ -84,8 +84,8 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
             >
               <Play className="w-5 h-5 fill-black" /> Acessar Treinamento
             </button>
-            <span className="text-xl font-extrabold text-[#e9c349] px-4 py-2 bg-black/60 rounded-xl border border-gray-800">
-              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(currentCourse.price || 0)}
+            <span className={`text-xl font-extrabold px-4 py-2 bg-black/60 rounded-xl border border-gray-800 ${!currentCourse.price || currentCourse.price === 0 ? 'text-emerald-400' : 'text-[#e9c349]'}`}>
+              {!currentCourse.price || currentCourse.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(currentCourse.price)}
             </span>
           </div>
         </div>
@@ -110,8 +110,8 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
                   <p className="text-gray-400 text-sm line-clamp-2 mb-6">{course.description}</p>
                 </div>
                 <div className="flex items-center justify-between pt-4 border-t border-gray-800/60 mt-auto">
-                  <span className="text-[#e9c349] font-bold text-lg">
-                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(course.price || 0)}
+                  <span className={`font-bold text-lg ${!course.price || course.price === 0 ? 'text-emerald-400 text-base font-extrabold' : 'text-[#e9c349]'}`}>
+                    {!course.price || course.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(course.price)}
                   </span>
                   <span className="bg-white/5 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#e9c349] hover:text-black transition-all">
                     Ver Detalhes

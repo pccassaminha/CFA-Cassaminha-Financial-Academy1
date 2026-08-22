@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Youtube, Video } from 'lucide-react';
+import { extractWistiaId } from '../utils/wistia';
 
 interface LessonModalProps {
   isOpen: boolean;
@@ -45,9 +46,27 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
 
   if (!isOpen) return null;
 
+  const handleVideoDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    // Check if user pasted Wistia HTML embed snippet or URL
+    if (val.includes('wistia') || val.includes('<wistia-player') || val.includes('media-id') || val.includes('/embed/')) {
+      const extracted = extractWistiaId(val);
+      if (extracted) {
+        setVideoSource('wistia');
+        setVideoData(extracted);
+        return;
+      }
+    }
+    setVideoData(val);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ title, duration, videoSource, videoData, materials });
+    let finalVideoData = videoData.trim();
+    if (videoSource === 'wistia') {
+      finalVideoData = extractWistiaId(finalVideoData);
+    }
+    onSave({ title, duration, videoSource, videoData: finalVideoData, materials });
     onClose();
   };
 
@@ -120,19 +139,19 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
 
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1">
-              {videoSource === 'wistia' ? 'ID do Vídeo no Wistia' : 'Link do YouTube'}
+              {videoSource === 'wistia' ? 'Código HTML ou ID do Wistia' : 'Link do YouTube'}
             </label>
             <input 
               type="text" 
               required 
               value={videoData} 
-              onChange={(e) => setVideoData(e.target.value)}
+              onChange={handleVideoDataChange}
               className="w-full bg-black border border-gray-700 text-white rounded-lg p-3 focus:border-[#e9c349] outline-none text-sm font-mono"
-              placeholder={videoSource === 'wistia' ? 'Ex: wq3298hasd' : 'Ex: https://youtube.com/watch?v=...'}
+              placeholder={videoSource === 'wistia' ? 'Cole o HTML do Wistia (<script>... <wistia-player...>) ou ID' : 'Ex: https://youtube.com/watch?v=...'}
             />
             <p className="text-xs text-gray-500 mt-1">
               {videoSource === 'wistia' 
-                ? 'Cole apenas o código final fornecido pelo Wistia.' 
+                ? 'Cole o código HTML completo do Wistia. O sistema reconhece e extrai o ID automaticamente.' 
                 : 'Cole o link completo do vídeo do YouTube.'}
             </p>
           </div>

@@ -61,7 +61,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverImage, setCoverImage] = useState('');
-  const [price, setPrice] = useState<number>(0);
+  const [priceType, setPriceType] = useState<'free' | 'paid'>('paid');
+  const [price, setPrice] = useState<number>(50000);
   const [isPublished, setIsPublished] = useState(false);
   const [modules, setModules] = useState<Module[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,7 +91,9 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             setTitle(data.title || '');
             setDescription(data.description || '');
             setCoverImage(data.coverImage || data.imageUrl || data.image || '');
-            setPrice(data.price || 0);
+            const p = Number(data.price) || 0;
+            setPrice(p);
+            setPriceType(p === 0 ? 'free' : 'paid');
             setIsPublished(data.isPublished ?? (data.status === 'published'));
             if (data.modules && Array.isArray(data.modules)) {
               setModules(data.modules);
@@ -424,13 +427,16 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Descrição Completa</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Descrição Completa & Links de Apoio</label>
+                <span className="text-[11px] text-[#e9c349]">Links (http:// ou www) são detectados automaticamente</span>
+              </div>
               <textarea
-                rows={4}
+                rows={8}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Descreva o que o aluno vai aprender..."
-                className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-sm resize-none leading-relaxed"
+                placeholder="Escreva a descrição detalhada do curso, orientações, e cole links úteis (ex: https://zoom.us/..., https://youtube.com/...) para os alunos acessarem diretamente."
+                className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-sm resize-y leading-relaxed font-sans"
               />
             </div>
           </div>
@@ -471,29 +477,61 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           <div>
             <h3 className="text-lg font-bold text-[#e9c349] mb-4 font-headline flex items-center gap-2">
               <span className="material-symbols-outlined text-lg">payments</span>
-              Precificação
+              Tipo de Acesso & Preço
             </h3>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preço do Curso (Kz)</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(Number(e.target.value))}
-                placeholder="50000"
-                className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-2xl font-bold font-mono text-[#e9c349]"
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">
-                Kz
-              </span>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => { setPriceType('free'); setPrice(0); }}
+                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  priceType === 'free'
+                    ? 'bg-[#e9c349] text-black border-[#e9c349] shadow-md'
+                    : 'bg-black text-gray-300 border-gray-800 hover:border-gray-700'
+                }`}
+              >
+                Grátis (Livre)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPriceType('paid'); if (price === 0) setPrice(50000); }}
+                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  priceType === 'paid'
+                    ? 'bg-[#e9c349] text-black border-[#e9c349] shadow-md'
+                    : 'bg-black text-gray-300 border-gray-800 hover:border-gray-700'
+                }`}
+              >
+                Pago (Preço Kz)
+              </button>
             </div>
-            <p className="text-xs text-gray-400 mt-3 leading-relaxed">
-              Valor cobrado individualmente para liberar o acesso vitalício por aluno.
-            </p>
+
+            {priceType === 'paid' ? (
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preço do Curso (Kz)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    placeholder="50000"
+                    className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-2xl font-bold font-mono text-[#e9c349]"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">
+                    Kz
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3.5 rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>Curso <strong>Gratuito</strong>. Alunos podem acessar e assistir aos vídeos do YouTube instantaneamente sem checkout.</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-400 flex items-center gap-2">
             <span>💡</span>
-            <span>As alterações de capa, preço e dados salvam automaticamente em tempo real.</span>
+            <span>As alterações salvam automaticamente em tempo real.</span>
           </div>
         </div>
       </div>

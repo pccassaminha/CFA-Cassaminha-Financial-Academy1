@@ -162,7 +162,6 @@ export default function StudentPortal() {
         {currentView === 'preview' && selectedCourse && (
           <CoursePreview 
             courseId={selectedCourse.id}
-            courseData={selectedCourse} 
             onBack={() => setCurrentView('catalog')}
             onOpenCheckout={handleProceedToCheckout}
           />
