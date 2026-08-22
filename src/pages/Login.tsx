@@ -23,6 +23,25 @@ export default function Login() {
   // Status message states
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState('');
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const generalDoc = await getDoc(doc(db, 'settings', 'general'));
+        if (generalDoc.exists() && generalDoc.data().logoUrl) {
+          setLogoUrl(generalDoc.data().logoUrl);
+        }
+        const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
+        if (platformDoc.exists() && platformDoc.data().logoUrl) {
+          setLogoUrl(platformDoc.data().logoUrl);
+        }
+      } catch (err) {
+        console.error("Error loading logo in Login page:", err);
+      }
+    };
+    fetchLogo();
+  }, []);
 
   useEffect(() => {
     if (location.state?.register !== undefined) {
@@ -238,10 +257,21 @@ export default function Login() {
       </div>
       <header className="relative z-10 w-full px-8 py-10 flex justify-center md:justify-start" id="login-header">
         <Link to="/sales" className="flex items-center gap-2 hover:opacity-80 transition-all cursor-pointer group" id="cfa-brand-logo">
-          <span className="material-symbols-outlined text-primary text-3xl group-hover:scale-[1.05] transition-transform" style={{ fontVariationSettings: "'FILL' 1" }}>
-            school
-          </span>
-          <h1 className="text-3xl font-black tracking-tighter text-primary font-headline">CFA</h1>
+          {logoUrl ? (
+            <img 
+              src={logoUrl} 
+              alt="Logo" 
+              className="h-10 w-auto object-contain rounded-xl shadow-md" 
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-primary text-3xl group-hover:scale-[1.05] transition-transform" style={{ fontVariationSettings: "'FILL' 1" }}>
+                school
+              </span>
+              <h1 className="text-3xl font-black tracking-tighter text-primary font-headline">CFA</h1>
+            </>
+          )}
         </Link>
       </header>
       <main className="relative z-10 flex-grow flex items-center justify-center px-4 pb-20">

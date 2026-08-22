@@ -26,7 +26,8 @@ import {
   BookOpen, 
   Clock, 
   Link as LinkIcon,
-  CheckCircle2
+  CheckCircle2,
+  GripVertical
 } from 'lucide-react';
 import LessonModal from './LessonModal';
 
@@ -74,6 +75,10 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+
+  // Estados para Drag & Drop de Aulas entre Módulos
+  const [draggingLesson, setDraggingLesson] = useState<{ moduleId: string; lessonId: string } | null>(null);
+  const [draggedOverModuleId, setDraggedOverModuleId] = useState<string | null>(null);
 
   // 1. Carregar dados do curso e módulos do Firebase
   useEffect(() => {
@@ -362,6 +367,84 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     }));
   };
 
+  // Eventos de Drag & Drop para mover aulas
+  const handleDragStart = (e: React.DragEvent, sourceModId: string, lessonId: string) => {
+    setDraggingLesson({ moduleId: sourceModId, lessonId });
+    e.dataTransfer.setData('text/plain', JSON.stringify({ moduleId: sourceModId, lessonId }));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOverModule = (e: React.DragEvent, targetModId: string) => {
+    e.preventDefault();
+    setDraggedOverModuleId(targetModId);
+  };
+
+  const handleDragLeaveModule = () => {
+    setDraggedOverModuleId(null);
+  };
+
+  const handleDropOnModule = (e: React.DragEvent, targetModId: string) => {
+    e.preventDefault();
+    setDraggedOverModuleId(null);
+
+    let sourceModId = '';
+    let lessonId = '';
+
+    if (draggingLesson) {
+      sourceModId = draggingLesson.moduleId;
+      lessonId = draggingLesson.lessonId;
+    } else {
+      try {
+        const rawData = e.dataTransfer.getData('text/plain');
+        if (rawData) {
+          const parsed = JSON.parse(rawData);
+          sourceModId = parsed.moduleId;
+          lessonId = parsed.lessonId;
+        }
+      } catch (err) {
+        return;
+      }
+    }
+
+    if (!sourceModId || !lessonId || sourceModId === targetModId) return;
+
+    // Achar o modulo de origem
+    const sourceMod = modules.find(m => m.id === sourceModId);
+    if (!sourceMod) return;
+
+    // Achar a aula
+    const lessonToMove = sourceMod.lessons.find(l => l.id === lessonId);
+    if (!lessonToMove) return;
+
+    // Atualizar a aula
+    const updatedLesson = { ...lessonToMove, moduleId: targetModId };
+
+    // Remover da origem e colocar no destino
+    const updatedModules = modules.map(m => {
+      if (m.id === sourceModId) {
+        return {
+          ...m,
+          lessons: m.lessons.filter(l => l.id !== lessonId)
+        };
+      }
+      if (m.id === targetModId) {
+        return {
+          ...m,
+          lessons: [...m.lessons, updatedLesson]
+        };
+      }
+      return m;
+    });
+
+    setModules(updatedModules);
+    setDraggingLesson(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingLesson(null);
+    setDraggedOverModuleId(null);
+  };
+
   return (
     <div className="p-6 lg:p-10 text-white max-w-6xl mx-auto min-h-screen">
       {/* Barra Superior / Header de Controle */}
@@ -555,6 +638,16 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
       </div>
 
       <div className="space-y-6">
+        {modules.length > 0 && modules.some(m => m.lessons && m.lessons.length > 0) && (
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-start gap-3 text-sm text-yellow-300">
+            <span className="text-base shrink-0">💡</span>
+            <div>
+              <p className="font-bold text-white mb-0.5">Dica de Organização</p>
+              <p className="text-xs text-gray-300 leading-relaxed">Você pode mover aulas de um módulo para outro de forma rápida: basta **clicar e arrastar** qualquer aula para dentro do módulo desejado!</p>
+            </div>
+          </div>
+        )}
+
         {modules.length === 0 ? (
           <div className="text-center py-16 bg-[#131313] border border-dashed border-gray-800 rounded-2xl text-gray-500">
             <BookOpen className="w-10 h-10 mx-auto mb-3 text-gray-600 opacity-60" />
@@ -569,7 +662,17 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           </div>
         ) : (
           modules.map((mod, index) => (
-            <div key={mod.id} className="bg-[#131313] border border-gray-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div 
+              key={mod.id} 
+              onDragOver={(e) => handleDragOverModule(e, mod.id)}
+              onDragLeave={handleDragLeaveModule}
+              onDrop={(e) => handleDropOnModule(e, mod.id)}
+              className={`bg-[#131313] border rounded-2xl p-6 shadow-xl space-y-4 transition-all duration-200 ${
+                draggedOverModuleId === mod.id 
+                  ? 'border-[#e9c349] bg-[#e9c349]/5 shadow-yellow-500/5 ring-1 ring-[#e9c349]' 
+                  : 'border-gray-800'
+              }`}
+            >
               {/* Header do Módulo */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-800/80">
                 <div className="flex items-center gap-3">
@@ -581,7 +684,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                     <h3 className="text-lg font-bold text-white font-headline">{mod.title}</h3>
                   </div>
                 </div>
-
+ 
                 <div className="flex items-center gap-2">
                   <button
                     id={`btn-add-lesson-mod-${mod.id}`}
@@ -608,23 +711,32 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                   </button>
                 </div>
               </div>
-
+ 
               {/* Lista de Aulas do Módulo */}
               <div className="space-y-2.5 pt-1">
                 {(!mod.lessons || mod.lessons.length === 0) ? (
                   <div className="text-center py-6 border border-dashed border-gray-800 rounded-xl text-gray-500 text-xs">
-                    Nenhuma aula cadastrada neste módulo. Clique em "+ Adicionar Aula".
+                    Nenhuma aula cadastrada neste módulo. Clique em "+ Adicionar Aula" ou arraste uma aula para cá.
                   </div>
                 ) : (
                   mod.lessons.map((lesson, lIdx) => {
                     const isWistia = lesson.videoSource === 'wistia' || (lesson.videoData || '').includes('wistia') || (!lesson.videoData?.includes('youtube') && (lesson.videoData || '').length < 25 && !lesson.videoData?.startsWith('http'));
+                    const isCurrentlyDragged = draggingLesson?.lessonId === lesson.id;
                     
                     return (
                       <div 
                         key={lesson.id} 
-                        className="bg-black/60 border border-gray-800/80 hover:border-gray-700 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 transition-all"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, mod.id, lesson.id)}
+                        onDragEnd={handleDragEnd}
+                        className={`bg-black/60 border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                          isCurrentlyDragged 
+                            ? 'opacity-40 border-[#e9c349]/50 border-dashed bg-[#e9c349]/10' 
+                            : 'border-gray-800/80 hover:border-gray-700'
+                        }`}
                       >
                         <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+                          <GripVertical className="w-4 h-4 text-gray-600 hover:text-[#e9c349] shrink-0 cursor-grab" />
                           <span className="text-xs font-mono text-gray-500 w-5">
                             {index + 1}.{lIdx + 1}
                           </span>
@@ -645,7 +757,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                                 {isWistia ? <Video className="w-2.5 h-2.5" /> : <Youtube className="w-2.5 h-2.5" />}
                                 {isWistia ? 'Wistia ID' : 'YouTube'}
                               </span>
-
+ 
                               {lesson.materials && (
                                 <span className="text-gray-500 text-[11px] flex items-center gap-1 truncate max-w-[150px]">
                                   <LinkIcon className="w-2.5 h-2.5" />
@@ -655,7 +767,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                             </div>
                           </div>
                         </div>
-
+ 
                         <div className="flex items-center gap-2">
                           <button
                             id={`btn-edit-lesson-${lesson.id}`}

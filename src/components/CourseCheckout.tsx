@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { ArrowLeft, Copy, Check, MessageCircle, ShieldCheck, Building2, Smartphone, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface CheckoutProps {
   courseId: string;
@@ -12,6 +13,7 @@ interface CheckoutProps {
 }
 
 export default function CourseCheckout({ courseId, courseTitle, coursePrice, courseCover, onBack }: CheckoutProps) {
+  const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [existingTxStatus, setExistingTxStatus] = useState<'pending' | 'approved' | null>(null);
   const [hasClickedPaid, setHasClickedPaid] = useState(false);
@@ -338,13 +340,11 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
                   <button 
                     type="button"
                     onClick={() => {
-                      window.location.hash = '#my-courses';
-                      window.dispatchEvent(new Event('student-view-changed'));
-                      onBack();
+                      navigate(`/classroom?courseId=${courseId}`);
                     }}
-                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-2.5 px-4 rounded-xl text-xs transition-colors cursor-pointer"
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-3 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
                   >
-                    Ir para Meus Cursos
+                    Assistir Curso Agora
                   </button>
                 </div>
               ) : existingTxStatus === 'pending' ? (

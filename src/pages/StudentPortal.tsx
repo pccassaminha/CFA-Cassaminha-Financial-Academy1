@@ -5,7 +5,8 @@ import StudentProfile from '../components/StudentProfile';
 import CoursePreview from '../components/CoursePreview';
 import CourseCheckout from '../components/CourseCheckout';
 import { BookOpen, Home, User, LogOut, Compass } from 'lucide-react';
-import { logout, auth } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { logout, auth, db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
 export default function StudentPortal() {
@@ -13,6 +14,31 @@ export default function StudentPortal() {
   const [currentView, setCurrentView] = useState<'catalog' | 'my-courses' | 'profile' | 'preview' | 'checkout'>('catalog');
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>('');
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const generalDoc = await getDoc(doc(db, 'settings', 'general'));
+        if (generalDoc.exists()) {
+          const genData = generalDoc.data();
+          if (genData.logoUrl) {
+            setLogoUrl(genData.logoUrl);
+          }
+        }
+        const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
+        if (platformDoc.exists()) {
+          const pData = platformDoc.data();
+          if (pData.logoUrl) {
+            setLogoUrl(pData.logoUrl);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading logo in StudentPortal:", err);
+      }
+    };
+    fetchLogo();
+  }, []);
 
   useEffect(() => {
     const isMasterEmail = (email?: string | null) => {
@@ -61,10 +87,18 @@ export default function StudentPortal() {
       {/* TOP NAVIGATION BAR / HEADER WITH CENTERED NAV & TRANSLUCENT GLASS */}
       <header className="sticky top-0 z-40 bg-black/20 backdrop-blur-md border-b border-white/10 px-6 py-3.5 grid grid-cols-3 items-center shadow-lg shadow-black/10">
         <div className="flex items-center gap-2 cursor-pointer justify-start" onClick={() => setCurrentView('catalog')}>
-          <div className="w-10 h-10 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-lg shadow-md">
-            CFA
-          </div>
-
+          {logoUrl ? (
+            <img 
+              src={logoUrl} 
+              alt="Logo" 
+              className="h-10 w-auto object-contain rounded-xl shadow-md" 
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-lg shadow-md">
+              CFA
+            </div>
+          )}
         </div>
 
         <nav className="hidden md:flex items-center justify-center gap-2">

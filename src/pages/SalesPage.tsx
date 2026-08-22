@@ -1,7 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function SalesPage() {
+  const [logoUrl, setLogoUrl] = useState('');
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const generalDoc = await getDoc(doc(db, 'settings', 'general'));
+        if (generalDoc.exists() && generalDoc.data().logoUrl) {
+          setLogoUrl(generalDoc.data().logoUrl);
+        }
+        const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
+        if (platformDoc.exists() && platformDoc.data().logoUrl) {
+          setLogoUrl(platformDoc.data().logoUrl);
+        }
+      } catch (err) {
+        console.error("Error loading logo in Sales page:", err);
+      }
+    };
+    fetchLogo();
+  }, []);
   return (
     <div className="antialiased selection:bg-primary/30 selection:text-primary bg-[#131313] text-[#e5e2e1] font-body min-h-screen">
       <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }}></div>
@@ -9,7 +30,18 @@ export default function SalesPage() {
       {/* TopNavBar Navigation Shell */}
       <nav className="fixed top-0 w-full z-50 bg-[#131313]/60 backdrop-blur-xl transition-all border-none">
         <div className="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto font-headline tracking-tight">
-          <Link to="/sales" className="text-3xl font-black tracking-tighter text-[#e9c349]">CFA</Link>
+          <Link to="/sales" className="flex items-center cursor-pointer" id="sales-logo-link">
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt="Logo" 
+                className="h-10 w-auto object-contain rounded-xl shadow-md" 
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span className="text-3xl font-black tracking-tighter text-[#e9c349]">CFA</span>
+            )}
+          </Link>
           <div className="hidden md:flex gap-8 items-center">
             <a className="text-[#e9c349] font-bold border-b-2 border-[#e9c349] pb-1" href="#">Curriculum</a>
             <a className="text-stone-400 hover:text-stone-200 transition-colors" href="#">Mentors</a>

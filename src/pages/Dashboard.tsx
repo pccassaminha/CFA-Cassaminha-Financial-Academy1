@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
-import { collection, onSnapshot, updateDoc, doc, arrayRemove, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, updateDoc, doc, arrayRemove, deleteDoc, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db, approveStudentTransaction } from '../firebase';
 import { Transaction } from '../types';
 import { 
@@ -85,6 +85,10 @@ export default function Dashboard() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
   const [activeDropdownTxId, setActiveDropdownTxId] = useState<string | null>(null);
+
+  // Custom confirmation modal states (replaces iframe-blocked confirm popup)
+  const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
+  const [txToCancel, setTxToCancel] = useState<Transaction | null>(null);
 
   const showNotification = (msg: string) => {
     setToastMessage(msg);
@@ -171,19 +175,31 @@ export default function Dashboard() {
 
       // 2. Remove the course from user's enrolledCourses
       if (tx.userId && !tx.userId.startsWith('guest_')) {
-        const userRef = doc(db, 'users', tx.userId);
-        await updateDoc(userRef, {
-          enrolledCourses: arrayRemove(courseIdToRemove)
-        });
+        try {
+          const userRef = doc(db, 'users', tx.userId);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            await updateDoc(userRef, {
+              enrolledCourses: arrayRemove(courseIdToRemove)
+            });
+          } else {
+            console.warn(`User document ${tx.userId} not found, skipping course removal.`);
+          }
+        } catch (userErr) {
+          console.error("Failed to update user enrolledCourses during cancellation:", userErr);
+        }
       } else if (tx.userEmail) {
-        const { query, where, collection, getDocs } = await import('firebase/firestore');
-        const q = query(collection(db, 'users'), where('email', '==', tx.userEmail.trim().toLowerCase()));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const foundDoc = snap.docs[0];
-          await updateDoc(doc(db, 'users', foundDoc.id), {
-            enrolledCourses: arrayRemove(courseIdToRemove)
-          });
+        try {
+          const q = query(collection(db, 'users'), where('email', '==', tx.userEmail.trim().toLowerCase()));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const foundDoc = snap.docs[0];
+            await updateDoc(doc(db, 'users', foundDoc.id), {
+              enrolledCourses: arrayRemove(courseIdToRemove)
+            });
+          }
+        } catch (userErr) {
+          console.error("Failed to update user enrolledCourses by email during cancellation:", userErr);
         }
       }
       showNotification(`Subscrição cancelada! O curso foi removido do aluno e a transação voltou para pendente.`);
@@ -201,19 +217,31 @@ export default function Dashboard() {
       // 2. If the transaction was approved, remove the course from the user's enrolledCourses
       if (status === 'approved' && courseId) {
         if (userId && !userId.startsWith('guest_')) {
-          const userRef = doc(db, 'users', userId);
-          await updateDoc(userRef, {
-            enrolledCourses: arrayRemove(courseId)
-          });
+          try {
+            const userRef = doc(db, 'users', userId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              await updateDoc(userRef, {
+                enrolledCourses: arrayRemove(courseId)
+              });
+            } else {
+              console.warn(`User document ${userId} not found, skipping course removal during transaction deletion.`);
+            }
+          } catch (userErr) {
+            console.error("Failed to update user enrolledCourses during deletion:", userErr);
+          }
         } else if (userEmail) {
-          const { query, where, collection, getDocs } = await import('firebase/firestore');
-          const q = query(collection(db, 'users'), where('email', '==', userEmail.trim().toLowerCase()));
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            const foundDoc = snap.docs[0];
-            await updateDoc(doc(db, 'users', foundDoc.id), {
-              enrolledCourses: arrayRemove(courseId)
-            });
+          try {
+            const q = query(collection(db, 'users'), where('email', '==', userEmail.trim().toLowerCase()));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              const foundDoc = snap.docs[0];
+              await updateDoc(doc(db, 'users', foundDoc.id), {
+                enrolledCourses: arrayRemove(courseId)
+              });
+            }
+          } catch (userErr) {
+            console.error("Failed to update user enrolledCourses by email during deletion:", userErr);
           }
         }
       }
@@ -846,11 +874,7 @@ export default function Dashboard() {
                               Recusar
                             </button>
                             <button
-                              onClick={() => {
-                                if (confirm("Tem certeza de que deseja eliminar permanentemente esta transação pendente?")) {
-                                  handleDeleteTransaction(tx.id, tx.userId, tx.courseId, tx.userEmail, tx.status);
-                                }
-                              }}
+                              onClick={() => setTxToDelete(tx)}
                               className="p-1.5 text-stone-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
                               title="Eliminar Transação"
                             >
@@ -1374,7 +1398,7 @@ export default function Dashboard() {
                                         type="button"
                                         onClick={() => {
                                           setActiveDropdownTxId(null);
-                                          handleCancelSubscription(tx);
+                                          setTxToCancel(tx);
                                         }}
                                         className="w-full px-3 py-2 text-xs text-stone-300 hover:bg-stone-800 hover:text-[#e9c349] transition-colors flex items-center gap-2 cursor-pointer"
                                       >
@@ -1386,9 +1410,7 @@ export default function Dashboard() {
                                       type="button"
                                       onClick={() => {
                                         setActiveDropdownTxId(null);
-                                        if (confirm("Tem certeza que deseja eliminar permanentemente esta transação do histórico?")) {
-                                          handleDeleteTransaction(tx.id, tx.userId, tx.courseId, tx.userEmail, tx.status);
-                                        }
+                                        setTxToDelete(tx);
                                       }}
                                       className="w-full px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 cursor-pointer"
                                     >
@@ -1446,6 +1468,77 @@ export default function Dashboard() {
           </div>
         );
       })()}
+
+      {/* CUSTOM DELETE CONFIRMATION MODAL */}
+      {txToDelete && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-red-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/20 mb-4">
+              <span className="material-symbols-outlined text-2xl">delete_forever</span>
+            </div>
+            <h4 className="text-base font-bold text-white mb-2 font-headline">Eliminar Transação Permanentemente?</h4>
+            <p className="text-xs text-stone-400 mb-6 leading-relaxed">
+              Você está prestes a eliminar permanentemente a transação do aluno <strong className="text-white">{txToDelete.userName || 'Aluno'}</strong> com a referência <strong className="text-white font-mono">{txToDelete.referenceNumber || 'N/A'}</strong>. 
+              {txToDelete.status === 'approved' && ' Como ela já foi aprovada, o curso correspondente também será removido da conta do aluno.'} Esta ação é irreversível.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setTxToDelete(null)}
+                className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const t = txToDelete;
+                  setTxToDelete(null);
+                  await handleDeleteTransaction(t.id, t.userId, t.courseId, t.userEmail, t.status);
+                }}
+                className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Confirmar Eliminação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM CANCEL/REFUND CONFIRMATION MODAL */}
+      {txToCancel && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-[#e9c349]/30 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20 mb-4">
+              <span className="material-symbols-outlined text-2xl">undo</span>
+            </div>
+            <h4 className="text-base font-bold text-white mb-2 font-headline">Cancelar Subscrição / Estornar?</h4>
+            <p className="text-xs text-stone-400 mb-6 leading-relaxed">
+              Deseja cancelar o acesso do aluno ao curso e retornar esta transação para o estado de análise <strong className="text-[#e9c349]">Pendente</strong>? O aluno perderá acesso imediato às aulas.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setTxToCancel(null)}
+                className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Manter Ativa
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const t = txToCancel;
+                  setTxToCancel(null);
+                  await handleCancelSubscription(t);
+                }}
+                className="px-4 py-2.5 bg-[#e9c349] hover:bg-[#d4b03f] text-black text-xs font-extrabold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar Subscrição
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

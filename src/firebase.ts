@@ -20,7 +20,8 @@ import {
   getDocs,
   arrayUnion,
   serverTimestamp,
-  getDocFromServer
+  getDocFromServer,
+  getDoc
 } from 'firebase/firestore';
 
 import firebaseConfig from '../firebase-applet-config.json';
@@ -118,21 +119,34 @@ export const approveStudentTransaction = async (
 
     // 2. Inteligência: Insere o ID exato do curso comprado no array de cursos do usuário
     if (userId && !userId.startsWith('guest_')) {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        enrolledCourses: arrayUnion(targetCourseId),
-        subscriptionStatus: 'active'
-      });
+      try {
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          await updateDoc(userRef, {
+            enrolledCourses: arrayUnion(targetCourseId),
+            subscriptionStatus: 'active'
+          });
+        } else {
+          console.warn(`User document ${userId} not found, skipping course enrollment.`);
+        }
+      } catch (userErr) {
+        console.error("Failed to update user enrolledCourses:", userErr);
+      }
     } else if (userEmail) {
       // Caso a transação tenha sido feita por guest com email cadastrado
-      const q = query(collection(db, 'users'), where('email', '==', userEmail.trim().toLowerCase()));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const foundDoc = snap.docs[0];
-        await updateDoc(doc(db, 'users', foundDoc.id), {
-          enrolledCourses: arrayUnion(targetCourseId),
-          subscriptionStatus: 'active'
-        });
+      try {
+        const q = query(collection(db, 'users'), where('email', '==', userEmail.trim().toLowerCase()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const foundDoc = snap.docs[0];
+          await updateDoc(doc(db, 'users', foundDoc.id), {
+            enrolledCourses: arrayUnion(targetCourseId),
+            subscriptionStatus: 'active'
+          });
+        }
+      } catch (userErr) {
+        console.error("Failed to update guest user enrolledCourses by email:", userErr);
       }
     }
 

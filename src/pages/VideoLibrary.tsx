@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { logout, auth, db } from '../firebase';
@@ -48,6 +48,9 @@ interface VideoLibraryProps {
 
 export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryCourseId = searchParams.get('courseId') || undefined;
+  const activeCourseId = courseId || queryCourseId;
   
   // Real-time states
   const [course, setCourse] = useState<Course>({ id: '', title: '', modules: [] });
@@ -111,8 +114,8 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   useEffect(() => {
     let unsubscribeCourse = () => {};
 
-    if (courseId) {
-      const targetRef = doc(db, 'courses', courseId);
+    if (activeCourseId) {
+      const targetRef = doc(db, 'courses', activeCourseId);
       unsubscribeCourse = onSnapshot(targetRef, (snap) => {
         if (snap.exists()) {
           const data = snap.data() as Course;
@@ -166,7 +169,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
     }
 
     return () => unsubscribeCourse();
-  }, [courseId]);
+  }, [activeCourseId]);
 
   // Record Lesson view automatically on active lesson selection
   useEffect(() => {

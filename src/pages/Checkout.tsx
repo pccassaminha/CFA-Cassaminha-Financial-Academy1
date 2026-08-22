@@ -18,6 +18,7 @@ export default function Checkout() {
   const [referenceNumber, setReferenceNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
+  const [logoUrl, setLogoUrl] = useState('');
 
   const [paymentSettings, setPaymentSettings] = useState({
     iban: 'AO06 0040 0000 7829 1048 1018 2',
@@ -102,11 +103,18 @@ export default function Checkout() {
         if (platformSnap.exists()) {
           const pData = platformSnap.data() as PlatformSettings;
           if (pData.supportWhatsApp) setSupportWhatsApp(pData.supportWhatsApp);
-        } else {
-          const genRef = doc(db, 'settings', 'general');
-          const genSnap = await getDoc(genRef);
-          if (genSnap.exists() && genSnap.data().supportWhatsApp) {
-            setSupportWhatsApp(genSnap.data().supportWhatsApp);
+          if (pData.logoUrl) setLogoUrl(pData.logoUrl);
+        }
+        
+        const genRef = doc(db, 'settings', 'general');
+        const genSnap = await getDoc(genRef);
+        if (genSnap.exists()) {
+          const genData = genSnap.data();
+          if (genData.supportWhatsApp && !supportWhatsApp) {
+            setSupportWhatsApp(genData.supportWhatsApp);
+          }
+          if (genData.logoUrl && !logoUrl) {
+            setLogoUrl(genData.logoUrl);
           }
         }
       } catch (err) {
@@ -191,7 +199,18 @@ export default function Checkout() {
       {/* Top Navigation Bar */}
       <nav className="fixed top-0 w-full z-50 bg-[#131313]/60 backdrop-blur-xl">
         <div className="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
-          <Link to="/sales" className="text-3xl font-black tracking-tighter text-[#e9c349] font-headline">CFA</Link>
+          <Link to="/sales" className="flex items-center cursor-pointer" id="checkout-logo-link">
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt="Logo" 
+                className="h-10 w-auto object-contain rounded-xl shadow-md" 
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span className="text-3xl font-black tracking-tighter text-[#e9c349] font-headline">CFA</span>
+            )}
+          </Link>
           <div className="hidden md:flex gap-8 items-center">
             <a className="text-stone-400 hover:text-stone-200 transition-colors font-headline tracking-tight" href="#">Curriculum</a>
             <a className="text-stone-400 hover:text-stone-200 transition-colors font-headline tracking-tight" href="#">Mentors</a>

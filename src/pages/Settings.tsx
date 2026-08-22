@@ -65,6 +65,10 @@ export default function Settings() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Logo Link Modal States
+  const [logoModalOpen, setLogoModalOpen] = useState(false);
+  const [tempLogoUrl, setTempLogoUrl] = useState('');
+
   // 1. Global Platform Identity State
   const [platformName, setPlatformName] = useState('CFA - Cassaminha Financial Academy');
   const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
@@ -648,10 +652,8 @@ export default function Settings() {
                     <button 
                       type="button"
                       onClick={() => {
-                        const url = prompt('Cole a URL da imagem do logotipo:', logoUrl);
-                        if (url && url.trim()) {
-                          setLogoUrl(url.trim());
-                        }
+                        setTempLogoUrl(logoUrl);
+                        setLogoModalOpen(true);
                       }}
                       className="py-1.5 px-3 bg-surface-container-highest hover:bg-surface-bright text-stone-300 hover:text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                     >
@@ -1146,6 +1148,71 @@ export default function Settings() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM LOGO LINK MODAL */}
+      {logoModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-outline-variant/10 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20 mb-4">
+              <span className="material-symbols-outlined text-2xl">link</span>
+            </div>
+            <h4 className="text-base font-bold text-white mb-2 font-headline">Colar URL do Logotipo</h4>
+            <p className="text-xs text-stone-400 mb-4 leading-relaxed">
+              Insira o link direto para a imagem do seu novo logotipo. Ela deve estar hospedada na web e ser acessível publicamente.
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div className="relative">
+                <input
+                  type="url"
+                  placeholder="https://exemplo.com/logo.png"
+                  value={tempLogoUrl}
+                  onChange={(e) => setTempLogoUrl(e.target.value)}
+                  className="w-full bg-[#111] border border-stone-800 rounded-xl p-3 text-white text-xs placeholder-stone-600 focus:border-[#e9c349] outline-none"
+                  autoFocus
+                />
+              </div>
+
+              {tempLogoUrl.trim() && (
+                <div className="p-3 bg-black/40 border border-stone-800 rounded-xl flex flex-col items-center justify-center min-h-[100px]">
+                  <span className="text-[10px] text-stone-500 mb-2 uppercase font-bold tracking-widest">Pré-visualização</span>
+                  <img 
+                    src={tempLogoUrl.trim()} 
+                    alt="Logo Preview" 
+                    className="max-h-16 max-w-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://placehold.co/150x50/111/fff?text=Link+Invalido';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setLogoModalOpen(false)}
+                className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (tempLogoUrl.trim()) {
+                    setLogoUrl(tempLogoUrl.trim());
+                    setLogoModalOpen(false);
+                    showNotification('Logotipo atualizado no painel! Clique em "Salvar Alterações" abaixo para persistir.', 'info');
+                  }
+                }}
+                className="px-4 py-2.5 bg-[#e9c349] hover:bg-[#d4b03f] text-black text-xs font-extrabold rounded-xl transition-colors cursor-pointer"
+              >
+                Salvar Logotipo
+              </button>
+            </div>
           </div>
         </div>
       )}
