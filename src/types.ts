@@ -61,6 +61,7 @@ export interface Course {
   id: string;
   title: string;
   instructor: string;
+  coverImage?: string;
   description?: string;
   structureType?: 'modules' | 'single_lesson' | 'direct_link';
   directLinkUrl?: string;

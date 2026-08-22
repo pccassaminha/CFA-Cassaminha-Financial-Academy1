@@ -911,11 +911,6 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                               <div>
                                 <h4 className="text-sm font-semibold text-white">{lesson.title}</h4>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                                  <span className="flex items-center gap-1 font-mono text-[11px]">
-                                    <Clock className="w-3 h-3 text-gray-500" />
-                                    {lesson.duration || '00:00'}
-                                  </span>
-                                  
                                   {/* Badge Provedor */}
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
                                     isWistia 

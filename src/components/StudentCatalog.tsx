@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Play } from 'lucide-react';
+import { Play, SearchX } from 'lucide-react';
+import ExpandableSearch from './ExpandableSearch';
 
 export interface Course {
   id: string;
@@ -20,6 +21,7 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
   const [courses, setCourses] = useState<Course[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchPublishedCourses = async () => {

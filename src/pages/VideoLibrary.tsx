@@ -30,6 +30,7 @@ interface Module {
 interface Course {
   id: string;
   title: string;
+  coverImage?: string;
   description?: string;
   structureType?: 'modules' | 'single_lesson' | 'direct_link';
   directLinkUrl?: string;
@@ -139,6 +140,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
           setCourse({
             id: snap.id,
             title: data.title || 'Curso CFA',
+            coverImage: data.coverImage || (data as any).imageUrl || (data as any).image || '',
             description: data.description || '',
             structureType: sType,
             directLinkUrl: data.directLinkUrl || '',
@@ -195,6 +197,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
           setCourse({
             id: firstDoc.id,
             title: data.title || 'Curso CFA',
+            coverImage: data.coverImage || (data as any).imageUrl || (data as any).image || '',
             description: data.description || '',
             structureType: sType,
             directLinkUrl: data.directLinkUrl || '',
@@ -461,14 +464,16 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
       );
     }
 
-    // Locked Preview Cover
+    // Preview Cover - uses the course's main cover image
+    const coverUrl = course.coverImage || 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=1200';
+
     return (
       <>
-        <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_Q0OmzECXhtHN7K5xJJ6iaSVwWVVgeCxcs6waQ_acfCFnrYFkZnYZbn5zp27CyokgJQUXCj0dpafacrUZjnmT9-o7hnO3NN8HvviTfvqhz9YhjDRMYq2qLhpesNu7_vcQPjOgivji6AMy1T1zNdNmlIwx4FQIJp_aX28bqFkibedtytYnQPWevO0tTfjrkqDMRsG5ga-QieLbKt4w6Fqw1NfJeSr1pH9r3hPEJWAxy6jOQR-AgNHzBYK41EKh2V0K4dNvF9FkJQ" alt="Video Cover" className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-700" />
+        <img src={coverUrl} alt={course.title || "Video Cover"} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" />
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
           <button 
             onClick={() => setIsPlaying(true)}
-            className="w-20 h-20 rounded-full bg-[#e9c349]/20 backdrop-blur-md flex items-center justify-center border border-[#e9c349]/50 hover:scale-110 transition-transform"
+            className="w-20 h-20 rounded-full bg-[#e9c349]/20 backdrop-blur-md flex items-center justify-center border border-[#e9c349]/50 hover:scale-110 transition-transform cursor-pointer"
           >
             <span className="material-symbols-outlined text-[#e9c349] text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
           </button>
@@ -629,7 +634,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                                   }`}
                                   onClick={() => handleLessonSelect(lesson, module.id)}
                                 >
-                                  <div className="flex items-center gap-2 max-w-[80%]">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
                                     <span className={`material-symbols-outlined text-[18px] shrink-0 ${
                                       isCompleted ? 'text-secondary font-bold' : 'text-gray-500'
                                     }`}>
@@ -637,7 +642,6 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                                     </span>
                                     <span className="text-xs truncate">{lesson.title}</span>
                                   </div>
-                                  <span className="text-[10px] text-gray-500 font-mono shrink-0">{lesson.duration}</span>
                                 </div>
                               );
                             })}
