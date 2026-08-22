@@ -134,10 +134,10 @@ export default function App() {
   return (
     <BrowserRouter>
       {isReallyAdmin && viewAsStudent && (
-        <div style={{ zIndex: 9999 }} className="fixed top-0 left-0 right-0 h-12 bg-gradient-to-r from-[#e9c349] to-amber-500 text-[#0e0e0e] flex items-center justify-between px-6 shadow-xl font-headline font-bold text-sm select-none">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-xl animate-pulse">visibility</span>
-            <span>Você está navegando com a <strong className="underline">Visão de Aluno (Marketplace & Cursos)</strong>.</span>
+        <div style={{ zIndex: 9999 }} className="fixed top-0 left-0 right-0 min-h-12 bg-gradient-to-r from-[#e9c349] to-amber-500 text-[#0e0e0e] flex flex-wrap items-center justify-between px-3 sm:px-6 py-2 shadow-xl font-headline font-bold text-xs sm:text-sm select-none gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="material-symbols-outlined text-lg sm:text-xl animate-pulse">visibility</span>
+            <span className="text-xs sm:text-sm leading-tight">Navegando em <strong className="underline">Visão de Aluno</strong></span>
           </div>
           <button
             onClick={() => {
@@ -145,7 +145,7 @@ export default function App() {
               window.dispatchEvent(new Event('student-view-changed'));
               window.location.href = '/dashboard';
             }}
-            className="bg-[#0e0e0e] text-[#e9c349] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-zinc-900 transition-all cursor-pointer active:scale-95 shadow-md"
+            className="bg-[#0e0e0e] text-[#e9c349] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-zinc-900 transition-all cursor-pointer active:scale-95 shadow-md ml-auto sm:ml-0"
           >
             <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
             Voltar para Admin

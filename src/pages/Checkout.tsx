@@ -90,9 +90,14 @@ export default function Checkout() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const docRef = doc(db, 'settings', 'payment');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
+        const [docSnap, platformSnap, genSnap, couponsSnap] = await Promise.all([
+          getDoc(doc(db, 'settings', 'payment')).catch(() => null),
+          getDoc(doc(db, 'settings', 'platform')).catch(() => null),
+          getDoc(doc(db, 'settings', 'general')).catch(() => null),
+          getDoc(doc(db, 'settings', 'coupons')).catch(() => null)
+        ]);
+
+        if (docSnap?.exists()) {
           const data = docSnap.data();
           setPaymentSettings(prev => ({ ...prev, ...data }));
           
@@ -107,19 +112,15 @@ export default function Checkout() {
           }
         }
 
-        const platformRef = doc(db, 'settings', 'platform');
-        const platformSnap = await getDoc(platformRef);
-        if (platformSnap.exists()) {
+        if (platformSnap?.exists()) {
           const pData = platformSnap.data() as PlatformSettings;
           if (pData.supportWhatsApp) setSupportWhatsApp(pData.supportWhatsApp);
           if (pData.logoUrl) setLogoUrl(getValidLogoUrl(pData.logoUrl));
         }
         
-        const genRef = doc(db, 'settings', 'general');
-        const genSnap = await getDoc(genRef);
-        if (genSnap.exists()) {
+        if (genSnap?.exists()) {
           const genData = genSnap.data();
-          if (genData.supportWhatsApp && !supportWhatsApp) {
+          if (genData.supportWhatsApp) {
             setSupportWhatsApp(genData.supportWhatsApp);
           }
           if (genData.logoUrl) {
@@ -128,13 +129,11 @@ export default function Checkout() {
         }
 
         // Load Coupons
-        const couponsRef = doc(db, 'settings', 'coupons');
-        const couponsSnap = await getDoc(couponsRef);
-        if (couponsSnap.exists() && Array.isArray(couponsSnap.data().list)) {
+        if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list)) {
           setCouponsList(couponsSnap.data().list);
         } else {
-          const cSnap = await getDocs(collection(db, 'coupons'));
-          if (!cSnap.empty) {
+          const cSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
+          if (cSnap && !cSnap.empty) {
             setCouponsList(cSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon)));
           }
         }
@@ -265,8 +264,23 @@ export default function Checkout() {
   };
 
   return (
-    <div className="bg-background text-on-surface font-body min-h-screen relative">
+    <div className="bg-background text-on-surface font-body min-h-screen relative overflow-hidden">
       <div className="fixed inset-0 pointer-events-none z-[99] opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}></div>
+      
+      {/* CAPA DO CURSO NO FUNDO COM CONTRASTE PREMIUM */}
+      {selectedCourse && (selectedCourse.coverImage || selectedCourse.image) && (
+        <div className="absolute top-0 left-0 right-0 h-[520px] overflow-hidden pointer-events-none z-0">
+          <img 
+            src={selectedCourse.coverImage || selectedCourse.image} 
+            alt={courseTitle} 
+            className="w-full h-full object-cover opacity-40 scale-105 filter brightness-90 saturate-125 transition-all duration-1000" 
+            referrerPolicy="no-referrer"
+          />
+          {/* Gradients de Contraste Premium */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/60 via-[#0a0a0a]/85 to-[#0a0a0a]"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-transparent to-[#0a0a0a]"></div>
+        </div>
+      )}
       
       {/* Top Navigation Bar */}
       <nav className="fixed top-0 w-full z-50 bg-[#131313]/60 backdrop-blur-xl">

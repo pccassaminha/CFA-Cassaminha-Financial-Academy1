@@ -546,15 +546,15 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Descrição Completa & Links de Apoio</label>
-                <span className="text-[11px] text-[#e9c349]">Links (http:// ou www) são detectados automaticamente</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-1">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Descrição do Curso (Exibida na Vitrine)</label>
+                <span className="text-[11px] text-gray-400">Exibida na vitrine abaixo da imagem de propaganda</span>
               </div>
               <textarea
-                rows={8}
+                rows={6}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Escreva a descrição detalhada do curso, orientações, e cole links úteis (ex: https://zoom.us/..., https://youtube.com/...) para os alunos acessarem diretamente."
+                placeholder="Escreva a descrição do curso que será exibida na vitrine de entrada..."
                 className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-sm resize-y leading-relaxed font-sans"
               />
             </div>
@@ -657,13 +657,19 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-400 mb-1.5">
-                      {singleLessonVideoSource === 'youtube' ? 'Link do Vídeo do YouTube' : 'ID do Vídeo Wistia'}
+                      {singleLessonVideoSource === 'youtube' ? 'Link do YouTube ou Código <iframe...>' : 'ID ou HTML do Wistia'}
                     </label>
                     <input
                       type="text"
                       value={singleLessonVideoData}
-                      onChange={(e) => setSingleLessonVideoData(e.target.value)}
-                      placeholder={singleLessonVideoSource === 'youtube' ? 'https://www.youtube.com/watch?v=...' : 'ex: 3m4v9f1j'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.includes('youtube.com') || val.includes('youtu.be') || (val.includes('<iframe') && val.includes('youtube'))) {
+                          setSingleLessonVideoSource('youtube');
+                        }
+                        setSingleLessonVideoData(val);
+                      }}
+                      placeholder={singleLessonVideoSource === 'youtube' ? 'Link (https://youtube.com/...) ou Código (<iframe...)' : 'ex: 3m4v9f1j'}
                       className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs font-mono"
                     />
                   </div>

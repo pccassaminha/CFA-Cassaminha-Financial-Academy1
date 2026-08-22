@@ -267,10 +267,10 @@ export default function SalesPage() {
                     {/* Course Body */}
                     <div className="p-6 flex-1 flex flex-col justify-between space-y-6">
                       <div className="space-y-2">
-                        <h3 className="font-headline font-bold text-lg md:text-xl text-white group-hover:text-[#e9c349] transition-colors line-clamp-1">
+                        <h3 className="font-headline font-bold text-lg md:text-xl text-white group-hover:text-[#e9c349] transition-colors line-clamp-2">
                           {course.title}
                         </h3>
-                        <p className="text-stone-400 text-xs md:text-sm font-body leading-relaxed line-clamp-3">
+                        <p className="text-stone-400 text-xs md:text-sm font-body leading-relaxed line-clamp-5">
                           {course.description || "Inicie os seus estudos práticos sobre esta competência essencial com o ecossistema e suporte integral da CFA."}
                         </p>
                       </div>
@@ -280,7 +280,7 @@ export default function SalesPage() {
                         <div className="flex items-center justify-between border-t border-white/5 pt-4">
                           <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">Valor do Curso</span>
                           <span className={`text-lg font-black ${isFree ? 'text-emerald-400' : 'text-white'}`}>
-                            {isFree ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(course.price)}
+                            {isFree ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
                           </span>
                         </div>
 

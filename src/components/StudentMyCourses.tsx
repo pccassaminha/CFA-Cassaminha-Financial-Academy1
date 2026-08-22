@@ -93,15 +93,15 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold text-white font-headline">Meus Cursos e Progresso</h1>
-          <p className="text-gray-400 text-sm mt-1">Acompanhe todos os treinamentos que você adquiriu e seu avanço nas aulas.</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-headline">Meus Cursos e Progresso</h1>
+          <p className="text-gray-400 text-xs sm:text-sm mt-1">Acompanhe todos os treinamentos que você adquiriu e seu avanço nas aulas.</p>
         </div>
         <button
           onClick={onExplore}
-          className="bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30 hover:bg-[#e9c349]/25 font-bold px-5 py-2.5 rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer w-max"
+          className="bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30 hover:bg-[#e9c349]/25 font-bold px-4 sm:px-5 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer w-full sm:w-max active:scale-95"
         >
           <span>Explorar Novos Cursos</span>
           <ArrowRight className="w-4 h-4" />
@@ -109,19 +109,19 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
       </div>
 
       {courses.length === 0 ? (
-        <div className="bg-[#131313] border border-gray-800 rounded-2xl p-12 text-center max-w-xl mx-auto my-12">
-          <BookOpen className="w-16 h-16 text-[#e9c349] mx-auto mb-4 opacity-80" />
-          <h3 className="text-xl font-bold text-white mb-2">Nenhum curso na sua conta ainda</h3>
-          <p className="text-gray-400 text-sm mb-6">Você ainda não se matriculou em nenhum treinamento ou sua matrícula está pendente de aprovação.</p>
+        <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-12 text-center max-w-xl mx-auto my-6 sm:my-12">
+          <BookOpen className="w-12 h-12 sm:w-16 sm:h-16 text-[#e9c349] mx-auto mb-4 opacity-80" />
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Nenhum curso na sua conta ainda</h3>
+          <p className="text-gray-400 text-xs sm:text-sm mb-6">Você ainda não se matriculou em nenhum treinamento ou sua matrícula está pendente de aprovação.</p>
           <button
             onClick={onExplore}
-            className="bg-[#e9c349] text-black font-bold px-6 py-3 rounded-xl hover:bg-[#d4b03f] transition-all cursor-pointer text-sm shadow-md"
+            className="w-full sm:w-auto bg-[#e9c349] text-black font-bold px-6 py-3 rounded-xl hover:bg-[#d4b03f] transition-all cursor-pointer text-sm shadow-md active:scale-95"
           >
             Explorar Catálogo de Cursos
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
           {courses.map(course => {
             // Calculate progress
             let totalLessons = 0;
@@ -179,8 +179,8 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
 
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-2 line-clamp-1">{course.title}</h3>
-                    <p className="text-gray-400 text-xs line-clamp-2 mb-4">{course.description || 'Treinamento completo profissional CFA.'}</p>
+                    <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">{course.title}</h3>
+                    <p className="text-gray-400 text-xs line-clamp-5 leading-relaxed mb-4">{course.description || 'Treinamento completo profissional CFA.'}</p>
                     
                     {/* Progress Bar or delivery type info */}
                     {isDirectLink ? (

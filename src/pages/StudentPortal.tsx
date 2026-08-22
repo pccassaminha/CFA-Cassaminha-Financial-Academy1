@@ -86,17 +86,17 @@ export default function StudentPortal() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col font-sans">
       {/* TOP NAVIGATION BAR / HEADER WITH CENTERED NAV & TRANSLUCENT GLASS */}
-      <header className="sticky top-0 z-40 bg-black/20 backdrop-blur-md border-b border-white/10 px-6 py-3.5 grid grid-cols-3 items-center shadow-lg shadow-black/10">
-        <div className="flex items-center gap-2 cursor-pointer justify-start" onClick={() => setCurrentView('catalog')}>
+      <header className="sticky top-0 z-40 bg-black/60 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between shadow-lg shadow-black/20">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('catalog')}>
           {logoUrl ? (
             <img 
               src={logoUrl} 
               alt="Logo" 
-              className="h-14 md:h-16 w-auto object-contain rounded-xl shadow-md transition-all" 
+              className="h-10 sm:h-14 md:h-16 w-auto object-contain rounded-xl shadow-md transition-all" 
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="w-12 h-12 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-xl shadow-md">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-lg sm:text-xl shadow-md">
               CFA
             </div>
           )}
@@ -143,11 +143,11 @@ export default function StudentPortal() {
           </button>
         </nav>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-2 sm:gap-3">
           <button
             id="student-logout-top-btn"
             onClick={handleLogout}
-            className="bg-white/5 border border-white/10 text-gray-300 hover:text-red-400 hover:border-red-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+            className="bg-white/5 border border-white/10 text-gray-300 hover:text-red-400 hover:border-red-500/30 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
           >
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline">Sair</span>
@@ -155,28 +155,42 @@ export default function StudentPortal() {
         </div>
       </header>
 
-      {/* MOBILE BOTTOM / TOP SUBNAV */}
-      <div className="flex md:hidden bg-[#131313] border-b border-gray-800 px-4 py-2.5 justify-around">
+      {/* MOBILE APP-STYLE TAB BAR (STICKY AT TOP OR FIXED AT BOTTOM) */}
+      <div className="flex md:hidden bg-[#131313]/95 backdrop-blur-lg border-b border-gray-800/80 px-2 py-2 justify-around sticky top-[57px] z-30 shadow-md">
         <button
           onClick={() => setCurrentView('catalog')}
-          className={`flex flex-col items-center gap-1 text-[11px] font-bold ${currentView === 'catalog' ? 'text-[#e9c349]' : 'text-gray-400'}`}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-xl transition-all cursor-pointer ${
+            currentView === 'catalog' || currentView === 'preview' || currentView === 'checkout'
+              ? 'bg-[#e9c349]/20 text-[#e9c349] font-extrabold border border-[#e9c349]/30'
+              : 'text-gray-400 font-medium'
+          }`}
         >
           <Home className="w-4 h-4" />
-          <span>Início</span>
+          <span className="text-[10px] mt-0.5">Início</span>
         </button>
+
         <button
           onClick={() => setCurrentView('my-courses')}
-          className={`flex flex-col items-center gap-1 text-[11px] font-bold ${currentView === 'my-courses' ? 'text-[#e9c349]' : 'text-gray-400'}`}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-xl transition-all cursor-pointer ${
+            currentView === 'my-courses'
+              ? 'bg-[#e9c349]/20 text-[#e9c349] font-extrabold border border-[#e9c349]/30'
+              : 'text-gray-400 font-medium'
+          }`}
         >
           <BookOpen className="w-4 h-4" />
-          <span>Meus Cursos</span>
+          <span className="text-[10px] mt-0.5">Meus Cursos</span>
         </button>
+
         <button
           onClick={() => setCurrentView('profile')}
-          className={`flex flex-col items-center gap-1 text-[11px] font-bold ${currentView === 'profile' ? 'text-[#e9c349]' : 'text-gray-400'}`}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-xl transition-all cursor-pointer ${
+            currentView === 'profile'
+              ? 'bg-[#e9c349]/20 text-[#e9c349] font-extrabold border border-[#e9c349]/30'
+              : 'text-gray-400 font-medium'
+          }`}
         >
           <User className="w-4 h-4" />
-          <span>Acesso</span>
+          <span className="text-[10px] mt-0.5">Minha Conta</span>
         </button>
       </div>
 

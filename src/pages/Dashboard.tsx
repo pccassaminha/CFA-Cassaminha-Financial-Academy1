@@ -325,7 +325,7 @@ export default function Dashboard() {
     .filter(t => t.status === 'approved')
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  const revenueFormatted = new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(realApprovedRevenue);
+  const revenueFormatted = new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(realApprovedRevenue);
 
   // =========================================================================
   // CHART DATA AGGREGATOR
@@ -473,7 +473,7 @@ export default function Dashboard() {
   const peakPeriodValue = useMemo(() => {
     if (metricType === 'revenue') {
       const max = Math.max(...chartData.map(d => d.revenue), 0);
-      return new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(max);
+      return new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(max);
     }
     const max = Math.max(...chartData.map(d => metricType === 'transactions' ? d.transactions : d.students), 0);
     return `${max} registros`;
@@ -493,7 +493,7 @@ export default function Dashboard() {
           id: `tx-app-${t.id}`,
           type: 'payment_approved',
           title: `Pagamento Aprovado (${t.referenceNumber || 'REF'})`,
-          description: `Valor de ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(Number(t.amount) || 0)} confirmado para ${t.userName || t.userEmail}. Curso liberado.`,
+          description: `Valor de ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(Number(t.amount) || 0)} confirmado para ${t.userName || t.userEmail}. Curso liberado.`,
           timestamp: txDate,
           metadata: t.courseTitle || 'Curso CFA',
           userEmail: t.userEmail,
@@ -999,7 +999,7 @@ export default function Dashboard() {
                     <span className="text-stone-400 block text-[11px]">Total no Período</span>
                     <span className="font-bold text-white font-mono text-sm">
                       {metricType === 'revenue' 
-                        ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(totalPeriodRevenue)
+                        ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(totalPeriodRevenue)
                         : metricType === 'transactions'
                         ? `${filteredTransactions.length} vendas`
                         : `${totalStudents} alunos`
@@ -1045,7 +1045,7 @@ export default function Dashboard() {
                         <p className="text-[11px] text-stone-400">
                           {metricType === 'revenue' && (
                             <span className="text-[#e9c349] font-mono font-bold">
-                              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(hoveredDataPoint.revenue)}
+                              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(hoveredDataPoint.revenue)}
                             </span>
                           )}
                           {metricType === 'transactions' && (
@@ -1370,7 +1370,7 @@ export default function Dashboard() {
                             </td>
                             <td className="py-2.5 px-2.5 text-stone-300 font-semibold text-xs">{tx.courseTitle || 'CFA Master'}</td>
                             <td className="py-2.5 px-2.5 text-[#e9c349] font-bold font-mono text-xs">
-                              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(tx.amount || 0)}
+                              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(tx.amount || 0)}
                             </td>
                             <td className="py-2.5 px-2.5 text-right">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${

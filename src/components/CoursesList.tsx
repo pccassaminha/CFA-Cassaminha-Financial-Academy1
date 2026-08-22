@@ -309,7 +309,7 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                 </h3>
 
                 {course.description && (
-                  <p className="text-xs text-gray-400 line-clamp-2 mb-3">
+                  <p className="text-xs text-gray-400 line-clamp-5 leading-relaxed mb-3">
                     {course.description}
                   </p>
                 )}
@@ -438,7 +438,27 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Preço da Matrícula (Kz)</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">Preço da Matrícula</label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, price: 0 })}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                        editForm.price === 0
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
+                          : 'bg-black text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
+                      }`}
+                    >
+                      🎁 Definir como Grátis
+                    </button>
+                    {editForm.price > 0 && (
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/40">
+                        Curso Pago
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="relative">
                   <input
                     type="number"
@@ -452,15 +472,21 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                     Kz
                   </span>
                 </div>
+                {editForm.price === 0 && (
+                  <p className="text-[11px] text-emerald-400 mt-1 font-semibold flex items-center gap-1">
+                    ✓ Este curso será disponibilizado gratuitamente para todos os alunos.
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição & Links</label>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-0.5">Descrição do Curso (Vitrine)</label>
+                <p className="text-[11px] text-gray-400 mb-1.5">Esta descrição será exibida apenas na vitrine/catálogo, debaixo da imagem de propaganda do curso.</p>
                 <textarea
                   rows={5}
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  placeholder="Escreva a descrição e cole links úteis..."
+                  placeholder="Escreva a descrição comercial do curso que será exibida na vitrine..."
                   className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-y"
                 />
               </div>
@@ -572,29 +598,55 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Preço da Matrícula (Kz)</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">Preço da Matrícula</label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setNewCourseForm({ ...newCourseForm, price: 0 })}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                        newCourseForm.price === 0
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
+                          : 'bg-black text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
+                      }`}
+                    >
+                      🎁 Definir como Grátis
+                    </button>
+                    {newCourseForm.price > 0 && (
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/40">
+                        Curso Pago
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="relative">
                   <input
                     type="number"
                     min="0"
                     value={newCourseForm.price}
                     onChange={(e) => setNewCourseForm({ ...newCourseForm, price: Number(e.target.value) })}
-                    placeholder="50000"
+                    placeholder="0 (Grátis) ou 50000"
                     className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm font-mono focus:border-[#e9c349] outline-none"
                   />
                   <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">
                     Kz
                   </span>
                 </div>
+                {newCourseForm.price === 0 && (
+                  <p className="text-[11px] text-emerald-400 mt-1 font-semibold flex items-center gap-1">
+                    ✓ Este curso será disponibilizado gratuitamente para todos os alunos.
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">Descrição & Links</label>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-0.5">Descrição do Curso (Vitrine)</label>
+                <p className="text-[11px] text-gray-400 mb-1.5">Esta descrição será exibida apenas na vitrine/catálogo, debaixo da imagem de propaganda do curso.</p>
                 <textarea
                   rows={5}
                   value={newCourseForm.description}
                   onChange={(e) => setNewCourseForm({ ...newCourseForm, description: e.target.value })}
-                  placeholder="Escreva a descrição e cole links úteis..."
+                  placeholder="Escreva a descrição comercial do curso que será exibida na vitrine..."
                   className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none resize-y"
                 />
               </div>

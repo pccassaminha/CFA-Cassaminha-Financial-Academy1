@@ -45,8 +45,10 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
 
   const handleVideoDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    // Check if user pasted Wistia HTML embed snippet or URL
-    if (val.includes('wistia') || val.includes('<wistia-player') || val.includes('media-id') || val.includes('/embed/')) {
+    // Check if user pasted YouTube URL or iframe snippet
+    if (val.includes('youtube.com') || val.includes('youtu.be') || (val.includes('<iframe') && val.includes('youtube'))) {
+      setVideoSource('youtube');
+    } else if (val.includes('wistia') || val.includes('<wistia-player') || val.includes('media-id')) {
       const extracted = extractWistiaId(val);
       if (extracted) {
         setVideoSource('wistia');
@@ -124,7 +126,7 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
 
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1">
-              {videoSource === 'wistia' ? 'Código HTML ou ID do Wistia' : 'Link do YouTube'}
+              {videoSource === 'wistia' ? 'Código HTML ou ID do Wistia' : 'Link ou Código Iframe do YouTube'}
             </label>
             <input 
               type="text" 
@@ -132,12 +134,12 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
               value={videoData} 
               onChange={handleVideoDataChange}
               className="w-full bg-black border border-gray-700 text-white rounded-lg p-3 focus:border-[#e9c349] outline-none text-sm font-mono"
-              placeholder={videoSource === 'wistia' ? 'Cole o HTML do Wistia (<script>... <wistia-player...>) ou ID' : 'Ex: https://youtube.com/watch?v=...'}
+              placeholder={videoSource === 'wistia' ? 'Cole o HTML do Wistia ou ID' : 'Link (https://youtube.com/...) ou Código (<iframe...)'}
             />
             <p className="text-xs text-gray-500 mt-1">
               {videoSource === 'wistia' 
                 ? 'Cole o código HTML completo do Wistia. O sistema reconhece e extrai o ID automaticamente.' 
-                : 'Cole o link completo do vídeo do YouTube.'}
+                : 'Aceita links diretos do YouTube ou códigos <iframe> completos de incorporação.'}
             </p>
           </div>
 

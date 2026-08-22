@@ -522,7 +522,7 @@ export default function Settings() {
                 <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
                   Identidade Global
                 </h3>
-                <p className="text-xs text-stone-400 mt-1.5 line-clamp-2">
+                <p className="text-xs text-stone-400 mt-1.5 line-clamp-5 leading-relaxed">
                   Nome da academia, WhatsApp de suporte, e-mail oficial, moeda padrão e logotipo.
                 </p>
               </div>
@@ -572,7 +572,7 @@ export default function Settings() {
                 <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
                   Pagamentos & Cupões
                 </h3>
-                <p className="text-xs text-stone-400 mt-1.5 line-clamp-2">
+                <p className="text-xs text-stone-400 mt-1.5 line-clamp-5 leading-relaxed">
                   Dados de IBAN, Express, KWIK, Referência e gestão de cupões de desconto.
                 </p>
               </div>
@@ -626,7 +626,7 @@ export default function Settings() {
                 <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
                   Gestão de Permissões
                 </h3>
-                <p className="text-xs text-stone-400 mt-1.5 line-clamp-2">
+                <p className="text-xs text-stone-400 mt-1.5 line-clamp-5 leading-relaxed">
                   Níveis de acesso, permissões administrativas e limites de visualização de módulos.
                 </p>
               </div>

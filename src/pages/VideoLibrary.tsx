@@ -5,6 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { logout, auth, db } from '../firebase';
 import WistiaPlayer from '../components/WistiaPlayer';
 import { LinkifiedText } from '../components/LinkifiedText';
+import { parseVideoUrlOrIframe } from '../utils/videoParser';
 
 interface Lesson {
   id: string;
@@ -72,6 +73,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   
   // Sidebar expand/collapse for modules
   const [collapsedSidebarModules, setCollapsedSidebarModules] = useState<Record<string, boolean>>({});
@@ -354,6 +356,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
     setActiveLesson(lesson);
     setActiveModuleId(moduleId);
     setIsPlaying(false);
+    setIsMobileDrawerOpen(false);
   };
 
   const handleNextLesson = () => {
@@ -410,46 +413,34 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
       );
     }
 
-    // Embed wistia/youtube/vimeo
+    // Embed wistia/youtube/vimeo/iframe
     if (isPlaying) {
-      // 1. Wistia check (either explicit videoSource or wistia string)
-      const isWistia = lesson.videoSource === 'wistia' || rawData.includes('wistia.com') || rawData.includes('wistia.net') || (!rawData.includes('http') && rawData.length < 30);
-      if (isWistia) {
-        return <WistiaPlayer videoId={rawData} />;
+      const parsed = parseVideoUrlOrIframe(rawData);
+
+      // 1. Wistia check
+      if (parsed.type === 'wistia') {
+        return <WistiaPlayer videoId={parsed.url} />;
       }
 
       // 2. YouTube check
-      const isYoutube = lesson.videoSource === 'youtube' || rawData.includes('youtube.com') || rawData.includes('youtu.be');
-      if (isYoutube) {
-        let vidId = rawData;
-        if (rawData.includes('youtube.com/watch?v=')) {
-          vidId = rawData.split('v=')[1]?.split('&')[0] || '';
-        } else if (rawData.includes('youtu.be/')) {
-          vidId = rawData.split('youtu.be/')[1]?.split('?')[0] || '';
-        } else if (rawData.includes('youtube.com/embed/')) {
-          vidId = rawData.split('youtube.com/embed/')[1]?.split('?')[0] || '';
-        }
-        const embedUrl = `https://www.youtube.com/embed/${vidId}?autoplay=1`;
+      if (parsed.type === 'youtube') {
         return (
           <iframe 
-            src={embedUrl}
+            src={parsed.url}
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
-            referrerPolicy="no-referrer"
+            referrerPolicy="strict-origin-when-cross-origin"
             className="w-full h-full rounded-2xl"
           />
         );
       }
 
       // 3. Vimeo check
-      const isVimeo = rawData.includes('vimeo.com');
-      if (isVimeo) {
-        const vId = rawData.split('vimeo.com/')[1]?.split('?')[0] || '';
-        const embedUrl = `https://player.vimeo.com/video/${vId}?autoplay=1`;
+      if (parsed.type === 'vimeo') {
         return (
           <iframe 
-            src={embedUrl}
+            src={parsed.url}
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
@@ -459,10 +450,10 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
         );
       }
 
-      // 4. Direct video fallback (e.g. mp4, m3u8)
+      // 4. Direct video fallback (e.g. mp4, m3u8) or direct iframe
       return (
         <video 
-          src={rawData}
+          src={parsed.url || rawData}
           controls
           autoPlay
           className="w-full h-full rounded-2xl bg-black"
@@ -502,8 +493,8 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
           </div>
         )}
 
-        {/* Sidebar (Dynamic Student Version) */}
-        <aside className="w-80 bg-[#0e0e0e] border-r border-[#353534]/30 flex flex-col h-full overflow-hidden">
+        {/* Sidebar (Desktop) */}
+        <aside className="hidden md:flex w-80 bg-[#0e0e0e] border-r border-[#353534]/30 flex-col h-full overflow-hidden shrink-0">
           <div className="p-8">
             <h1 className="text-xl font-extrabold text-[#e9c349] tracking-tighter font-headline flex items-center gap-2">
               <span className="material-symbols-outlined">school</span>
@@ -593,7 +584,6 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                     const progress = getModuleProgress(module);
                     return (
                       <div key={module.id} className="space-y-1">
-                        {/* Module Expand Header */}
                         <div 
                           onClick={() => toggleSidebarModule(module.id)}
                           className={`flex flex-col p-4 rounded-xl cursor-pointer transition-colors border select-none ${
@@ -610,8 +600,6 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                               {isCollapsed ? 'expand_more' : 'expand_less'}
                             </span>
                           </div>
-                          
-                          {/* Module progress line requested by user */}
                           <div className="mt-3 flex items-center justify-between gap-4">
                             <div className="flex-1 h-1 bg-[#353534]/30 rounded-full overflow-hidden">
                               <div 
@@ -625,7 +613,6 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                           </div>
                         </div>
 
-                        {/* Module Lessons sub list */}
                         {!isCollapsed && module.lessons && (
                           <div className="pl-3 space-y-1 pt-1 ml-3 border-l border-[#353534]/30">
                             {module.lessons.map((lesson) => {
@@ -678,56 +665,169 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
           </div>
         </aside>
 
+        {/* Mobile Slide-over Drawer */}
+        {isMobileDrawerOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsMobileDrawerOpen(false)} />
+            <div className="relative w-80 max-w-[85%] bg-[#0e0e0e] border-r border-[#353534]/30 flex flex-col h-full overflow-hidden shadow-2xl z-10 animate-in slide-in-from-left duration-300">
+              <div className="p-5 border-b border-[#353534]/30 flex items-center justify-between">
+                <div>
+                  <h1 className="text-lg font-extrabold text-[#e9c349] font-headline flex items-center gap-2">
+                    <span className="material-symbols-outlined">school</span>
+                    CFA Class
+                  </h1>
+                  <p className="text-[9px] text-gray-500 font-mono uppercase">Módulos & Aulas</p>
+                </div>
+                <button 
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center cursor-pointer hover:bg-white/20"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+
+              <div className="p-4">
+                <Link
+                  to="/library"
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 rounded-xl border border-[#e9c349]/20"
+                >
+                  <span className="material-symbols-outlined text-sm">storefront</span>
+                  <span>Voltar para Vitrine</span>
+                </Link>
+                
+                <div className="mt-3 p-3 bg-[#353534]/20 rounded-xl border border-[#353534]/30">
+                  <div className="flex justify-between items-center text-xs mb-1.5">
+                    <span className="text-gray-400">Progresso do Curso</span>
+                    <span className="text-[#e9c349] font-bold">{getCourseProgress()}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden">
+                    <div className="bg-[#e9c349] h-full rounded-full transition-all" style={{ width: `${getCourseProgress()}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              <nav className="flex-1 px-4 space-y-3 overflow-y-auto pb-6">
+                {course.structureType === 'single_lesson' ? (
+                  <div 
+                    onClick={() => {
+                      if (activeLesson) handleLessonSelect(activeLesson, 'single_lesson_module');
+                    }}
+                    className="p-3 bg-[#e9c349]/15 border border-[#e9c349]/30 rounded-xl flex items-center justify-between text-xs font-bold text-[#e9c349] cursor-pointer"
+                  >
+                    <span className="truncate">{course.title}</span>
+                    <span className="material-symbols-outlined text-sm">play_circle</span>
+                  </div>
+                ) : (
+                  course.modules && course.modules.filter(m => !m.status || m.status === 'published').map((module) => {
+                    const isCollapsed = !!collapsedSidebarModules[module.id];
+                    const progress = getModuleProgress(module);
+                    return (
+                      <div key={module.id} className="space-y-1">
+                        <div 
+                          onClick={() => toggleSidebarModule(module.id)}
+                          className="p-3 bg-[#181818] border border-[#353534]/30 rounded-xl flex items-center justify-between text-xs font-bold text-white cursor-pointer"
+                        >
+                          <span className="truncate max-w-[80%]">{module.title}</span>
+                          <span className="material-symbols-outlined text-gray-400 text-sm">
+                            {isCollapsed ? 'expand_more' : 'expand_less'}
+                          </span>
+                        </div>
+
+                        {!isCollapsed && module.lessons && (
+                          <div className="pl-2 space-y-1">
+                            {module.lessons.map((lesson) => {
+                              const isSelected = activeLesson?.id === lesson.id;
+                              const isCompleted = userProfile?.completedLessons?.includes(lesson.id) || false;
+                              return (
+                                <div
+                                  key={lesson.id}
+                                  onClick={() => handleLessonSelect(lesson, module.id)}
+                                  className={`flex items-center justify-between p-2.5 rounded-lg text-xs cursor-pointer ${
+                                    isSelected ? 'bg-[#e9c349]/20 text-[#e9c349] font-bold' : 'text-gray-300 hover:bg-white/5'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 max-w-[80%]">
+                                    <span className={`material-symbols-outlined text-base ${isCompleted ? 'text-emerald-400' : 'text-gray-500'}`}>
+                                      {isCompleted ? 'check_circle' : 'play_circle'}
+                                    </span>
+                                    <span className="truncate">{lesson.title}</span>
+                                  </div>
+                                  <span className="text-[10px] text-gray-500 font-mono">{lesson.duration}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </nav>
+            </div>
+          </div>
+        )}
+
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#121212]">
           {activeLesson ? (
             <>
               {/* Top Bar for video details */}
-              <header className="h-20 border-b border-[#353534]/30 flex items-center justify-between px-8 bg-[#131313] shrink-0">
-                <div className="flex items-center gap-3 max-w-[60%]">
-                  <span className="px-2 py-1 bg-[#353534] text-[#e9c349] text-[9px] font-bold uppercase rounded font-mono">Aula Ativa</span>
-                  <h2 className="font-bold text-base text-[#e5e2e1] truncate">{activeLesson.title}</h2>
+              <header className="min-h-16 border-b border-[#353534]/30 flex flex-wrap sm:flex-nowrap items-center justify-between px-4 sm:px-8 py-3 bg-[#131313] shrink-0 gap-2">
+                <div className="flex items-center gap-2 sm:gap-3 max-w-full sm:max-w-[60%]">
+                  <button 
+                    onClick={() => setIsMobileDrawerOpen(true)}
+                    className="md:hidden flex items-center gap-1.5 px-3 py-1.5 bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/30 rounded-xl text-xs font-bold shrink-0 cursor-pointer active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-sm">menu_book</span>
+                    <span>Aulas</span>
+                  </button>
+                  <span className="hidden sm:inline-block px-2 py-1 bg-[#353534] text-[#e9c349] text-[9px] font-bold uppercase rounded font-mono">Aula Ativa</span>
+                  <h2 className="font-bold text-xs sm:text-base text-[#e5e2e1] truncate">{activeLesson.title}</h2>
                 </div>
+
                 {course.structureType !== 'single_lesson' && (
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 sm:gap-4 ml-auto sm:ml-0">
                     <button 
                       onClick={handlePrevLesson}
-                      className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition-colors"
+                      className="flex items-center gap-1 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs text-gray-300 hover:text-white bg-white/5 sm:bg-transparent rounded-lg transition-colors cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-sm">arrow_back</span> Anterior
+                      <span className="material-symbols-outlined text-sm">arrow_back</span>
+                      <span className="hidden sm:inline">Anterior</span>
                     </button>
                     <button 
                       onClick={handleNextLesson}
-                      className="flex items-center gap-2 px-5 py-2 bg-[#e9c349] text-[#131313] rounded-lg font-bold text-xs hover:opacity-90 transition-opacity"
+                      className="flex items-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-5 sm:py-2 bg-[#e9c349] text-[#131313] rounded-lg font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer shadow-md active:scale-95"
                     >
-                      Próxima Aula <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      <span>Próxima</span>
+                      <span className="material-symbols-outlined text-sm">arrow_forward</span>
                     </button>
                   </div>
                 )}
               </header>
 
               {/* Player/Details Container */}
-              <div className="flex-1 overflow-y-auto p-8 lg:p-12">
-                <div className="max-w-5xl mx-auto space-y-8">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-12">
+                <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
                   
                   {/* Dynamic Video Player Stage */}
-                  <div className="aspect-video bg-black rounded-2xl border border-[#353534]/50 flex items-center justify-center relative group overflow-hidden shadow-2xl">
+                  <div className="aspect-video bg-black rounded-xl sm:rounded-2xl border border-[#353534]/50 flex items-center justify-center relative group overflow-hidden shadow-2xl">
                     {renderVideoPlayer(activeLesson)}
                   </div>
 
                   {/* Watch Complete Progress Actions */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-[#181818] border border-[#353534]/30 rounded-2xl gap-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 sm:p-6 bg-[#181818] border border-[#353534]/30 rounded-2xl gap-3 sm:gap-4">
                     <div>
-                      <h4 className="font-bold text-sm text-[#e5e2e1]">Controle o seu progresso neste treinamento</h4>
-                      <p className="text-xs text-gray-400 mt-1">Marque a aula como concluída se você já assimilou o conteúdo.</p>
+                      <h4 className="font-bold text-xs sm:text-sm text-[#e5e2e1]">Controle o seu progresso neste treinamento</h4>
+                      <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 sm:mt-1">Marque a aula como concluída se você já assimilou o conteúdo.</p>
                     </div>
                     {/* Mark complete status requested by client */}
                     <button 
                       onClick={() => handleToggleLessonCompleted(activeLesson.id)}
-                      className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2.5 transition-all outline-none ${
+                      className={`w-full sm:w-auto justify-center px-4 sm:px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 sm:gap-2.5 transition-all outline-none cursor-pointer ${
                         userProfile?.completedLessons?.includes(activeLesson.id)
                           ? 'bg-[#e5e2e1]/10 text-secondary border border-secondary/20'
-                          : 'bg-[#e9c349] text-[#131313] hover:opacity-90 shadow-[0_0_15px_rgba(233,195,73,0.15)]'
+                          : 'bg-[#e9c349] text-[#131313] hover:opacity-90 shadow-[0_0_15px_rgba(233,195,73,0.15)] active:scale-95'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[18px]">
@@ -762,18 +862,6 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                           </div>
                         </div>
                       )}
-                    </div>
-
-                    {/* Producer description placed above comments */}
-                    <div className="p-6 bg-[#181818] rounded-2xl border border-[#353534]/30 space-y-3">
-                      <h3 className="text-xs font-bold text-[#e9c349] uppercase tracking-wider flex items-center gap-2">
-                        <span className="material-symbols-outlined text-base">info</span>
-                        Descrição & Orientações do Produtor
-                      </h3>
-                      <LinkifiedText 
-                        text={course.description || 'Descrição completa do treinamento e orientações disponibilizadas pelo produtor.'} 
-                        className="text-gray-300 text-sm" 
-                      />
                     </div>
 
                     {/* Discussion List / Comments Zone */}

@@ -12,41 +12,73 @@ interface CheckoutProps {
   onBack: () => void;
 }
 
+const DEFAULT_PAYMENT_METHODS = [
+  { id: 'multicaixa', type: 'multicaixa', shortName: 'Multicaixa', bankName: 'Multicaixa (Entidade / Referência)', accountNumber: 'Entidade: 12345 | Ref: 884920311', holderName: 'GRUPO CASSAMINHA LDA' },
+  { id: 'iban', type: 'iban', shortName: 'Transferência IBAN', bankName: 'Banco BFA / BAI', accountNumber: 'AO06 0040 0000 7829 1048 1018 2', holderName: 'GRUPO CASSAMINHA LDA' },
+  { id: 'express', type: 'express', shortName: 'Multicaixa Express', bankName: 'Multicaixa Express', accountNumber: '923 456 789', holderName: 'GRUPO CASSAMINHA LDA' },
+  { id: 'kwik', type: 'kwik', shortName: 'KWIK Pagamentos', bankName: 'Transferência KWIK', accountNumber: '931 112 233', holderName: 'GRUPOCASSAMINHA' }
+];
+
 export default function CourseCheckout({ courseId, courseTitle, coursePrice, courseCover, onBack }: CheckoutProps) {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [existingTxStatus, setExistingTxStatus] = useState<'pending' | 'approved' | null>(null);
   const [hasClickedPaid, setHasClickedPaid] = useState(false);
 
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  // Inicializa com métodos padrão imediatamente para renderização instantânea (0ms de atraso)
+  const [paymentMethods, setPaymentMethods] = useState<any[]>(DEFAULT_PAYMENT_METHODS);
   const [activeMethodIndex, setActiveMethodIndex] = useState<number>(0);
   const [supportNumber, setSupportNumber] = useState('244923456789');
   const [bankReference, setBankReference] = useState(''); 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [effectiveCover, setEffectiveCover] = useState<string>(courseCover || '');
 
   const safePrice = coursePrice || 0;
   const safeTitle = courseTitle || 'Curso Selecionado';
 
   useEffect(() => {
+    if (courseCover) {
+      setEffectiveCover(courseCover);
+      return;
+    }
+    const fetchCover = async () => {
+      if (!courseId) return;
+      try {
+        const snap = await getDoc(doc(db, 'courses', courseId));
+        if (snap.exists()) {
+          const d = snap.data();
+          setEffectiveCover(d.coverImage || d.image || d.imageUrl || '');
+        }
+      } catch (e) {
+        console.error("Erro ao buscar capa no checkout:", e);
+      }
+    };
+    fetchCover();
+  }, [courseId, courseCover]);
+
+  useEffect(() => {
     const fetchCheckoutConfig = async () => {
       try {
-        // 1. Busca WhatsApp de suporte geral/platform
-        const genSnap = await getDoc(doc(db, 'settings', 'general'));
-        if (genSnap.exists() && genSnap.data().supportWhatsApp) {
+        // Executa todas as buscas em PARALELO para velocidade máxima
+        const [genSnap, platSnap, paymentSettingsSnap, methodsSnap] = await Promise.all([
+          getDoc(doc(db, 'settings', 'general')).catch(() => null),
+          getDoc(doc(db, 'settings', 'platform')).catch(() => null),
+          getDoc(doc(db, 'settings', 'payment')).catch(() => null),
+          getDocs(collection(db, 'paymentMethods')).catch(() => null)
+        ]);
+
+        // 1. Suporte WhatsApp
+        if (genSnap?.exists() && genSnap.data().supportWhatsApp) {
           setSupportNumber(genSnap.data().supportWhatsApp);
-        } else {
-          const platSnap = await getDoc(doc(db, 'settings', 'platform'));
-          if (platSnap.exists() && platSnap.data().supportWhatsApp) {
-            setSupportNumber(platSnap.data().supportWhatsApp);
-          }
+        } else if (platSnap?.exists() && platSnap.data().supportWhatsApp) {
+          setSupportNumber(platSnap.data().supportWhatsApp);
         }
 
-        // 2. Busca configurações de pagamento na collection settings/payment (configuradas no Admin)
-        const paymentSettingsSnap = await getDoc(doc(db, 'settings', 'payment'));
+        // 2. Métodos de Pagamento das Configurações
         const activeMethods: any[] = [];
 
-        if (paymentSettingsSnap.exists()) {
+        if (paymentSettingsSnap?.exists()) {
           const pData = paymentSettingsSnap.data();
 
           if (pData.multicaixaActive) {
@@ -94,41 +126,34 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           }
         }
 
-        // 3. Também verifica collection paymentMethods
-        const methodsSnap = await getDocs(collection(db, 'paymentMethods'));
-        methodsSnap.docs.forEach(docSnap => {
-          const data = docSnap.data();
-          if (data.active !== false) {
-            activeMethods.push({
-              id: docSnap.id,
-              type: data.type || 'iban',
-              shortName: data.shortName || data.bankName || 'Método',
-              bankName: data.bankName || 'Banco Oficial',
-              accountNumber: data.accountNumber || data.phoneNumber || '',
-              holderName: data.holderName || 'GRUPO CASSAMINHA LDA'
-            });
-          }
-        });
+        // 3. Collection complementar paymentMethods
+        if (methodsSnap && !methodsSnap.empty) {
+          methodsSnap.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.active !== false) {
+              activeMethods.push({
+                id: docSnap.id,
+                type: data.type || 'iban',
+                shortName: data.shortName || data.bankName || 'Método',
+                bankName: data.bankName || 'Banco Oficial',
+                accountNumber: data.accountNumber || data.phoneNumber || '',
+                holderName: data.holderName || 'GRUPO CASSAMINHA LDA'
+              });
+            }
+          });
+        }
 
-        // Se nenhum método ativo for encontrado, define os métodos oficiais reais da instituição
-        if (activeMethods.length === 0) {
-          setPaymentMethods([
-            { id: '1', type: 'multicaixa', shortName: 'Multicaixa', bankName: 'Multicaixa (Entidade / Referência)', accountNumber: 'Entidade: 12345 | Ref: 884920311', holderName: 'GRUPO CASSAMINHA LDA' },
-            { id: '2', type: 'iban', shortName: 'Transferência IBAN', bankName: 'Banco BFA', accountNumber: 'AO06 0040 0000 7829 1048 1018 2', holderName: 'GRUPO CASSAMINHA LDA' },
-            { id: '3', type: 'express', shortName: 'Multicaixa Express', bankName: 'Multicaixa Express', accountNumber: '923 456 789', holderName: 'GRUPO CASSAMINHA LDA' },
-            { id: '4', type: 'kwik', shortName: 'KWIK Pagamentos', bankName: 'Transferência KWIK', accountNumber: '931 112 233', holderName: 'GRUPOCASSAMINHA' }
-          ]);
-        } else {
+        if (activeMethods.length > 0) {
           setPaymentMethods(activeMethods);
         }
 
-        // 4. Fetch the real user from auth.currentUser and check duplicate transaction
+        // 4. Usuário e duplicidade de transação
         const u = auth.currentUser;
         if (u) {
-          const userDocSnap = await getDoc(doc(db, 'users', u.uid));
+          const userDocSnap = await getDoc(doc(db, 'users', u.uid)).catch(() => null);
           let resolvedName = u.displayName || 'Aluno';
           let resolvedEmail = u.email || '';
-          if (userDocSnap.exists()) {
+          if (userDocSnap?.exists()) {
             const data = userDocSnap.data();
             resolvedName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.displayName || u.displayName || 'Aluno';
             resolvedEmail = u.email || data.email || '';
@@ -146,35 +171,27 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
             where('userId', '==', u.uid),
             where('courseId', '==', courseId)
           );
-          const snap = await getDocs(q);
-          let foundApproved = false;
-          let foundPending = false;
-          snap.forEach(d => {
-            const status = d.data().status;
-            if (status === 'approved') foundApproved = true;
-            if (status === 'pending' || !status) foundPending = true;
-          });
-          if (foundApproved) {
-            setExistingTxStatus('approved');
-          } else if (foundPending) {
-            setExistingTxStatus('pending');
+          const snap = await getDocs(q).catch(() => null);
+          if (snap) {
+            let foundApproved = false;
+            let foundPending = false;
+            snap.forEach(d => {
+              const status = d.data().status;
+              if (status === 'approved') foundApproved = true;
+              if (status === 'pending' || !status) foundPending = true;
+            });
+            if (foundApproved) {
+              setExistingTxStatus('approved');
+            } else if (foundPending) {
+              setExistingTxStatus('pending');
+            }
           }
-        } else {
-          setUser({
-            uid: 'user_123',
-            name: 'Pedro Cassaminha',
-            email: 'pedro@cassaminha.com'
-          });
         }
-      } catch (error) {
-        console.error("Erro ao buscar dados de pagamento:", error);
-        setPaymentMethods([
-          { id: '1', type: 'multicaixa', shortName: 'Multicaixa', bankName: 'Multicaixa (Entidade / Referência)', accountNumber: 'Entidade: 12345 | Ref: 884920311', holderName: 'GRUPO CASSAMINHA LDA' },
-          { id: '2', type: 'iban', shortName: 'Transferência IBAN', bankName: 'Banco BFA', accountNumber: 'AO06 0040 0000 7829 1048 1018 2', holderName: 'GRUPO CASSAMINHA LDA' },
-          { id: '4', type: 'kwik', shortName: 'KWIK Pagamentos', bankName: 'Transferência KWIK', accountNumber: '931 112 233', holderName: 'GRUPOCASSAMINHA' }
-        ]);
+      } catch (e) {
+        console.error("Erro ao carregar configurações do checkout:", e);
       }
     };
+
     fetchCheckoutConfig();
   }, [courseId]);
 
@@ -221,7 +238,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
       const cleanSupport = supportNumber.replace(/[^0-9]/g, '');
       const message = `Olá, equipe CFA! Realizei o pagamento do curso.%0A%0A` +
         `📚 *Curso:* ${safeTitle}%0A` +
-        `💵 *Valor:* ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(safePrice)}%0A` +
+        `💵 *Valor:* ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(safePrice)}%0A` +
         `👤 *Aluno:* ${finalUser.name}%0A` +
         `💳 *Método:* ${selectedMethod.shortName || selectedMethod.bankName}%0A` +
         `🔖 *Referência do Talão:* ${bankReference}%0A%0A` +
@@ -241,10 +258,28 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
   const activeMethod = paymentMethods[activeMethodIndex] || paymentMethods[0];
 
   return (
-    <div className="w-full bg-[#0a0a0a] min-h-screen text-white p-6 md:p-10">
-      <div className="w-full max-w-6xl mx-auto">
+    <div className="relative min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 -m-6 md:-m-10 overflow-hidden font-body">
+      {/* CAPA DO CURSO NO FUNDO COM CONTRASTE PREMIUM */}
+      {effectiveCover && (
+        <div className="absolute top-0 left-0 right-0 h-[520px] overflow-hidden pointer-events-none z-0">
+          <img 
+            src={effectiveCover} 
+            alt={safeTitle} 
+            className="w-full h-full object-cover opacity-45 scale-105 filter brightness-90 saturate-125 transition-all duration-1000" 
+            referrerPolicy="no-referrer"
+          />
+          {/* Gradients de Contraste Premium */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/60 via-[#0a0a0a]/85 to-[#0a0a0a]"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-transparent to-[#0a0a0a]"></div>
+        </div>
+      )}
+
+      <div className="relative z-10 max-w-6xl mx-auto">
         
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors text-sm font-medium cursor-pointer">
+        <button 
+          onClick={onBack} 
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-black/60 border border-gray-800/80 text-gray-300 hover:text-[#e9c349] hover:border-[#e9c349]/50 mb-8 transition-all text-sm font-medium cursor-pointer backdrop-blur-md shadow-lg"
+        >
           <ArrowLeft className="w-4 h-4" /> Voltar aos detalhes do curso
         </button>
 
@@ -329,7 +364,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
                 <div className="flex justify-between items-center pt-4 border-t border-gray-800">
                   <span className="text-gray-300 font-medium">Total:</span>
                   <span className="text-2xl font-black text-[#e9c349]">
-                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(safePrice)}
+                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(safePrice)}
                   </span>
                 </div>
               </div>
