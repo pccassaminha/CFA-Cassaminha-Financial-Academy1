@@ -7,7 +7,7 @@ interface LessonModalProps {
   onClose: () => void;
   onSave: (lessonData: {
     title: string;
-    duration: string;
+    duration?: string;
     videoSource: 'youtube' | 'wistia';
     videoData: string;
     materials?: string;
@@ -23,7 +23,6 @@ interface LessonModalProps {
 
 export default function LessonModal({ isOpen, onClose, onSave, initialData }: LessonModalProps) {
   const [title, setTitle] = useState('');
-  const [duration, setDuration] = useState('');
   const [videoSource, setVideoSource] = useState<'youtube' | 'wistia'>('wistia');
   const [videoData, setVideoData] = useState('');
   const [materials, setMaterials] = useState('');
@@ -31,13 +30,11 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
   useEffect(() => {
     if (initialData) {
       setTitle(initialData.title || '');
-      setDuration(initialData.duration || '');
       setVideoSource(initialData.videoSource || 'wistia');
       setVideoData(initialData.videoData || '');
       setMaterials(initialData.materials || '');
     } else {
       setTitle('');
-      setDuration('');
       setVideoSource('wistia');
       setVideoData('');
       setMaterials('');
@@ -66,7 +63,7 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
     if (videoSource === 'wistia') {
       finalVideoData = extractWistiaId(finalVideoData);
     }
-    onSave({ title, duration, videoSource, videoData: finalVideoData, materials });
+    onSave({ title, duration: '00:00', videoSource, videoData: finalVideoData, materials });
     onClose();
   };
 
@@ -94,18 +91,6 @@ export default function LessonModal({ isOpen, onClose, onSave, initialData }: Le
               onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-black border border-gray-700 text-white rounded-lg p-3 focus:border-[#e9c349] outline-none text-sm"
               placeholder="Ex: A Mentalidade do Operador"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Duração</label>
-            <input 
-              type="text" 
-              required 
-              value={duration} 
-              onChange={(e) => setDuration(e.target.value)}
-              className="w-full bg-black border border-gray-700 text-white rounded-lg p-3 focus:border-[#e9c349] outline-none text-sm"
-              placeholder="Ex: 45:20"
             />
           </div>
 
