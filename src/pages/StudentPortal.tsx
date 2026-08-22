@@ -4,7 +4,7 @@ import StudentMyCourses from '../components/StudentMyCourses';
 import StudentProfile from '../components/StudentProfile';
 import CoursePreview from '../components/CoursePreview';
 import CourseCheckout from '../components/CourseCheckout';
-import { BookOpen, Home, User, LogOut, LayoutDashboard, Compass } from 'lucide-react';
+import { BookOpen, Home, User, LogOut, Compass } from 'lucide-react';
 import { logout, auth } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
@@ -58,77 +58,61 @@ export default function StudentPortal() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col font-sans">
-      {/* TOP NAVIGATION BAR / HEADER WITH "INICIO" BUTTON */}
-      <header className="sticky top-0 z-40 bg-[#0a0a0a]/70 backdrop-blur-xl border-b border-white/10 px-6 py-3.5 flex items-center justify-between shadow-lg shadow-black/20">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('catalog')}>
-            <div className="w-10 h-10 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-lg">
-              CFA
-            </div>
-            <div>
-              <h1 className="font-bold text-white text-base font-headline leading-none">CFA Academy</h1>
-              <span className="text-[10px] text-gray-400 uppercase tracking-widest font-mono">Portal do Aluno</span>
-            </div>
+      {/* TOP NAVIGATION BAR / HEADER WITH CENTERED NAV & TRANSLUCENT GLASS */}
+      <header className="sticky top-0 z-40 bg-black/20 backdrop-blur-md border-b border-white/10 px-6 py-3.5 grid grid-cols-3 items-center shadow-lg shadow-black/10">
+        <div className="flex items-center gap-2 cursor-pointer justify-start" onClick={() => setCurrentView('catalog')}>
+          <div className="w-10 h-10 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-lg shadow-md">
+            CFA
           </div>
 
-          <nav className="hidden md:flex items-center gap-2">
-            <button
-              id="nav-inicio-btn"
-              onClick={() => setCurrentView('catalog')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                currentView === 'catalog' || currentView === 'preview' || currentView === 'checkout'
-                  ? 'bg-[#e9c349] text-black shadow-md'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              <Home className="w-4 h-4" />
-              <span>Início</span>
-            </button>
-
-            <button
-              id="nav-my-courses-btn"
-              onClick={() => setCurrentView('my-courses')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                currentView === 'my-courses'
-                  ? 'bg-[#e9c349] text-black shadow-md'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Meus Cursos</span>
-            </button>
-
-            <button
-              id="nav-profile-btn"
-              onClick={() => setCurrentView('profile')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                currentView === 'profile'
-                  ? 'bg-[#e9c349] text-black shadow-md'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              <span>Meus Dados de Acesso</span>
-            </button>
-          </nav>
         </div>
 
-        <div className="flex items-center gap-3">
-          {isAdmin && (
-            <button
-              id="btn-return-admin"
-              onClick={handleReturnToAdmin}
-              className="bg-[#e9c349]/20 border border-[#e9c349]/40 text-[#e9c349] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-[#e9c349]/30 transition-all cursor-pointer shadow-sm active:scale-95"
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span className="hidden sm:inline">Voltar Admin</span>
-            </button>
-          )}
+        <nav className="hidden md:flex items-center justify-center gap-2">
+          <button
+            id="nav-inicio-btn"
+            onClick={() => setCurrentView('catalog')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              currentView === 'catalog' || currentView === 'preview' || currentView === 'checkout'
+                ? 'bg-[#e9c349] text-black shadow-md'
+                : 'text-gray-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            <span>Início</span>
+          </button>
 
+          <button
+            id="nav-my-courses-btn"
+            onClick={() => setCurrentView('my-courses')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              currentView === 'my-courses'
+                ? 'bg-[#e9c349] text-black shadow-md'
+                : 'text-gray-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Meus Cursos</span>
+          </button>
+
+          <button
+            id="nav-profile-btn"
+            onClick={() => setCurrentView('profile')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              currentView === 'profile'
+                ? 'bg-[#e9c349] text-black shadow-md'
+                : 'text-gray-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span>Meus Dados de Acesso</span>
+          </button>
+        </nav>
+
+        <div className="flex items-center justify-end gap-3">
           <button
             id="student-logout-top-btn"
             onClick={handleLogout}
-            className="bg-gray-900 border border-gray-800 text-gray-300 hover:text-red-400 hover:border-red-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+            className="bg-white/5 border border-white/10 text-gray-300 hover:text-red-400 hover:border-red-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
           >
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline">Sair</span>
