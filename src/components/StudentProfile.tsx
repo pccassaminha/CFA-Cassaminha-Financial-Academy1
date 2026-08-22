@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Shield, CheckCircle2, Key, Phone, BookOpen, Lock, AlertCircle, Hash, RefreshCw, Send } from 'lucide-react';
+import { User, Mail, Shield, CheckCircle2, Key, Phone, BookOpen, Lock, AlertCircle, Hash, RefreshCw, Send, Edit2, Save, X } from 'lucide-react';
 import { auth, db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 
 export default function StudentProfile() {
@@ -10,6 +10,12 @@ export default function StudentProfile() {
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState('');
+
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
+  const [phoneSuccess, setPhoneSuccess] = useState('');
 
   const handlePasswordReset = async () => {
     const email = profile?.email || auth.currentUser?.email;
@@ -27,6 +33,29 @@ export default function StudentProfile() {
       setResetError(err.message || 'Erro ao enviar e-mail de recuperação.');
     } finally {
       setSendingReset(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      setSavingPhone(true);
+      setPhoneError('');
+      setPhoneSuccess('');
+
+      const docRef = doc(db, 'users', user.uid);
+      await setDoc(docRef, { phoneNumber: phoneInput }, { merge: true });
+
+      setProfile((prev: any) => ({ ...prev, phoneNumber: phoneInput }));
+      setPhoneSuccess('Telefone atualizado com sucesso!');
+      setIsEditingPhone(false);
+      setTimeout(() => setPhoneSuccess(''), 4000);
+    } catch (err: any) {
+      console.error("Erro ao salvar telefone:", err);
+      setPhoneError('Erro ao atualizar o número de telefone.');
+    } finally {
+      setSavingPhone(false);
     }
   };
 
@@ -53,11 +82,13 @@ export default function StudentProfile() {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
+          const data = docSnap.data();
           setProfile({
             uid: user.uid,
             email: user.email,
-            ...docSnap.data()
+            ...data
           });
+          setPhoneInput(data.phoneNumber || '');
         } else {
           setProfile({
             uid: user.uid,
@@ -88,7 +119,7 @@ export default function StudentProfile() {
   const completedCount = Array.isArray(profile?.completedLessons) ? profile.completedLessons.length : 0;
   const numericId = getNumericId(profile?.uid || auth.currentUser?.uid || '');
   const fullName = profile?.firstName ? `${profile.firstName} ${profile.lastName || ''}` : (auth.currentUser?.displayName || 'Estudante CFA');
-  const fullPhone = profile?.phoneNumber ? `${profile.phoneCountryCode || '+244'} ${profile.phoneNumber}` : 'Não informado';
+  const currentPhone = profile?.phoneNumber ? `${profile.phoneCountryCode || ''} ${profile.phoneNumber}`.trim() : 'Não informado';
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -120,11 +151,69 @@ export default function StudentProfile() {
             </div>
 
             <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-[11px] text-gray-500 uppercase font-mono block mb-1">Número de Telefone / Contato</span>
-              <p className="text-white text-sm font-bold flex items-center gap-2 font-mono">
-                <Phone className="w-4 h-4 text-[#e9c349]" />
-                {fullPhone}
-              </p>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] text-gray-500 uppercase font-mono">Número de Telefone / Contato</span>
+                {!isEditingPhone ? (
+                  <button
+                    onClick={() => setIsEditingPhone(true)}
+                    className="text-xs text-[#e9c349] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Editar</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsEditingPhone(false)}
+                      className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Cancelar</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {isEditingPhone ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Phone className="w-4 h-4 text-[#e9c349] absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="+244 900 000 000"
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:outline-none focus:border-[#e9c349]"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSavePhone}
+                    disabled={savingPhone}
+                    className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savingPhone ? 'Salvando...' : 'Salvar'}</span>
+                  </button>
+                </div>
+              ) : (
+                <p className="text-white text-sm font-bold flex items-center gap-2 font-mono mt-1">
+                  <Phone className="w-4 h-4 text-[#e9c349]" />
+                  {profile?.phoneNumber ? profile.phoneNumber : 'Não informado'}
+                </p>
+              )}
+
+              {phoneSuccess && (
+                <p className="text-[11px] text-green-400 mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {phoneSuccess}
+                </p>
+              )}
+              {phoneError && (
+                <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {phoneError}
+                </p>
+              )}
             </div>
 
             <div className="bg-black/50 p-4 rounded-xl border border-gray-800">
