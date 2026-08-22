@@ -164,6 +164,11 @@ export default function Login() {
     const code = error?.code || '';
     const message = error?.message || '';
     
+    // Check code or message for network failure
+    if (code === 'auth/network-request-failed' || message.includes('network-request-failed')) {
+      return 'Ocorreu uma falha de conexão (network-request-failed). Como esta aplicação está a ser executada dentro de um iframe de visualização (sandbox), o seu navegador pode estar a bloquear cookies de terceiros ou requisições de autenticação. Para resolver isto instantaneamente, clique no botão "Abrir em nova aba" (Open in new tab) no canto superior direito para aceder à plataforma diretamente sem restrições!';
+    }
+
     switch (code) {
       case 'auth/email-already-in-use':
         return 'Este e-mail já está cadastrado. Por favor, tente fazer login ou use outro e-mail.';
@@ -261,15 +266,15 @@ export default function Login() {
             <img 
               src={logoUrl} 
               alt="Logo" 
-              className="h-10 w-auto object-contain rounded-xl shadow-md" 
+              className="h-18 md:h-22 w-auto object-contain rounded-xl shadow-md transition-all" 
               referrerPolicy="no-referrer"
             />
           ) : (
             <>
-              <span className="material-symbols-outlined text-primary text-3xl group-hover:scale-[1.05] transition-transform" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span className="material-symbols-outlined text-primary text-4xl group-hover:scale-[1.05] transition-transform" style={{ fontVariationSettings: "'FILL' 1" }}>
                 school
               </span>
-              <h1 className="text-3xl font-black tracking-tighter text-primary font-headline">CFA</h1>
+              <h1 className="text-4xl font-black tracking-tighter text-primary font-headline">CFA</h1>
             </>
           )}
         </Link>

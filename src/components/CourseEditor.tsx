@@ -27,7 +27,8 @@ import {
   Clock, 
   Link as LinkIcon,
   CheckCircle2,
-  GripVertical
+  GripVertical,
+  ExternalLink
 } from 'lucide-react';
 import LessonModal from './LessonModal';
 
@@ -67,6 +68,14 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [isPublished, setIsPublished] = useState(false);
   const [modules, setModules] = useState<Module[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // NOVOS ESTADOS DE ESTRUTURA DO CURSO
+  const [structureType, setStructureType] = useState<'modules' | 'single_lesson' | 'direct_link'>('modules');
+  const [directLinkUrl, setDirectLinkUrl] = useState('');
+  const [singleLessonVideoSource, setSingleLessonVideoSource] = useState<'youtube' | 'wistia'>('youtube');
+  const [singleLessonVideoData, setSingleLessonVideoData] = useState('');
+  const [singleLessonMaterials, setSingleLessonMaterials] = useState('');
+  const [singleLessonDescription, setSingleLessonDescription] = useState('');
   
   // Estado do Auto-save
   const [saveStatus, setSaveStatus] = useState<'Salvo' | 'Salvando...' | 'Erro'>('Salvo');
@@ -103,6 +112,14 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             if (data.modules && Array.isArray(data.modules)) {
               setModules(data.modules);
             }
+            
+            // Carregar dados de estrutura personalizada
+            setStructureType(data.structureType || 'modules');
+            setDirectLinkUrl(data.directLinkUrl || '');
+            setSingleLessonVideoSource(data.singleLessonVideoSource || 'youtube');
+            setSingleLessonVideoData(data.singleLessonVideoData || '');
+            setSingleLessonMaterials(data.singleLessonMaterials || '');
+            setSingleLessonDescription(data.singleLessonDescription || '');
           }
         } else {
           // Curso novo limpo pronto para o administrador cadastrar dados reais
@@ -120,6 +137,12 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                 lessons: []
               }
             ]);
+            setStructureType('modules');
+            setDirectLinkUrl('');
+            setSingleLessonVideoSource('youtube');
+            setSingleLessonVideoData('');
+            setSingleLessonMaterials('');
+            setSingleLessonDescription('');
           }
         }
       } catch (error) {
@@ -151,6 +174,12 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           isPublished,
           status: isPublished ? 'published' : 'draft',
           modules,
+          structureType,
+          directLinkUrl,
+          singleLessonVideoSource,
+          singleLessonVideoData,
+          singleLessonMaterials,
+          singleLessonDescription,
           updatedAt: serverTimestamp()
         }, { merge: true });
 
@@ -163,6 +192,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             coverImage,
             image: coverImage,
             modules,
+            structureType,
+            directLinkUrl,
             updatedAt: serverTimestamp()
           }, { merge: true });
         } catch {
@@ -177,7 +208,12 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     }, 1000); // Salva 1 segundo após parar de digitar
 
     return () => clearTimeout(handler);
-  }, [title, description, coverImage, price, isPublished, modules, courseId, isLoading]);
+  }, [
+    title, description, coverImage, price, isPublished, modules, 
+    structureType, directLinkUrl, singleLessonVideoSource, 
+    singleLessonVideoData, singleLessonMaterials, singleLessonDescription, 
+    courseId, isLoading
+  ]);
 
   // 3. Alternar Publicação (Publicado / Rascunho)
   const togglePublish = async () => {
@@ -553,6 +589,130 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
               </div>
             )}
           </div>
+
+          {/* Estrutura do Curso */}
+          <div className="bg-[#131313] p-6 rounded-2xl border border-gray-800 space-y-5 shadow-xl">
+            <h3 className="text-lg font-bold text-[#e9c349] font-headline">Estrutura de Entrega</h3>
+            <p className="text-xs text-gray-400 -mt-2">Escolha como este curso será exibido na sala de aula para o aluno.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <button
+                type="button"
+                onClick={() => setStructureType('modules')}
+                className={`p-4 rounded-xl text-left border transition-all cursor-pointer flex flex-col gap-1 ${
+                  structureType === 'modules'
+                    ? 'bg-[#e9c349]/10 border-[#e9c349] text-white'
+                    : 'bg-black/50 border-gray-800 text-gray-400 hover:border-gray-700'
+                }`}
+              >
+                <span className="font-bold text-sm text-[#e9c349]">Grade Completa</span>
+                <span className="text-[11px] text-gray-400 leading-normal">Vários módulos e dezenas de aulas organizadas.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStructureType('single_lesson')}
+                className={`p-4 rounded-xl text-left border transition-all cursor-pointer flex flex-col gap-1 ${
+                  structureType === 'single_lesson'
+                    ? 'bg-[#e9c349]/10 border-[#e9c349] text-white'
+                    : 'bg-black/50 border-gray-800 text-gray-400 hover:border-gray-700'
+                }`}
+              >
+                <span className="font-bold text-sm text-[#e9c349]">Aula Única / Replay</span>
+                <span className="text-[11px] text-gray-400 leading-normal">Um único vídeo direto com descrição e materiais.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStructureType('direct_link')}
+                className={`p-4 rounded-xl text-left border transition-all cursor-pointer flex flex-col gap-1 ${
+                  structureType === 'direct_link'
+                    ? 'bg-[#e9c349]/10 border-[#e9c349] text-white'
+                    : 'bg-black/50 border-gray-800 text-gray-400 hover:border-gray-700'
+                }`}
+              >
+                <span className="font-bold text-sm text-[#e9c349]">Link Externo / Direto</span>
+                <span className="text-[11px] text-gray-400 leading-normal">Redireciona para um link (ex: WhatsApp, Drive).</span>
+              </button>
+            </div>
+
+            {/* Condicionais para Aula Única */}
+            {structureType === 'single_lesson' && (
+              <div className="bg-black/40 border border-gray-800 p-4 rounded-xl space-y-4 pt-4">
+                <div className="border-b border-gray-800 pb-2">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Configurações da Aula Única</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Fonte do Vídeo</label>
+                    <select
+                      value={singleLessonVideoSource}
+                      onChange={(e) => setSingleLessonVideoSource(e.target.value as 'youtube' | 'wistia')}
+                      className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs"
+                    >
+                      <option value="youtube">YouTube (Link completo)</option>
+                      <option value="wistia">Wistia (ID do Vídeo)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">
+                      {singleLessonVideoSource === 'youtube' ? 'Link do Vídeo do YouTube' : 'ID do Vídeo Wistia'}
+                    </label>
+                    <input
+                      type="text"
+                      value={singleLessonVideoData}
+                      onChange={(e) => setSingleLessonVideoData(e.target.value)}
+                      placeholder={singleLessonVideoSource === 'youtube' ? 'https://www.youtube.com/watch?v=...' : 'ex: 3m4v9f1j'}
+                      className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Link de Materiais de Apoio (Opcional)</label>
+                  <input
+                    type="url"
+                    value={singleLessonMaterials}
+                    onChange={(e) => setSingleLessonMaterials(e.target.value)}
+                    placeholder="https://drive.google.com/..."
+                    className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Informações Adicionais / Descrição da Aula</label>
+                  <textarea
+                    rows={3}
+                    value={singleLessonDescription}
+                    onChange={(e) => setSingleLessonDescription(e.target.value)}
+                    placeholder="Notas específicas para esta masterclass..."
+                    className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs leading-relaxed"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Condicionais para Link Direto */}
+            {structureType === 'direct_link' && (
+              <div className="bg-black/40 border border-gray-800 p-4 rounded-xl space-y-3">
+                <div className="border-b border-gray-800 pb-2">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Configuração do Link Externo</h4>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">URL de Redirecionamento</label>
+                  <input
+                    type="url"
+                    value={directLinkUrl}
+                    onChange={(e) => setDirectLinkUrl(e.target.value)}
+                    placeholder="https://chat.whatsapp.com/... ou https://drive.google.com/..."
+                    className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs font-mono"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Ao adquirir este produto, o botão "Iniciar" ou "Acessar" abrirá diretamente esta URL.</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Caixa de Preço e Moeda */}
@@ -620,181 +780,210 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
       </div>
 
       {/* Seção de Módulos e Aulas */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold font-headline flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-[#e9c349]" />
-            Módulos e Aulas
-          </h2>
-          <p className="text-xs text-gray-400 mt-1">Organize os tópicos e gerencie os vídeos hospedados no YouTube ou Wistia.</p>
-        </div>
-        <button
-          id="btn-add-module"
-          onClick={handleOpenCreateModule}
-          className="bg-[#e9c349] text-black px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
-        >
-          <Plus className="w-4 h-4" /> Novo Módulo
-        </button>
-      </div>
-
-      <div className="space-y-6">
-        {modules.length > 0 && modules.some(m => m.lessons && m.lessons.length > 0) && (
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-start gap-3 text-sm text-yellow-300">
-            <span className="text-base shrink-0">💡</span>
+      {structureType === 'modules' ? (
+        <>
+          <div className="flex justify-between items-center mb-6">
             <div>
-              <p className="font-bold text-white mb-0.5">Dica de Organização</p>
-              <p className="text-xs text-gray-300 leading-relaxed">Você pode mover aulas de um módulo para outro de forma rápida: basta **clicar e arrastar** qualquer aula para dentro do módulo desejado!</p>
+              <h2 className="text-2xl font-bold font-headline flex items-center gap-2">
+                <BookOpen className="w-6 h-6 text-[#e9c349]" />
+                Módulos e Aulas
+              </h2>
+              <p className="text-xs text-gray-400 mt-1">Organize os tópicos e gerencie os vídeos hospedados no YouTube ou Wistia.</p>
             </div>
-          </div>
-        )}
-
-        {modules.length === 0 ? (
-          <div className="text-center py-16 bg-[#131313] border border-dashed border-gray-800 rounded-2xl text-gray-500">
-            <BookOpen className="w-10 h-10 mx-auto mb-3 text-gray-600 opacity-60" />
-            <p className="text-base font-semibold text-gray-300">Nenhum módulo criado ainda.</p>
-            <p className="text-xs text-gray-500 mt-1">Clique em "Novo Módulo" acima para estruturar a grade curricular.</p>
             <button
+              id="btn-add-module"
               onClick={handleOpenCreateModule}
-              className="mt-4 px-4 py-2 bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30 rounded-xl text-xs font-bold hover:bg-[#e9c349]/20 transition-all cursor-pointer"
+              className="bg-[#e9c349] text-black px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
             >
-              + Adicionar Primeiro Módulo
+              <Plus className="w-4 h-4" /> Novo Módulo
             </button>
           </div>
-        ) : (
-          modules.map((mod, index) => (
-            <div 
-              key={mod.id} 
-              onDragOver={(e) => handleDragOverModule(e, mod.id)}
-              onDragLeave={handleDragLeaveModule}
-              onDrop={(e) => handleDropOnModule(e, mod.id)}
-              className={`bg-[#131313] border rounded-2xl p-6 shadow-xl space-y-4 transition-all duration-200 ${
-                draggedOverModuleId === mod.id 
-                  ? 'border-[#e9c349] bg-[#e9c349]/5 shadow-yellow-500/5 ring-1 ring-[#e9c349]' 
-                  : 'border-gray-800'
-              }`}
-            >
-              {/* Header do Módulo */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-800/80">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#e9c349]/10 border border-[#e9c349]/20 flex items-center justify-center text-[#e9c349] font-bold text-xs">
-                    {index + 1}
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#e9c349] font-bold uppercase tracking-wider">Módulo {index + 1}</span>
-                    <h3 className="text-lg font-bold text-white font-headline">{mod.title}</h3>
-                  </div>
-                </div>
- 
-                <div className="flex items-center gap-2">
-                  <button
-                    id={`btn-add-lesson-mod-${mod.id}`}
-                    onClick={() => openAddLesson(mod.id)}
-                    className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Adicionar Aula
-                  </button>
-                  <button
-                    id={`btn-edit-mod-${mod.id}`}
-                    onClick={() => handleOpenEditModule(mod.id, mod.title)}
-                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
-                    title="Editar Título do Módulo"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    id={`btn-delete-mod-${mod.id}`}
-                    onClick={() => promptDeleteModule(mod.id, mod.title)}
-                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                    title="Apagar Módulo"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+          <div className="space-y-6">
+            {modules.length > 0 && modules.some(m => m.lessons && m.lessons.length > 0) && (
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-start gap-3 text-sm text-yellow-300">
+                <span className="text-base shrink-0">💡</span>
+                <div>
+                  <p className="font-bold text-white mb-0.5">Dica de Organização</p>
+                  <p className="text-xs text-gray-300 leading-relaxed">Você pode mover aulas de um módulo para outro de forma rápida: basta **clicar e arrastar** qualquer aula para dentro do módulo desejado!</p>
                 </div>
               </div>
- 
-              {/* Lista de Aulas do Módulo */}
-              <div className="space-y-2.5 pt-1">
-                {(!mod.lessons || mod.lessons.length === 0) ? (
-                  <div className="text-center py-6 border border-dashed border-gray-800 rounded-xl text-gray-500 text-xs">
-                    Nenhuma aula cadastrada neste módulo. Clique em "+ Adicionar Aula" ou arraste uma aula para cá.
-                  </div>
-                ) : (
-                  mod.lessons.map((lesson, lIdx) => {
-                    const isWistia = lesson.videoSource === 'wistia' || (lesson.videoData || '').includes('wistia') || (!lesson.videoData?.includes('youtube') && (lesson.videoData || '').length < 25 && !lesson.videoData?.startsWith('http'));
-                    const isCurrentlyDragged = draggingLesson?.lessonId === lesson.id;
-                    
-                    return (
-                      <div 
-                        key={lesson.id} 
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, mod.id, lesson.id)}
-                        onDragEnd={handleDragEnd}
-                        className={`bg-black/60 border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing ${
-                          isCurrentlyDragged 
-                            ? 'opacity-40 border-[#e9c349]/50 border-dashed bg-[#e9c349]/10' 
-                            : 'border-gray-800/80 hover:border-gray-700'
-                        }`}
+            )}
+
+            {modules.length === 0 ? (
+              <div className="text-center py-16 bg-[#131313] border border-dashed border-gray-800 rounded-2xl text-gray-500">
+                <BookOpen className="w-10 h-10 mx-auto mb-3 text-gray-600 opacity-60" />
+                <p className="text-base font-semibold text-gray-300">Nenhum módulo criado ainda.</p>
+                <p className="text-xs text-gray-500 mt-1">Clique em "Novo Módulo" acima para estruturar a grade curricular.</p>
+                <button
+                  onClick={handleOpenCreateModule}
+                  className="mt-4 px-4 py-2 bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30 rounded-xl text-xs font-bold hover:bg-[#e9c349]/20 transition-all cursor-pointer"
+                >
+                  + Adicionar Primeiro Módulo
+                </button>
+              </div>
+            ) : (
+              modules.map((mod, index) => (
+                <div 
+                  key={mod.id} 
+                  onDragOver={(e) => handleDragOverModule(e, mod.id)}
+                  onDragLeave={handleDragLeaveModule}
+                  onDrop={(e) => handleDropOnModule(e, mod.id)}
+                  className={`bg-[#131313] border rounded-2xl p-6 shadow-xl space-y-4 transition-all duration-200 ${
+                    draggedOverModuleId === mod.id 
+                      ? 'border-[#e9c349] bg-[#e9c349]/5 shadow-yellow-500/5 ring-1 ring-[#e9c349]' 
+                      : 'border-gray-800'
+                  }`}
+                >
+                  {/* Header do Módulo */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-800/80">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-[#e9c349]/10 border border-[#e9c349]/20 flex items-center justify-center text-[#e9c349] font-bold text-xs">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[#e9c349] font-bold uppercase tracking-wider">Módulo {index + 1}</span>
+                        <h3 className="text-lg font-bold text-white font-headline">{mod.title}</h3>
+                      </div>
+                    </div>
+     
+                    <div className="flex items-center gap-2">
+                      <button
+                        id={`btn-add-lesson-mod-${mod.id}`}
+                        onClick={() => openAddLesson(mod.id)}
+                        className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
-                        <div className="flex items-center gap-3 flex-1 min-w-[200px]">
-                          <GripVertical className="w-4 h-4 text-gray-600 hover:text-[#e9c349] shrink-0 cursor-grab" />
-                          <span className="text-xs font-mono text-gray-500 w-5">
-                            {index + 1}.{lIdx + 1}
-                          </span>
-                          <div>
-                            <h4 className="text-sm font-semibold text-white">{lesson.title}</h4>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                              <span className="flex items-center gap-1 font-mono text-[11px]">
-                                <Clock className="w-3 h-3 text-gray-500" />
-                                {lesson.duration || '00:00'}
+                        <Plus className="w-3.5 h-3.5" /> Adicionar Aula
+                      </button>
+                      <button
+                        id={`btn-edit-mod-${mod.id}`}
+                        onClick={() => handleOpenEditModule(mod.id, mod.title)}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+                        title="Editar Título do Módulo"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        id={`btn-delete-mod-${mod.id}`}
+                        onClick={() => promptDeleteModule(mod.id, mod.title)}
+                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                        title="Apagar Módulo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+     
+                  {/* Lista de Aulas do Módulo */}
+                  <div className="space-y-2.5 pt-1">
+                    {(!mod.lessons || mod.lessons.length === 0) ? (
+                      <div className="text-center py-6 border border-dashed border-gray-800 rounded-xl text-gray-500 text-xs">
+                        Nenhuma aula cadastrada neste módulo. Clique em "+ Adicionar Aula" ou arraste uma aula para cá.
+                      </div>
+                    ) : (
+                      mod.lessons.map((lesson, lIdx) => {
+                        const isWistia = lesson.videoSource === 'wistia' || (lesson.videoData || '').includes('wistia') || (!lesson.videoData?.includes('youtube') && (lesson.videoData || '').length < 25 && !lesson.videoData?.startsWith('http'));
+                        const isCurrentlyDragged = draggingLesson?.lessonId === lesson.id;
+                        
+                        return (
+                          <div 
+                            key={lesson.id} 
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, mod.id, lesson.id)}
+                            onDragEnd={handleDragEnd}
+                            className={`bg-black/60 border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                              isCurrentlyDragged 
+                                ? 'opacity-40 border-[#e9c349]/50 border-dashed bg-[#e9c349]/10' 
+                                : 'border-gray-800/80 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+                              <GripVertical className="w-4 h-4 text-gray-600 hover:text-[#e9c349] shrink-0 cursor-grab" />
+                              <span className="text-xs font-mono text-gray-500 w-5">
+                                {index + 1}.{lIdx + 1}
                               </span>
-                              
-                              {/* Badge Provedor */}
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
-                                isWistia 
-                                  ? 'bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30' 
-                                  : 'bg-red-500/15 text-red-400 border border-red-500/30'
-                              }`}>
-                                {isWistia ? <Video className="w-2.5 h-2.5" /> : <Youtube className="w-2.5 h-2.5" />}
-                                {isWistia ? 'Wistia ID' : 'YouTube'}
-                              </span>
- 
-                              {lesson.materials && (
-                                <span className="text-gray-500 text-[11px] flex items-center gap-1 truncate max-w-[150px]">
-                                  <LinkIcon className="w-2.5 h-2.5" />
-                                  Materiais
-                                </span>
-                              )}
+                              <div>
+                                <h4 className="text-sm font-semibold text-white">{lesson.title}</h4>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                                  <span className="flex items-center gap-1 font-mono text-[11px]">
+                                    <Clock className="w-3 h-3 text-gray-500" />
+                                    {lesson.duration || '00:00'}
+                                  </span>
+                                  
+                                  {/* Badge Provedor */}
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                                    isWistia 
+                                      ? 'bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30' 
+                                      : 'bg-red-500/15 text-red-400 border border-red-500/30'
+                                  }`}>
+                                    {isWistia ? <Video className="w-2.5 h-2.5" /> : <Youtube className="w-2.5 h-2.5" />}
+                                    {isWistia ? 'Wistia ID' : 'YouTube'}
+                                  </span>
+     
+                                  {lesson.materials && (
+                                    <span className="text-gray-500 text-[11px] flex items-center gap-1 truncate max-w-[150px]">
+                                      <LinkIcon className="w-2.5 h-2.5" />
+                                      Materiais
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+     
+                            <div className="flex items-center gap-2">
+                              <button
+                                id={`btn-edit-lesson-${lesson.id}`}
+                                onClick={() => openEditLesson(mod.id, lesson)}
+                                className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+                                title="Editar Aula"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                id={`btn-delete-lesson-${lesson.id}`}
+                                onClick={() => promptDeleteLesson(mod.id, lesson.id, lesson.title)}
+                                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                                title="Excluir Aula"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
-                        </div>
- 
-                        <div className="flex items-center gap-2">
-                          <button
-                            id={`btn-edit-lesson-${lesson.id}`}
-                            onClick={() => openEditLesson(mod.id, lesson)}
-                            className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
-                            title="Editar Aula"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            id={`btn-delete-lesson-${lesson.id}`}
-                            onClick={() => promptDeleteLesson(mod.id, lesson.id, lesson.title)}
-                            className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                            title="Excluir Aula"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="bg-[#131313] border border-gray-800 p-8 rounded-2xl text-center max-w-2xl mx-auto mb-10 shadow-xl">
+          <div className="w-12 h-12 bg-[#e9c349]/10 text-[#e9c349] rounded-xl flex items-center justify-center mx-auto mb-4">
+            {structureType === 'single_lesson' ? <Video className="w-6 h-6" /> : <ExternalLink className="w-6 h-6" />}
+          </div>
+          <h3 className="text-lg font-bold text-white font-headline">Estrutura Simplificada Ativa</h3>
+          <p className="text-sm text-gray-400 mt-2 leading-relaxed">
+            Este curso está configurado para ser entregue como{' '}
+            <strong className="text-[#e9c349]">
+              {structureType === 'single_lesson' ? 'Aula Única / Replay' : 'Link Externo Direto'}
+            </strong>.
+          </p>
+          <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+            {structureType === 'single_lesson' 
+              ? 'As informações do vídeo, materiais e notas adicionais já foram configurados na ficha "Estrutura de Entrega" acima, portanto a grade clássica de módulos e aulas não é necessária.'
+              : 'Os alunos serão redirecionados diretamente para o link externo configurado assim que clicarem no botão de início do curso na biblioteca.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => setStructureType('modules')}
+            className="mt-6 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95"
+          >
+            Mudar para Grade Completa de Módulos
+          </button>
+        </div>
+      )}
 
       {/* Modal de Módulo (Criar / Renomear) */}
       {moduleModal.isOpen && (

@@ -62,8 +62,14 @@ export default function Analytics() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
+  const [selectedModuleId, setSelectedModuleId] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'views' | 'completions' | 'rate'>('views');
+
+  // Pagination & Accordion states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+  const [expandedCourses, setExpandedCourses] = useState<Record<string, boolean>>({});
 
   const showNotification = (msg: string) => {
     setToastMessage(msg);
@@ -129,6 +135,36 @@ export default function Analytics() {
     return courses.filter(c => c.id === selectedCourseId);
   }, [courses, selectedCourseId]);
 
+  // Available Modules list for selection options
+  const availableModules = useMemo(() => {
+    if (selectedCourseId === 'all') return [];
+    const course = courses.find(c => c.id === selectedCourseId);
+    return course && Array.isArray(course.modules) ? course.modules : [];
+  }, [courses, selectedCourseId]);
+
+  // Accordion Toggle
+  const toggleCourseAccordion = (courseId: string) => {
+    setExpandedCourses(prev => ({
+      ...prev,
+      [courseId]: !prev[courseId]
+    }));
+  };
+
+  // Auto-expand courses on active list change or course filter change
+  useEffect(() => {
+    if (activeCourses.length === 1) {
+      setExpandedCourses({ [activeCourses[0].id]: true });
+    } else if (activeCourses.length > 0) {
+      // expand the first one by default, keep others collapsed
+      setExpandedCourses({ [activeCourses[0].id]: true });
+    }
+  }, [activeCourses]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCourseId, selectedModuleId, sortBy]);
+
   // Aggregate All Modules from active courses
   const modulesList = useMemo<ModuleInfo[]>(() => {
     const list: ModuleInfo[] = [];
@@ -159,8 +195,12 @@ export default function Analytics() {
       });
     });
 
+    if (selectedModuleId !== 'all') {
+      return list.filter(m => m.id === selectedModuleId);
+    }
+
     return list;
-  }, [activeCourses]);
+  }, [activeCourses, selectedModuleId]);
 
   // Compute Lesson Statistics from active courses and real student interactions
   const lessonStats = useMemo<LessonStats[]>(() => {
@@ -179,6 +219,9 @@ export default function Analytics() {
 
       const courseModules = Array.isArray(course.modules) ? course.modules : [];
       courseModules.forEach((mod: any) => {
+        if (selectedModuleId !== 'all' && mod.id !== selectedModuleId) {
+          return;
+        }
         const lessons = Array.isArray(mod.lessons) ? mod.lessons : [];
         lessons.forEach((lesson: any) => {
           let totalViews = 0;
@@ -222,7 +265,15 @@ export default function Analytics() {
       if (sortBy === 'completions') return b.completions - a.completions || b.views - a.views;
       return b.completionRate - a.completionRate || b.views - a.views;
     });
-  }, [activeCourses, realStudents, users, selectedCourseId, sortBy]);
+  }, [activeCourses, realStudents, users, selectedCourseId, selectedModuleId, sortBy]);
+
+  // Paginated lesson statistics
+  const paginatedLessonStats = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return lessonStats.slice(startIndex, startIndex + itemsPerPage);
+  }, [lessonStats, currentPage]);
+
+  const totalPages = Math.ceil(lessonStats.length / itemsPerPage);
 
   // Overall KPIs
   const totalSubscribers = realStudents.length;
@@ -311,6 +362,7 @@ export default function Analytics() {
                   value={selectedCourseId}
                   onChange={(e) => {
                     setSelectedCourseId(e.target.value);
+                    setSelectedModuleId('all'); // reset module on course change
                     const selectedName = e.target.value === 'all' 
                       ? 'Todos os Cursos' 
                       : courses.find(c => c.id === e.target.value)?.title || 'Curso';
@@ -324,6 +376,33 @@ export default function Analytics() {
                   {courses.map(c => (
                     <option key={c.id} value={c.id} className="bg-[#181818] text-white">
                       {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Module Selector Dropdown */}
+              <div className="flex items-center bg-surface-container-high border border-outline-variant/20 rounded-xl px-3 py-2 text-sm">
+                <Layers className="w-4 h-4 text-secondary mr-2 shrink-0" />
+                <select 
+                  id="select-module-analytics"
+                  value={selectedModuleId}
+                  disabled={selectedCourseId === 'all'}
+                  onChange={(e) => {
+                    setSelectedModuleId(e.target.value);
+                    const selectedName = e.target.value === 'all' 
+                      ? 'Todos os Módulos' 
+                      : availableModules.find((m: any) => m.id === e.target.value)?.title || 'Módulo';
+                    showNotification(`Filtrando por Módulo: ${selectedName}`);
+                  }}
+                  className="bg-transparent text-on-surface font-semibold text-xs sm:text-sm focus:outline-none cursor-pointer pr-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="all" className="bg-[#181818] text-white">
+                    {selectedCourseId === 'all' ? 'Selecione um curso' : `Todos os Módulos (${availableModules.length})`}
+                  </option>
+                  {availableModules.map((m: any) => (
+                    <option key={m.id} value={m.id} className="bg-[#181818] text-white">
+                      {m.title}
                     </option>
                   ))}
                 </select>
@@ -426,71 +505,7 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Módulos Publicados & Estrutura */}
-          <div className="mb-8">
-            <div className="bg-surface-container p-6 sm:p-8 rounded-2xl border border-outline-variant/10 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-6 pb-3 border-b border-outline-variant/10">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-[#e9c349]" />
-                    <h3 className="font-bold font-headline text-lg text-white">Módulos dos Cursos</h3>
-                  </div>
-                  <span className="text-xs px-2.5 py-1 bg-surface-container-highest rounded-lg text-stone-400 font-mono">
-                    {modulesList.length} {modulesList.length === 1 ? 'Módulo' : 'Módulos'}
-                  </span>
-                </div>
 
-                <div className="space-y-3.5 max-h-[340px] overflow-y-auto pr-1">
-                  {modulesList.length === 0 ? (
-                    <div className="py-12 text-center text-stone-500">
-                      <Layers className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                      <p className="text-sm">Nenhum módulo encontrado para o filtro atual.</p>
-                      <Link to="/content" className="text-xs text-[#e9c349] hover:underline mt-2 inline-block font-semibold">
-                        Criar Módulos no Painel de Conteúdo →
-                      </Link>
-                    </div>
-                  ) : (
-                    modulesList.map((m) => (
-                      <div 
-                        key={m.id} 
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/10 hover:border-outline-variant/30 transition-all"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-white truncate">{m.title}</p>
-                          <div className="flex items-center gap-2 text-xs text-stone-400 mt-0.5">
-                            <span className="text-[#e9c349] font-medium">{m.courseTitle}</span>
-                            <span>•</span>
-                            <span>{m.lessonsCount} {m.lessonsCount === 1 ? 'aula' : 'aulas'}</span>
-                            {m.totalDurationMinutes > 0 && (
-                              <>
-                                <span>•</span>
-                                <span>~{m.totalDurationMinutes} min</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-md self-start sm:self-center border shrink-0 ${
-                          m.status === 'published' 
-                            ? 'bg-secondary/15 text-secondary border-secondary/30' 
-                            : 'bg-surface-container-highest text-stone-400 border-outline-variant/20'
-                        }`}>
-                          {m.status === 'published' ? 'Publicado' : 'Rascunho'}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-4 mt-4 border-t border-outline-variant/10 flex justify-between items-center text-xs text-stone-400">
-                <span>Total de {totalLessonsCount} aulas ativas</span>
-                <Link to="/content" className="text-[#e9c349] hover:underline font-semibold flex items-center gap-1">
-                  <span>Editar Estrutura</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </div>
-          </div>
 
           {/* Top Content Table (Sincronizado com os Cursos Reais) */}
           <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden mb-12 shadow-xl">
@@ -575,7 +590,7 @@ export default function Analytics() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/5">
-                    {lessonStats.map((stat) => (
+                    {paginatedLessonStats.map((stat) => (
                       <tr key={stat.id} className="hover:bg-surface-container-highest/30 transition-colors">
                         <td className="p-4">
                           <div className="flex items-center gap-3">
@@ -619,6 +634,35 @@ export default function Analytics() {
                 </table>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="p-4 bg-[#181818] border-t border-outline-variant/10 flex items-center justify-between gap-4">
+                <span className="text-xs text-stone-400 font-mono">
+                  Mostrando {Math.min(lessonStats.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(lessonStats.length, currentPage * itemsPerPage)} de {lessonStats.length} aulas
+                </span>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg bg-[#282828] border border-outline-variant/10 text-stone-400 hover:text-white disabled:opacity-40 disabled:hover:text-stone-400 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                  </button>
+                  <span className="text-xs text-white font-bold font-mono">
+                    Pág. {currentPage} de {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-lg bg-[#282828] border border-outline-variant/10 text-stone-400 hover:text-white disabled:opacity-40 disabled:hover:text-stone-400 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

@@ -31,20 +31,12 @@ export const auth = getAuth(app);
 
 // Use force long polling to ensure stable connectivity in sandboxed iframe environments
 export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
   experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
 
 export const googleProvider = new GoogleAuthProvider();
 
-// Test connection on boot gracefully
-(async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    // Suppress offline connection warning in logs
-  }
-})();
+// Firebase initialized successfully
 
 export interface NewStudentPayload {
   firstName: string;

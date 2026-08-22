@@ -204,21 +204,16 @@ export default function Checkout() {
               <img 
                 src={logoUrl} 
                 alt="Logo" 
-                className="h-10 w-auto object-contain rounded-xl shadow-md" 
+                className="h-16 md:h-18 w-auto object-contain rounded-xl shadow-md transition-all" 
                 referrerPolicy="no-referrer"
               />
             ) : (
               <span className="text-3xl font-black tracking-tighter text-[#e9c349] font-headline">CFA</span>
             )}
           </Link>
-          <div className="hidden md:flex gap-8 items-center">
-            <a className="text-stone-400 hover:text-stone-200 transition-colors font-headline tracking-tight" href="#">Curriculum</a>
-            <a className="text-stone-400 hover:text-stone-200 transition-colors font-headline tracking-tight" href="#">Mentors</a>
-            <a className="text-stone-400 hover:text-stone-200 transition-colors font-headline tracking-tight" href="#">Membership</a>
-            <button className="bg-primary text-on-primary px-6 py-2 rounded-xl font-bold transition-opacity hover:opacity-80 active:scale-95">Secure Checkout</button>
-          </div>
-          <div className="md:hidden">
-            <span className="material-symbols-outlined text-primary">menu</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs uppercase tracking-widest text-stone-400 font-bold hidden sm:inline-block">Checkout 100% Seguro</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
           </div>
         </div>
       </nav>
@@ -352,9 +347,7 @@ export default function Checkout() {
                     )}
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-4">
+              </div>              <div className="space-y-4">
                 <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Selecione o método utilizado:</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {paymentSettings.multicaixaActive && (

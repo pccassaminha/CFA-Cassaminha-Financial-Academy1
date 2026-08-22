@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { BookOpen, Play, CheckCircle2, Award, ArrowRight, Clock } from 'lucide-react';
+import { BookOpen, Play, CheckCircle2, Award, ArrowRight, Clock, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Course {
@@ -9,6 +9,8 @@ interface Course {
   title: string;
   description: string;
   coverImage: string;
+  structureType?: 'modules' | 'single_lesson' | 'direct_link';
+  directLinkUrl?: string;
   modules?: Array<{
     id: string;
     lessons?: Array<{ id: string }>;
@@ -124,18 +126,27 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
             // Calculate progress
             let totalLessons = 0;
             let completedCount = 0;
+            const isDirectLink = course.structureType === 'direct_link';
+            const isSingleLesson = course.structureType === 'single_lesson';
 
-            if (course.modules && Array.isArray(course.modules)) {
-              course.modules.forEach(m => {
-                if (m.lessons && Array.isArray(m.lessons)) {
-                  m.lessons.forEach(l => {
-                    totalLessons++;
-                    if (completedLessons.includes(l.id)) {
-                      completedCount++;
-                    }
-                  });
-                }
-              });
+            if (isSingleLesson) {
+              totalLessons = 1;
+              if (completedLessons.includes(course.id)) {
+                completedCount = 1;
+              }
+            } else if (!isDirectLink) {
+              if (course.modules && Array.isArray(course.modules)) {
+                course.modules.forEach(m => {
+                  if (m.lessons && Array.isArray(m.lessons)) {
+                    m.lessons.forEach(l => {
+                      totalLessons++;
+                      if (completedLessons.includes(l.id)) {
+                        completedCount++;
+                      }
+                    });
+                  }
+                });
+              }
             }
 
             const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
@@ -151,9 +162,19 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
                   ) : (
                     <div className="w-full h-full bg-gray-900 flex items-center justify-center text-gray-600 font-mono text-xs">CFA Academy</div>
                   )}
-                  <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full border border-gray-700 text-[#e9c349] text-xs font-bold font-mono">
-                    {progressPercent}% Concluído
-                  </div>
+                  {isDirectLink ? (
+                    <div className="absolute top-3 right-3 bg-sky-500/80 backdrop-blur-md px-3 py-1 rounded-full border border-sky-500/20 text-white text-xs font-bold font-mono">
+                      Link Externo
+                    </div>
+                  ) : isSingleLesson ? (
+                    <div className="absolute top-3 right-3 bg-indigo-500/80 backdrop-blur-md px-3 py-1 rounded-full border border-indigo-500/20 text-white text-xs font-bold font-mono">
+                      Aula Única
+                    </div>
+                  ) : (
+                    <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full border border-gray-700 text-[#e9c349] text-xs font-bold font-mono">
+                      {progressPercent}% Concluído
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-6 flex-1 flex flex-col justify-between">
@@ -161,19 +182,42 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
                     <h3 className="text-lg font-bold text-white mb-2 line-clamp-1">{course.title}</h3>
                     <p className="text-gray-400 text-xs line-clamp-2 mb-4">{course.description || 'Treinamento completo profissional CFA.'}</p>
                     
-                    {/* Progress Bar */}
-                    <div className="mb-6">
-                      <div className="flex justify-between text-xs text-gray-400 mb-1.5 font-mono">
-                        <span>Progresso do Curso</span>
-                        <span className="text-[#e9c349] font-bold">{completedCount} de {totalLessons} aulas</span>
+                    {/* Progress Bar or delivery type info */}
+                    {isDirectLink ? (
+                      <div className="mb-6 bg-sky-500/5 border border-sky-500/10 p-3 rounded-xl flex items-start gap-2">
+                        <span className="text-sky-400 text-sm">🔗</span>
+                        <div>
+                          <p className="text-xs font-bold text-sky-400">Canal / Recurso Externo</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">Este treinamento direciona para um link de acesso ou grupo VIP de alunos externo.</p>
+                        </div>
                       </div>
-                      <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-[#e9c349] to-amber-500 transition-all duration-500 rounded-full"
-                          style={{ width: `${progressPercent}%` }}
-                        ></div>
+                    ) : isSingleLesson ? (
+                      <div className="mb-6">
+                        <div className="flex justify-between text-xs text-gray-400 mb-1.5 font-mono">
+                          <span>Aula Única / Replay</span>
+                          <span className="text-[#e9c349] font-bold">{completedCount === 1 ? 'Concluída' : 'Não assistida'}</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-[#e9c349] to-amber-500 transition-all duration-500 rounded-full"
+                            style={{ width: completedCount === 1 ? '100%' : '0%' }}
+                          ></div>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mb-6">
+                        <div className="flex justify-between text-xs text-gray-400 mb-1.5 font-mono">
+                          <span>Progresso do Curso</span>
+                          <span className="text-[#e9c349] font-bold">{completedCount} de {totalLessons} aulas</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-[#e9c349] to-amber-500 transition-all duration-500 rounded-full"
+                            style={{ width: `${progressPercent}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 border-t border-gray-800 flex items-center justify-between mt-auto">
@@ -181,11 +225,26 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
                       <Clock className="w-3.5 h-3.5" /> Acesso Ilimitado
                     </span>
                     <button
-                      onClick={() => navigate(`/classroom?courseId=${course.id}`)}
-                      className="bg-[#e9c349] text-black font-bold px-4 py-2 rounded-xl text-xs hover:bg-[#d4b03f] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                      onClick={() => {
+                        if (isDirectLink) {
+                          window.open(course.directLinkUrl || '#', '_blank', 'noopener,noreferrer');
+                        } else {
+                          navigate(`/classroom?courseId=${course.id}`);
+                        }
+                      }}
+                      className="bg-[#e9c349] text-black font-bold px-4 py-2 rounded-xl text-xs hover:bg-[#d4b03f] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 animate-in fade-in duration-300"
                     >
-                      <Play className="w-3.5 h-3.5 fill-black" />
-                      <span>{progressPercent > 0 ? 'Continuar' : 'Iniciar Aulas'}</span>
+                      {isDirectLink ? (
+                        <>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Acessar Canal</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-black" />
+                          <span>{progressPercent > 0 ? 'Continuar' : 'Iniciar Aulas'}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

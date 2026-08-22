@@ -20,6 +20,8 @@ import Dashboard from './pages/Dashboard';
 import ContentManager from './pages/ContentManager';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -220,6 +222,8 @@ export default function App() {
               ) : <Navigate to="/" replace />
             } 
           />
+          <Route path="/termos" element={<Terms />} />
+          <Route path="/privacidade" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

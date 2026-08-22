@@ -91,11 +91,11 @@ export default function StudentPortal() {
             <img 
               src={logoUrl} 
               alt="Logo" 
-              className="h-10 w-auto object-contain rounded-xl shadow-md" 
+              className="h-14 md:h-16 w-auto object-contain rounded-xl shadow-md transition-all" 
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-lg shadow-md">
+            <div className="w-12 h-12 rounded-xl bg-[#e9c349] text-black flex items-center justify-center font-extrabold font-headline text-xl shadow-md">
               CFA
             </div>
           )}

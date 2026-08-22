@@ -45,6 +45,13 @@ export interface Course {
   id: string;
   title: string;
   instructor: string;
+  description?: string;
+  structureType?: 'modules' | 'single_lesson' | 'direct_link';
+  directLinkUrl?: string;
+  singleLessonVideoSource?: 'youtube' | 'wistia';
+  singleLessonVideoData?: string;
+  singleLessonMaterials?: string;
+  singleLessonDescription?: string;
   modules: Module[];
 }
 
