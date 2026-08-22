@@ -3,6 +3,7 @@ import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check } from 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { LinkifiedText } from './LinkifiedText';
+import { useNavigate } from 'react-router-dom';
 
 interface CoursePreviewProps {
   courseId: string;
@@ -24,10 +25,12 @@ interface CourseData {
 }
 
 export default function CoursePreview({ courseId, onBack, onOpenCheckout }: CoursePreviewProps) {
+  const navigate = useNavigate();
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [enrolledSuccess, setEnrolledSuccess] = useState(false);
+  const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
 
   const handleFreeEnroll = async () => {
     const user = auth.currentUser;
@@ -49,11 +52,8 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
       }
       setEnrolledSuccess(true);
       setTimeout(() => {
-        window.location.hash = '#my-courses';
-        window.dispatchEvent(new Event('student-view-changed'));
-        // Or trigger reload/back
-        onBack();
-      }, 1500);
+        navigate(`/classroom?courseId=${courseId}`);
+      }, 1000);
     } catch (err) {
       console.error("Erro ao matricular em curso gratuito:", err);
       alert('Erro ao liberar acesso ao curso. Tente novamente.');
@@ -95,6 +95,25 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
       }
     };
     fetchCourse();
+  }, [courseId]);
+
+  useEffect(() => {
+    const checkEnrollment = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists()) {
+          const enrolled = userSnap.data().enrolledCourses || [];
+          if (Array.isArray(enrolled) && enrolled.includes(courseId)) {
+            setIsAlreadyEnrolled(true);
+          }
+        }
+      } catch (err) {
+        console.error("Error checking enrollment:", err);
+      }
+    };
+    checkEnrollment();
   }, [courseId]);
 
   if (loading) {
@@ -236,7 +255,15 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
               </p>
             </div>
             
-            {enrolledSuccess ? (
+            {isAlreadyEnrolled ? (
+              <button 
+                id="btn-watch-course-preview"
+                onClick={() => navigate(`/classroom?courseId=${courseId}`)}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-4 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base flex items-center justify-center gap-2"
+              >
+                <PlayCircle className="w-5 h-5" /> Assistir Curso
+              </button>
+            ) : enrolledSuccess ? (
               <div className="w-full bg-emerald-500 text-black font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg text-base">
                 <Check className="w-5 h-5" /> Acesso Liberado com Sucesso!
               </div>

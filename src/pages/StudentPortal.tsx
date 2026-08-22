@@ -172,6 +172,7 @@ export default function StudentPortal() {
             courseId={selectedCourse.id}
             courseTitle={selectedCourse.title}
             coursePrice={selectedCourse.price}
+            courseCover={selectedCourse.coverImage}
             onBack={() => setCurrentView('preview')}
           />
         )}

@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp, doc, getDoc, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { ArrowLeft, Copy, Check, MessageCircle, ShieldCheck, Building2, Smartphone, CreditCard } from 'lucide-react';
 
 interface CheckoutProps {
   courseId: string;
   courseTitle: string;
   coursePrice: number;
+  courseCover?: string;
   onBack: () => void;
 }
 
-export default function CourseCheckout({ courseId, courseTitle, coursePrice, onBack }: CheckoutProps) {
-  const currentUser = { uid: 'user_123', name: 'Pedro Cassaminha', email: 'pedro@cassaminha.com' };
+export default function CourseCheckout({ courseId, courseTitle, coursePrice, courseCover, onBack }: CheckoutProps) {
+  const [user, setUser] = useState<any>(null);
+  const [existingTxStatus, setExistingTxStatus] = useState<'pending' | 'approved' | null>(null);
+  const [hasClickedPaid, setHasClickedPaid] = useState(false);
 
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [activeMethodIndex, setActiveMethodIndex] = useState<number>(0);
@@ -116,6 +119,51 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
         } else {
           setPaymentMethods(activeMethods);
         }
+
+        // 4. Fetch the real user from auth.currentUser and check duplicate transaction
+        const u = auth.currentUser;
+        if (u) {
+          const userDocSnap = await getDoc(doc(db, 'users', u.uid));
+          let resolvedName = u.displayName || 'Aluno';
+          let resolvedEmail = u.email || '';
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            resolvedName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.displayName || u.displayName || 'Aluno';
+            resolvedEmail = u.email || data.email || '';
+          }
+          setUser({
+            uid: u.uid,
+            name: resolvedName,
+            email: resolvedEmail
+          });
+
+          // Check for existing transactions
+          const { query, where, collection, getDocs } = await import('firebase/firestore');
+          const q = query(
+            collection(db, 'transactions'),
+            where('userId', '==', u.uid),
+            where('courseId', '==', courseId)
+          );
+          const snap = await getDocs(q);
+          let foundApproved = false;
+          let foundPending = false;
+          snap.forEach(d => {
+            const status = d.data().status;
+            if (status === 'approved') foundApproved = true;
+            if (status === 'pending' || !status) foundPending = true;
+          });
+          if (foundApproved) {
+            setExistingTxStatus('approved');
+          } else if (foundPending) {
+            setExistingTxStatus('pending');
+          }
+        } else {
+          setUser({
+            uid: 'user_123',
+            name: 'Pedro Cassaminha',
+            email: 'pedro@cassaminha.com'
+          });
+        }
       } catch (error) {
         console.error("Erro ao buscar dados de pagamento:", error);
         setPaymentMethods([
@@ -126,7 +174,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
       }
     };
     fetchCheckoutConfig();
-  }, []);
+  }, [courseId]);
 
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -149,11 +197,13 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
 
     setIsSubmitting(true);
     const selectedMethod = paymentMethods[activeMethodIndex] || paymentMethods[0];
+    const finalUser = user || { uid: 'user_123', name: 'Pedro Cassaminha', email: 'pedro@cassaminha.com' };
 
     try {
       await addDoc(collection(db, 'transactions'), {
-        userId: currentUser.uid,
-        userName: currentUser.name,
+        userId: finalUser.uid,
+        userName: finalUser.name,
+        userEmail: finalUser.email || '',
         courseId,
         courseTitle: safeTitle,
         referenceNumber: bankReference,
@@ -163,11 +213,14 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
         createdAt: serverTimestamp()
       });
 
+      // Update local state to pending so duplicate check triggers instantly
+      setExistingTxStatus('pending');
+
       const cleanSupport = supportNumber.replace(/[^0-9]/g, '');
       const message = `Olá, equipe CFA! Realizei o pagamento do curso.%0A%0A` +
         `📚 *Curso:* ${safeTitle}%0A` +
         `💵 *Valor:* ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(safePrice)}%0A` +
-        `👤 *Aluno:* ${currentUser.name}%0A` +
+        `👤 *Aluno:* ${finalUser.name}%0A` +
         `💳 *Método:* ${selectedMethod.shortName || selectedMethod.bankName}%0A` +
         `🔖 *Referência do Talão:* ${bankReference}%0A%0A` +
         `Segue em anexo o meu comprovativo de pagamento.`;
@@ -253,10 +306,20 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
 
           {/* LADO DIREITO: Resumo e Formulário de Envio */}
           <div className="w-full lg:w-2/5">
-            <form onSubmit={handleConfirmAndRedirect} className="bg-[#131313] border border-gray-800 rounded-3xl p-6 md:p-8 sticky top-8 shadow-2xl">
+            <div className="bg-[#131313] border border-gray-800 rounded-3xl p-6 md:p-8 sticky top-8 shadow-2xl">
               <h3 className="text-xl font-bold mb-6 pb-4 border-b border-gray-800 font-headline">Resumo da Inscrição</h3>
               
               <div className="space-y-4 mb-8">
+                {courseCover && (
+                  <div className="aspect-video w-full rounded-2xl overflow-hidden border border-gray-800 bg-black/40">
+                    <img 
+                      src={courseCover} 
+                      alt={safeTitle} 
+                      className="w-full h-full object-cover" 
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
                 <div>
                   <span className="text-xs text-gray-400 uppercase tracking-wider block mb-1">Curso</span>
                   <span className="text-white font-bold text-base md:text-lg block line-clamp-2">{safeTitle}</span>
@@ -269,37 +332,70 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, onB
                 </div>
               </div>
 
-              {/* INPUT PARA REFERÊNCIA BANCÁRIA DO ALUNO */}
-              <div className="mb-6">
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                  Referência do Pagamento / Talão (Obrigatório)
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={bankReference}
-                  onChange={(e) => setBankReference(e.target.value)}
-                  placeholder="Ex: 884920311 ou Nº do Comprovativo"
-                  className="w-full bg-black border border-gray-700 text-white rounded-xl p-4 focus:border-[#e9c349] outline-none font-mono placeholder:font-sans placeholder:text-gray-600 text-lg"
-                />
-              </div>
-
-              <div className="space-y-4">
+              {existingTxStatus === 'approved' ? (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 p-5 rounded-2xl text-center text-emerald-400 text-sm font-medium">
+                  <p className="mb-3">Você já tem acesso ativo a este curso!</p>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      window.location.hash = '#my-courses';
+                      window.dispatchEvent(new Event('student-view-changed'));
+                      onBack();
+                    }}
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-2.5 px-4 rounded-xl text-xs transition-colors cursor-pointer"
+                  >
+                    Ir para Meus Cursos
+                  </button>
+                </div>
+              ) : existingTxStatus === 'pending' ? (
+                <div className="bg-[#e9c349]/10 border border-[#e9c349]/30 p-5 rounded-2xl text-center text-[#e9c349] text-sm font-medium">
+                  <p>Inscrição pendente de aprovação pela equipe administrativa.</p>
+                  <p className="text-xs text-stone-400 mt-2">Nossa equipe está validando seu pagamento no momento. Por favor, aguarde.</p>
+                </div>
+              ) : !hasClickedPaid ? (
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-[#25D366] text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-[#1ebd5a] transition-all transform hover:scale-[1.02] disabled:opacity-50 text-base cursor-pointer"
+                  type="button"
+                  onClick={() => setHasClickedPaid(true)}
+                  className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#d4b03f] transition-all transform hover:scale-[1.02] text-base cursor-pointer font-headline"
                 >
-                  <MessageCircle className="w-6 h-6 fill-white shrink-0" />
-                  {isSubmitting ? 'Processando...' : 'Enviar Comprovativo WhatsApp'}
+                  <Check className="w-5 h-5 shrink-0" />
+                  Já Paguei
                 </button>
-              </div>
+              ) : (
+                <form onSubmit={handleConfirmAndRedirect} className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-200">
+                  {/* INPUT PARA REFERÊNCIA BANCÁRIA DO ALUNO */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Referência do Pagamento / Talão (Obrigatório)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={bankReference}
+                      onChange={(e) => setBankReference(e.target.value)}
+                      placeholder="Ex: 884920311 ou Nº do Comprovativo"
+                      className="w-full bg-black border border-gray-700 text-white rounded-xl p-4 focus:border-[#e9c349] outline-none font-mono placeholder:font-sans placeholder:text-gray-600 text-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full bg-[#25D366] text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-[#1ebd5a] transition-all transform hover:scale-[1.02] disabled:opacity-50 text-base cursor-pointer"
+                    >
+                      <MessageCircle className="w-6 h-6 fill-white shrink-0" />
+                      {isSubmitting ? 'Processando...' : 'Enviar para o WhatsApp'}
+                    </button>
+                  </div>
+                </form>
+              )}
 
               <div className="mt-6 pt-6 border-t border-gray-800 flex items-start gap-3 text-gray-400 text-xs">
                 <ShieldCheck className="w-5 h-5 text-[#e9c349] shrink-0" />
                 <span className="leading-relaxed">Seu acesso será liberado assim que nossa equipe validar a referência inserida no WhatsApp.</span>
               </div>
-            </form>
+            </div>
           </div>
 
         </div>
