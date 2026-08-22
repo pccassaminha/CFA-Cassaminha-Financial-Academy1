@@ -49,7 +49,7 @@ export default function Sidebar() {
           if (genSnap.data().supportEmail) setSupportEmail(genSnap.data().supportEmail);
         }
       } catch (err) {
-        console.error('Error fetching support info:', err);
+        console.warn('Could not fetch real-time support info (offline fallback active):', err);
       }
     };
     fetchSupportInfo();

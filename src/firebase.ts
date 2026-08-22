@@ -29,9 +29,10 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use auto-detect long polling to ensure smooth connectivity in sandboxed iframe environments
+// Use force long polling to ensure stable connectivity in sandboxed iframe environments
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
 
 export const googleProvider = new GoogleAuthProvider();
