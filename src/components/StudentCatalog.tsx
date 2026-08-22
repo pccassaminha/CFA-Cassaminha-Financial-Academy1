@@ -61,6 +61,11 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
 
   const currentCourse = courses[currentIndex];
 
+  const filteredCourses = courses.filter(course => 
+    course.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    course.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="bg-[#0a0a0a] min-h-screen text-white pb-16 sm:pb-20">
       {/* BANNER DESTAQUE (HERO) */}
@@ -95,33 +100,47 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
 
       {/* VITRINE EM GRID */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 mt-8 sm:mt-12">
-        <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-6 sm:mb-8 font-headline">Catálogo de Cursos</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight font-headline">Catálogo de Cursos</h2>
+          <ExpandableSearch 
+            value={searchTerm} 
+            onChange={setSearchTerm} 
+            placeholder="Pesquisar por título ou descrição..."
+          />
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
-          {courses.map((course) => (
-            <div key={course.id} onClick={() => onSelectCourse(course)} className="bg-[#131313] border border-gray-800/80 rounded-2xl overflow-hidden hover:border-[#e9c349]/50 transition-all cursor-pointer flex flex-col shadow-lg active:scale-[0.99]">
-              <div className="h-44 sm:h-52 overflow-hidden relative">
-                {course.coverImage ? (
-                  <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gray-800 flex items-center justify-center text-gray-500 text-xs">Sem Capa</div>
-                )}
-              </div>
-              <div className="p-4 sm:p-6 flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-white mb-2 line-clamp-2">{course.title}</h3>
-                  <p className="text-gray-400 text-xs sm:text-sm line-clamp-3 sm:line-clamp-5 leading-relaxed mb-4 sm:mb-6">{course.description}</p>
+          {filteredCourses.length > 0 ? (
+            filteredCourses.map((course) => (
+              <div key={course.id} onClick={() => onSelectCourse(course)} className="bg-[#131313] border border-gray-800/80 rounded-2xl overflow-hidden hover:border-[#e9c349]/50 transition-all cursor-pointer flex flex-col shadow-lg active:scale-[0.99]">
+                <div className="h-44 sm:h-52 overflow-hidden relative">
+                  {course.coverImage ? (
+                    <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gray-800 flex items-center justify-center text-gray-500 text-xs">Sem Capa</div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between pt-3.5 border-t border-gray-800/60 mt-auto">
-                  <span className={`font-bold text-base sm:text-lg ${!course.price || course.price === 0 ? 'text-emerald-400 font-extrabold' : 'text-[#e9c349]'}`}>
-                    {!course.price || course.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                  </span>
-                  <span className="bg-white/5 text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-[#e9c349] hover:text-black transition-all">
-                    Aprender Agora
-                  </span>
+                <div className="p-4 sm:p-6 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-white mb-2 line-clamp-2">{course.title}</h3>
+                    <p className="text-gray-400 text-xs sm:text-sm line-clamp-3 sm:line-clamp-5 leading-relaxed mb-4 sm:mb-6">{course.description}</p>
+                  </div>
+                  <div className="flex items-center justify-between pt-3.5 border-t border-gray-800/60 mt-auto">
+                    <span className={`font-bold text-base sm:text-lg ${!course.price || course.price === 0 ? 'text-emerald-400 font-extrabold' : 'text-[#e9c349]'}`}>
+                      {!course.price || course.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                    </span>
+                    <span className="bg-white/5 text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-[#e9c349] hover:text-black transition-all">
+                      Aprender Agora
+                    </span>
+                  </div>
                 </div>
               </div>
+            ))
+          ) : (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500">
+              <SearchX className="w-12 h-12 mb-4 opacity-50" />
+              <p>Nenhum curso encontrado com esse termo.</p>
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
