@@ -192,6 +192,10 @@ export default function App() {
             element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
           />
           <Route 
+            path="/library/:slug" 
+            element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
+          />
+          <Route 
             path="/portal" 
             element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
           />
