@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, updateDoc, doc, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, onSnapshot, updateDoc, doc, getDocs, arrayUnion, arrayRemove, query, where } from 'firebase/firestore';
 import { db, adminCreateStudentAccount, auth } from '../firebase';
 import Sidebar from '../components/Sidebar';
 import { 
@@ -218,6 +218,22 @@ export default function StudentDirectory() {
         enrolledCourses: studentEnrolledCourses,
         subscriptionStatus: hasEnrolled ? 'active' : 'inactive'
       });
+
+      // Garantir sincronização por e-mail caso existam múltiplos registros/UIDs
+      if (selectedStudentForCourses.email) {
+        const cleanEmail = selectedStudentForCourses.email.trim().toLowerCase();
+        const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
+        const snap = await getDocs(q);
+        for (const docSnap of snap.docs) {
+          if (docSnap.id !== selectedStudentForCourses.id) {
+            await updateDoc(doc(db, 'users', docSnap.id), {
+              enrolledCourses: studentEnrolledCourses,
+              subscriptionStatus: hasEnrolled ? 'active' : 'inactive'
+            });
+          }
+        }
+      }
+
       showNotification(`Cursos atualizados com sucesso para ${selectedStudentForCourses.email}!`, 'success');
       setSelectedStudentForCourses(null);
     } catch (error) {
@@ -335,33 +351,33 @@ export default function StudentDirectory() {
 
       <Sidebar />
       
-      <main className="flex-1 flex flex-col h-screen ml-72">
+      <main className="flex-1 flex flex-col min-h-screen lg:h-screen lg:ml-72 ml-0 pt-16 lg:pt-0 overflow-x-hidden">
         {/* Topbar */}
-        <header className="h-20 border-b border-[#353534]/30 flex items-center justify-between px-8 bg-[#131313] shrink-0">
+        <header className="h-auto min-h-[72px] border-b border-[#353534]/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 sm:p-6 lg:px-8 bg-[#131313] shrink-0">
           <div>
             <div className="flex items-center gap-2 text-[#e9c349] mb-0.5">
               <span className="material-symbols-outlined text-sm">groups</span>
               <span className="text-xs font-bold uppercase tracking-widest font-mono">Gestão de Usuários</span>
             </div>
-            <h2 className="font-extrabold text-xl text-white font-headline">Controle de Alunos & Cursos</h2>
+            <h2 className="font-extrabold text-lg sm:text-xl text-white font-headline">Controle de Alunos & Cursos</h2>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 sm:w-64 md:w-72">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
               <input 
                 type="text" 
                 placeholder="Buscar por nome, email ou tel..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-[#0e0e0e] border border-[#353534]/50 rounded-xl pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-[#e9c349] transition-colors w-72" 
+                className="bg-[#0e0e0e] border border-[#353534]/50 rounded-xl pl-9 pr-4 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#e9c349] transition-colors w-full" 
               />
             </div>
 
             <button 
               id="btn-open-register-student-modal"
               onClick={() => setIsRegisterModalOpen(true)} 
-              className="flex items-center gap-2 px-4 py-2 bg-[#e9c349] text-[#131313] rounded-xl font-bold text-sm hover:bg-[#d4b03f] active:scale-95 transition-all shadow-md cursor-pointer font-headline"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#e9c349] text-[#131313] rounded-xl font-bold text-xs sm:text-sm hover:bg-[#d4b03f] active:scale-95 transition-all shadow-md cursor-pointer font-headline shrink-0 w-full sm:w-auto"
             >
               <UserPlus className="w-4 h-4" />
               <span>Cadastrar Novo Aluno</span>
@@ -370,11 +386,11 @@ export default function StudentDirectory() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
           
           {/* Alerta de Produtores Pendentes de Aprovação */}
           {pendingApprovals.length > 0 && (
-            <div className="p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg animate-pulse">
+            <div className="p-4 sm:p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg animate-pulse">
               <div className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
                   <ShieldCheck className="w-6 h-6" />
@@ -399,46 +415,46 @@ export default function StudentDirectory() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
             <div 
               onClick={() => setRoleFilter('students')}
-              className={`bg-[#131313] border rounded-2xl p-5 shadow-md cursor-pointer transition-all hover:border-[#e9c349]/50 ${
+              className={`bg-[#131313] border rounded-2xl p-4 sm:p-5 shadow-md cursor-pointer transition-all hover:border-[#e9c349]/50 ${
                 roleFilter === 'students' ? 'border-[#e9c349] ring-1 ring-[#e9c349]/30' : 'border-[#353534]/30'
               }`}
             >
-              <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Total de Alunos</p>
-              <h3 className="text-2xl font-black text-[#e9c349] font-headline">{studentsCount}</h3>
+              <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Total de Alunos</p>
+              <h3 className="text-xl sm:text-2xl font-black text-[#e9c349] font-headline">{studentsCount}</h3>
             </div>
             <div 
               onClick={() => setRoleFilter('active_students')}
-              className={`bg-[#131313] border rounded-2xl p-5 shadow-md cursor-pointer transition-all hover:border-emerald-400/50 ${
+              className={`bg-[#131313] border rounded-2xl p-4 sm:p-5 shadow-md cursor-pointer transition-all hover:border-emerald-400/50 ${
                 roleFilter === 'active_students' ? 'border-emerald-400 ring-1 ring-emerald-400/30' : 'border-[#353534]/30'
               }`}
             >
-              <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Assinaturas Ativas</p>
-              <h3 className="text-2xl font-black text-emerald-400 font-headline">{activeUsersCount}</h3>
+              <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Assinaturas Ativas</p>
+              <h3 className="text-xl sm:text-2xl font-black text-emerald-400 font-headline">{activeUsersCount}</h3>
             </div>
             <div 
               onClick={() => setRoleFilter('registered_only')}
-              className={`bg-[#131313] border rounded-2xl p-5 shadow-md cursor-pointer transition-all hover:border-amber-400/50 ${
+              className={`bg-[#131313] border rounded-2xl p-4 sm:p-5 shadow-md cursor-pointer transition-all hover:border-amber-400/50 ${
                 roleFilter === 'registered_only' ? 'border-amber-400 ring-1 ring-amber-400/30' : 'border-[#353534]/30'
               }`}
             >
-              <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Apenas Cadastrados</p>
-              <h3 className="text-2xl font-black text-amber-400 font-headline">{registeredOnlyCount}</h3>
+              <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Apenas Cadastrados</p>
+              <h3 className="text-xl sm:text-2xl font-black text-amber-400 font-headline">{registeredOnlyCount}</h3>
             </div>
-            <div className="bg-[#131313] border border-[#353534]/30 rounded-2xl p-5 shadow-md">
-              <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Cursos no Catálogo</p>
-              <h3 className="text-2xl font-black text-blue-400 font-headline">{availableCourses.length}</h3>
+            <div className="bg-[#131313] border border-[#353534]/30 rounded-2xl p-4 sm:p-5 shadow-md">
+              <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Cursos no Catálogo</p>
+              <h3 className="text-xl sm:text-2xl font-black text-blue-400 font-headline">{availableCourses.length}</h3>
             </div>
           </div>
 
           {/* Filtros de Lista */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-2 bg-[#131313] p-1.5 rounded-xl border border-gray-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-[#131313] p-1.5 rounded-xl border border-gray-800 overflow-x-auto max-w-full">
               <button
                 onClick={() => setRoleFilter('all')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   roleFilter === 'all' ? 'bg-[#e9c349] text-black shadow-sm' : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -446,7 +462,7 @@ export default function StudentDirectory() {
               </button>
               <button
                 onClick={() => setRoleFilter('students')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   roleFilter === 'students' ? 'bg-[#e9c349] text-black shadow-sm' : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -454,7 +470,7 @@ export default function StudentDirectory() {
               </button>
               <button
                 onClick={() => setRoleFilter('active_students')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   roleFilter === 'active_students' ? 'bg-emerald-400 text-black shadow-sm' : 'text-emerald-400 hover:bg-emerald-500/10'
                 }`}
               >
@@ -462,7 +478,7 @@ export default function StudentDirectory() {
               </button>
               <button
                 onClick={() => setRoleFilter('registered_only')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   roleFilter === 'registered_only' ? 'bg-amber-400 text-black shadow-sm' : 'text-amber-400 hover:bg-amber-500/10'
                 }`}
               >
@@ -470,7 +486,7 @@ export default function StudentDirectory() {
               </button>
               <button
                 onClick={() => setRoleFilter('producers')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   roleFilter === 'producers' ? 'bg-[#e9c349] text-black shadow-sm' : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -479,7 +495,7 @@ export default function StudentDirectory() {
               {pendingApprovals.length > 0 && (
                 <button
                   onClick={() => setRoleFilter('pending')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                     roleFilter === 'pending' ? 'bg-amber-400 text-black shadow-sm' : 'text-amber-400 hover:bg-amber-500/10'
                   }`}
                 >
@@ -494,8 +510,166 @@ export default function StudentDirectory() {
             </span>
           </div>
 
-          {/* Tabela de Usuários */}
-          <div className="bg-[#131313] border border-[#353534]/30 rounded-2xl overflow-hidden shadow-xl">
+          {/* Cards Mobile (md:hidden) */}
+          <div className="md:hidden space-y-3">
+            {loading ? (
+              <div className="p-8 bg-[#131313] border border-[#353534]/30 rounded-2xl text-center text-gray-500">
+                <div className="w-8 h-8 border-2 border-[#e9c349] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                Carregando registros...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="p-8 bg-[#131313] border border-[#353534]/30 rounded-2xl text-center text-gray-500">
+                Nenhum usuário encontrado com os filtros atuais.
+              </div>
+            ) : (
+              filteredUsers.map((userItem) => {
+                const cleanEmail = (userItem.email || '').trim().toLowerCase();
+                const isMaster = isMasterEmail(cleanEmail);
+                const isProducerRole = userItem.role === 'producer' || userItem.roleType === 'producer';
+                const isPendingApproval = !isMaster && (userItem.subscriptionStatus === 'pending_approval' || (isProducerRole && userItem.isApproved === false));
+                const isActive = isMaster || userItem.subscriptionStatus === 'active';
+                
+                const fullName = userItem.firstName 
+                  ? `${userItem.firstName} ${userItem.lastName || ''}` 
+                  : (userItem.email ? userItem.email.split('@')[0] : 'Usuário');
+                const initials = (userItem.firstName ? userItem.firstName[0] : (userItem.email ? userItem.email[0] : 'U')).toUpperCase();
+                const enrolledList: string[] = Array.isArray(userItem.enrolledCourses) ? userItem.enrolledCourses : [];
+
+                return (
+                  <div key={userItem.id} className="bg-[#131313] border border-[#353534]/30 rounded-2xl p-4 space-y-3.5 shadow-md">
+                    {/* Header Card */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          isMaster ? 'bg-[#e9c349] text-black shadow-md' : isProducerRole ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-gray-800 text-gray-200'
+                        }`}>
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="font-bold text-white text-sm truncate">{fullName}</h4>
+                            {isMaster && (
+                              <span className="px-1.5 py-0.5 bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/40 text-[9px] font-bold rounded uppercase tracking-wider">
+                                Master
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 font-mono truncate">{userItem.email}</p>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="shrink-0">
+                        {isPendingApproval ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                            <Clock className="w-3 h-3" />
+                            Pendente
+                          </span>
+                        ) : isMaster ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30">
+                            <ShieldCheck className="w-3 h-3" />
+                            Master
+                          </span>
+                        ) : (
+                          <button 
+                            onClick={() => toggleStatus(userItem.id, userItem.subscriptionStatus)}
+                            className="cursor-pointer"
+                          >
+                            {isActive ? (
+                              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded border border-emerald-500/30">
+                                Ativo
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] font-bold rounded border border-red-500/30">
+                                Inativo
+                              </span>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Details Row */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-[#0e0e0e] p-2.5 rounded-xl border border-gray-800/80">
+                      <div>
+                        <span className="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Contato</span>
+                        {userItem.phoneNumber ? (
+                          <span className="text-gray-300 font-mono text-xs">{userItem.phoneCountryCode || '+244'} {userItem.phoneNumber}</span>
+                        ) : (
+                          <span className="text-gray-600 italic">Não informado</span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Papel</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          isProducerRole ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30' : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                        }`}>
+                          {isProducerRole ? 'Produtor' : 'Aluno'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Courses Liberated */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Cursos Liberados ({enrolledList.length})</span>
+                        {!isMaster && (
+                          <button
+                            onClick={() => handleOpenCourseManager(userItem)}
+                            className="text-[#e9c349] hover:underline text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <BookOpen className="w-3 h-3" />
+                            <span>{enrolledList.length === 0 ? '+ Matricular' : 'Editar Cursos'}</span>
+                          </button>
+                        )}
+                      </div>
+                      {isMaster ? (
+                        <span className="text-xs font-semibold text-[#e9c349]">Acesso Total aos Cursos</span>
+                      ) : enrolledList.length === 0 ? (
+                        <p className="text-xs text-gray-500 italic">Nenhum curso matriculado</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {enrolledList.map(cId => {
+                            const courseInfo = availableCourses.find(c => c.id === cId);
+                            return (
+                              <span 
+                                key={cId}
+                                className="px-2 py-0.5 bg-[#0e0e0e] border border-gray-800 text-gray-300 text-[10px] font-medium rounded-md truncate max-w-[150px]"
+                              >
+                                {courseInfo?.title || cId}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Actions */}
+                    {isPendingApproval && (
+                      <div className="pt-2 border-t border-gray-800/80 flex items-center gap-2">
+                        <button
+                          onClick={() => handleApproveProducer(userItem.id, userItem.email)}
+                          className="flex-1 py-2 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Aprovar Produtor
+                        </button>
+                        <button
+                          onClick={() => handleMakeStudent(userItem.id)}
+                          className="py-2 px-3 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+                        >
+                          Tornar Aluno
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Tabela Desktop (hidden md:block) */}
+          <div className="hidden md:block bg-[#131313] border border-[#353534]/30 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-[#0e0e0e] border-b border-[#353534]/30">

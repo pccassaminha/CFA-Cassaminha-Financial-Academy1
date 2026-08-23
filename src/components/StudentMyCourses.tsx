@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { subscribeUserEnrollments } from '../services/enrollmentService';
 import { BookOpen, Play, CheckCircle2, Award, ArrowRight, Clock, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,69 +21,57 @@ interface Course {
 export default function StudentMyCourses({ onExplore }: { onExplore: () => void }) {
   const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. Escutar em tempo real as matrículas do usuário logado
   useEffect(() => {
-    const fetchUserDataAndCourses = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          setLoading(false);
-          return;
-        }
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
 
-        // Fetch user profile for enrolledCourses & completedLessons
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        let enrolled: string[] = [];
-        let completed: string[] = [];
+    const unsubEnrollments = subscribeUserEnrollments(currentUser, (enrollData) => {
+      setEnrolledCourseIds(enrollData.enrolledCourses);
+      setCompletedLessons(enrollData.completedLessons);
+    });
 
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          enrolled = Array.isArray(data.enrolledCourses) ? data.enrolledCourses : [];
-          completed = Array.isArray(data.completedLessons) ? data.completedLessons : [];
-        }
-
-        // Also check approved transactions for this user
-        const txSnap = await getDocs(collection(db, 'transactions'));
-        txSnap.forEach(t => {
-          const tData = t.data();
-          if ((tData.userId === user.uid || tData.userEmail === user.email) && tData.status === 'approved' && tData.courseId) {
-            if (!enrolled.includes(tData.courseId)) {
-              enrolled.push(tData.courseId);
-            }
-          }
-        });
-
-        // If admin simulating or user has no enrolled courses but is admin, or for testing, we can also show all or enrolled
-        // Let's ensure enrolledCourseIds is set
-        setEnrolledCourseIds(enrolled);
-        setCompletedLessons(completed);
-
-        // Fetch all courses
-        const coursesSnap = await getDocs(collection(db, 'courses'));
-        const allCourses = coursesSnap.docs.map(d => ({
-          id: d.id,
-          ...d.data()
-        })) as Course[];
-
-        // Filter courses where ID is in enrolled, OR if user is admin simulating or master, show all or enrolled
-        const isMaster = user.email === 'grupocassaminha@gmail.com' || user.email === 'exportacoes.extras@gmail.com';
-        const myCoursesList = (isMaster || enrolled.length === 0) 
-          ? allCourses // If master or none enrolled, show all published/available so they can test/access
-          : allCourses.filter(c => enrolled.includes(c.id));
-
-        setCourses(myCoursesList);
-      } catch (err) {
-        console.error("Erro ao buscar meus cursos:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserDataAndCourses();
+    return () => unsubEnrollments();
   }, []);
+
+  // 2. Escutar em tempo real a coleção de cursos cadastrados
+  useEffect(() => {
+    const unsubCourses = onSnapshot(collection(db, 'courses'), (snap) => {
+      const fetched = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })) as Course[];
+      setAllCourses(fetched);
+      setLoading(false);
+    }, (err) => {
+      console.error("Erro ao carregar coleção de cursos em StudentMyCourses:", err);
+      setLoading(false);
+    });
+
+    return () => unsubCourses();
+  }, []);
+
+  // 3. Filtrar cursos conforme a lista de matriculados
+  useEffect(() => {
+    const user = auth.currentUser;
+    const cleanEmail = user?.email?.trim().toLowerCase() || '';
+    const isMaster = cleanEmail === 'grupocassaminha@gmail.com' || cleanEmail === 'exportacoes.extras@gmail.com';
+
+    if (isMaster) {
+      setCourses(allCourses);
+    } else {
+      const myFiltered = allCourses.filter(c => enrolledCourseIds.includes(c.id));
+      setCourses(myFiltered);
+    }
+  }, [allCourses, enrolledCourseIds]);
 
   if (loading) {
     return (
@@ -93,35 +82,35 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+    <div className="max-w-7xl mx-auto px-3.5 sm:px-6 py-4 sm:py-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-headline">Meus Cursos e Progresso</h1>
-          <p className="text-gray-400 text-xs sm:text-sm mt-1">Acompanhe todos os treinamentos que você adquiriu e seu avanço nas aulas.</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-white font-headline">Meus Cursos e Progresso</h1>
+          <p className="text-gray-400 text-[11px] sm:text-xs md:text-sm mt-0.5">Acompanhe todos os treinamentos que você adquiriu e seu avanço nas aulas.</p>
         </div>
         <button
           onClick={onExplore}
-          className="bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30 hover:bg-[#e9c349]/25 font-bold px-4 sm:px-5 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer w-full sm:w-max active:scale-95"
+          className="bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30 hover:bg-[#e9c349]/25 font-bold px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer w-full sm:w-max active:scale-95"
         >
           <span>Explorar Novos Cursos</span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
       </div>
 
       {courses.length === 0 ? (
-        <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-12 text-center max-w-xl mx-auto my-6 sm:my-12">
-          <BookOpen className="w-12 h-12 sm:w-16 sm:h-16 text-[#e9c349] mx-auto mb-4 opacity-80" />
-          <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Nenhum curso na sua conta ainda</h3>
-          <p className="text-gray-400 text-xs sm:text-sm mb-6">Você ainda não se matriculou em nenhum treinamento ou sua matrícula está pendente de aprovação.</p>
+        <div className="bg-[#131313] border border-gray-800 rounded-2xl p-5 sm:p-12 text-center max-w-xl mx-auto my-6 sm:my-12">
+          <BookOpen className="w-10 h-10 sm:w-16 sm:h-16 text-[#e9c349] mx-auto mb-3 sm:mb-4 opacity-80" />
+          <h3 className="text-base sm:text-xl font-bold text-white mb-1.5 sm:mb-2">Nenhum curso na sua conta ainda</h3>
+          <p className="text-gray-400 text-[11px] sm:text-xs md:text-sm mb-5 sm:mb-6">Você ainda não se matriculou em nenhum treinamento ou sua matrícula está pendente de aprovação.</p>
           <button
             onClick={onExplore}
-            className="w-full sm:w-auto bg-[#e9c349] text-black font-bold px-6 py-3 rounded-xl hover:bg-[#d4b03f] transition-all cursor-pointer text-sm shadow-md active:scale-95"
+            className="w-full sm:w-auto bg-[#e9c349] text-black font-bold px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl hover:bg-[#d4b03f] transition-all cursor-pointer text-xs sm:text-sm shadow-md active:scale-95"
           >
             Explorar Catálogo de Cursos
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {courses.map(course => {
             // Calculate progress
             let totalLessons = 0;
@@ -154,50 +143,50 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
             return (
               <div 
                 key={course.id}
-                className="bg-[#131313] border border-gray-800 rounded-2xl overflow-hidden hover:border-[#e9c349]/50 transition-all flex flex-col group shadow-lg"
+                className="bg-[#131313] border border-gray-800 rounded-xl sm:rounded-2xl overflow-hidden hover:border-[#e9c349]/50 transition-all flex flex-col group shadow-lg"
               >
-                <div className="h-48 relative overflow-hidden bg-black">
+                <div className="h-36 sm:h-48 relative overflow-hidden bg-black">
                   {course.coverImage ? (
                     <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : (
                     <div className="w-full h-full bg-gray-900 flex items-center justify-center text-gray-600 font-mono text-xs">CFA Academy</div>
                   )}
                   {isDirectLink ? (
-                    <div className="absolute top-3 right-3 bg-sky-500/80 backdrop-blur-md px-3 py-1 rounded-full border border-sky-500/20 text-white text-xs font-bold font-mono">
+                    <div className="absolute top-2.5 right-2.5 bg-sky-500/80 backdrop-blur-md px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full border border-sky-500/20 text-white text-[10px] sm:text-xs font-bold font-mono">
                       Link Externo
                     </div>
                   ) : isSingleLesson ? (
-                    <div className="absolute top-3 right-3 bg-indigo-500/80 backdrop-blur-md px-3 py-1 rounded-full border border-indigo-500/20 text-white text-xs font-bold font-mono">
+                    <div className="absolute top-2.5 right-2.5 bg-indigo-500/80 backdrop-blur-md px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full border border-indigo-500/20 text-white text-[10px] sm:text-xs font-bold font-mono">
                       Aula Única
                     </div>
                   ) : (
-                    <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full border border-gray-700 text-[#e9c349] text-xs font-bold font-mono">
+                    <div className="absolute top-2.5 right-2.5 bg-black/70 backdrop-blur-md px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full border border-gray-700 text-[#e9c349] text-[10px] sm:text-xs font-bold font-mono">
                       {progressPercent}% Concluído
                     </div>
                   )}
                 </div>
 
-                <div className="p-6 flex-1 flex flex-col justify-between">
+                <div className="p-3.5 sm:p-5 md:p-6 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">{course.title}</h3>
-                    <p className="text-gray-400 text-xs line-clamp-5 leading-relaxed mb-4">{course.description || 'Treinamento completo profissional CFA.'}</p>
+                    <h3 className="text-sm sm:text-base md:text-lg font-bold text-white mb-1.5 line-clamp-2">{course.title}</h3>
+                    <p className="text-gray-400 text-[11px] sm:text-xs line-clamp-2 sm:line-clamp-4 leading-relaxed mb-3 sm:mb-4">{course.description || 'Treinamento completo profissional CFA.'}</p>
                     
                     {/* Progress Bar or delivery type info */}
                     {isDirectLink ? (
-                      <div className="mb-6 bg-sky-500/5 border border-sky-500/10 p-3 rounded-xl flex items-start gap-2">
-                        <span className="text-sky-400 text-sm">🔗</span>
+                      <div className="mb-4 sm:mb-6 bg-sky-500/5 border border-sky-500/10 p-2.5 sm:p-3 rounded-xl flex items-start gap-2">
+                        <span className="text-sky-400 text-xs sm:text-sm">🔗</span>
                         <div>
-                          <p className="text-xs font-bold text-sky-400">Canal / Recurso Externo</p>
+                          <p className="text-[11px] sm:text-xs font-bold text-sky-400">Canal / Recurso Externo</p>
                           <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">Este treinamento direciona para um link de acesso ou grupo VIP de alunos externo.</p>
                         </div>
                       </div>
                     ) : isSingleLesson ? (
-                      <div className="mb-6">
-                        <div className="flex justify-between text-xs text-gray-400 mb-1.5 font-mono">
+                      <div className="mb-4 sm:mb-6">
+                        <div className="flex justify-between text-[11px] sm:text-xs text-gray-400 mb-1 font-mono">
                           <span>Aula Única / Replay</span>
                           <span className="text-[#e9c349] font-bold">{completedCount === 1 ? 'Concluída' : 'Não assistida'}</span>
                         </div>
-                        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="w-full h-1.5 sm:h-2 bg-gray-800 rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-gradient-to-r from-[#e9c349] to-amber-500 transition-all duration-500 rounded-full"
                             style={{ width: completedCount === 1 ? '100%' : '0%' }}
@@ -205,12 +194,12 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
                         </div>
                       </div>
                     ) : (
-                      <div className="mb-6">
-                        <div className="flex justify-between text-xs text-gray-400 mb-1.5 font-mono">
+                      <div className="mb-4 sm:mb-6">
+                        <div className="flex justify-between text-[11px] sm:text-xs text-gray-400 mb-1 font-mono">
                           <span>Progresso do Curso</span>
                           <span className="text-[#e9c349] font-bold">{completedCount} de {totalLessons} aulas</span>
                         </div>
-                        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="w-full h-1.5 sm:h-2 bg-gray-800 rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-gradient-to-r from-[#e9c349] to-amber-500 transition-all duration-500 rounded-full"
                             style={{ width: `${progressPercent}%` }}
@@ -220,9 +209,9 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
                     )}
                   </div>
 
-                  <div className="pt-4 border-t border-gray-800 flex items-center justify-between mt-auto">
-                    <span className="text-[11px] text-gray-500 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> Acesso Ilimitado
+                  <div className="pt-3 border-t border-gray-800 flex items-center justify-between mt-auto">
+                    <span className="text-[10px] sm:text-[11px] text-gray-500 flex items-center gap-1">
+                      <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Acesso Ilimitado
                     </span>
                     <button
                       onClick={() => {
@@ -232,7 +221,7 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
                           navigate(`/classroom?courseId=${course.id}`);
                         }
                       }}
-                      className="bg-[#e9c349] text-black font-bold px-4 py-2 rounded-xl text-xs hover:bg-[#d4b03f] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 animate-in fade-in duration-300"
+                      className="bg-[#e9c349] text-black font-bold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs hover:bg-[#d4b03f] transition-all flex items-center gap-1 cursor-pointer shadow-sm active:scale-95 animate-in fade-in duration-300"
                     >
                       {isDirectLink ? (
                         <>
@@ -241,7 +230,7 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
                         </>
                       ) : (
                         <>
-                          <Play className="w-3.5 h-3.5 fill-black" />
+                          <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-black" />
                           <span>{progressPercent > 0 ? 'Continuar' : 'Iniciar Aulas'}</span>
                         </>
                       )}

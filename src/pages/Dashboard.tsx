@@ -693,17 +693,17 @@ export default function Dashboard() {
 
       <Sidebar />
       
-      <main className="flex-1 overflow-y-auto relative ml-72">
+      <main className="flex-1 overflow-y-auto relative lg:ml-72 ml-0 pt-16 lg:pt-0">
         <div className="fixed inset-0 pointer-events-none z-[99] opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}></div>
         
-        <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
-          <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+        <div className="p-4 sm:p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
+          <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-12">
             <div>
-              <div className="flex items-center gap-2 text-secondary mb-2">
+              <div className="flex items-center gap-2 text-secondary mb-1">
                 <span className="material-symbols-outlined text-sm">monitoring</span>
                 <span className="text-xs font-bold uppercase tracking-widest font-label">Visão Geral</span>
               </div>
-              <h1 className="text-4xl font-extrabold tracking-tighter font-headline">Dashboard Premium</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tighter font-headline">Dashboard Premium</h1>
             </div>
             
             {/* Header Controls */}
@@ -805,7 +805,7 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Transactions & Payment References - PENDING VALIDATION ONLY */}
-          <div className="bg-surface-container rounded-2xl border border-outline-variant/10 p-8 mb-12">
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/10 p-4 sm:p-6 lg:p-8 mb-8 sm:mb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
                 <div className="flex items-center gap-2 text-primary mb-1">

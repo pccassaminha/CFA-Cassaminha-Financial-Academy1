@@ -357,7 +357,7 @@ export default function Analytics() {
     <div className="flex h-screen bg-background text-on-surface font-body overflow-hidden selection:bg-primary/30 selection:text-primary">
       <Sidebar />
       
-      <main className="flex-1 overflow-y-auto relative ml-72">
+      <main className="flex-1 overflow-y-auto relative lg:ml-72 ml-0 pt-16 lg:pt-0">
         {/* Toast Notification */}
         {showToast && (
           <div className="fixed top-4 right-4 z-[9999] bg-surface-container-high border border-primary/30 text-on-surface px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
@@ -368,16 +368,16 @@ export default function Analytics() {
 
         <div className="fixed inset-0 pointer-events-none z-[99] opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}></div>
         
-        <div className="p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
+        <div className="p-4 sm:p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
           
           {/* Header with Course Selector */}
-          <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 pb-6 border-b border-outline-variant/10">
+          <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-8 lg:mb-10 pb-6 border-b border-outline-variant/10">
             <div>
-              <div className="flex items-center gap-2 text-secondary mb-2">
+              <div className="flex items-center gap-2 text-secondary mb-1">
                 <span className="material-symbols-outlined text-sm">insights</span>
                 <span className="text-xs font-bold uppercase tracking-widest font-label">Inteligência & Desempenho</span>
               </div>
-              <h1 className="text-4xl font-extrabold tracking-tighter font-headline text-on-surface">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tighter font-headline text-on-surface">
                 Análise de Cursos & Engajamento
               </h1>
               <p className="text-sm text-on-surface-variant mt-1">

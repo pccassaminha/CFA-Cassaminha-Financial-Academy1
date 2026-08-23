@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check } from 'lucide-react';
+import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check, Unlock, ArrowRight } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
 import { LinkifiedText } from './LinkifiedText';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,6 +13,7 @@ interface CoursePreviewProps {
 }
 
 interface CourseModule {
+  id: string;
   title: string;
   lessonCount: number;
 }
@@ -32,24 +34,27 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   const [enrolledSuccess, setEnrolledSuccess] = useState(false);
   const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
 
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const unsub = subscribeUserEnrollments(user, (enrollData) => {
+      const isEnrolled = enrollData.enrolledCourses.includes(courseId);
+      setIsAlreadyEnrolled(isEnrolled);
+    });
+
+    return () => unsub();
+  }, [courseId]);
+
   const handleFreeEnroll = async () => {
     const user = auth.currentUser;
     if (!user) {
-      alert('Por favor, faça login ou cadastre-se para acessar o curso gratuito.');
+      alert('Por favor, faça login para acessar o curso gratuito.');
       return;
     }
     try {
       setIsEnrolling(true);
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      let enrolled: string[] = [];
-      if (userSnap.exists()) {
-        enrolled = Array.isArray(userSnap.data().enrolledCourses) ? userSnap.data().enrolledCourses : [];
-      }
-      if (!enrolled.includes(courseId)) {
-        enrolled.push(courseId);
-        await setDoc(userRef, { enrolledCourses: enrolled }, { merge: true });
-      }
+      await addCourseToUser(user.uid, user.email, courseId);
       setEnrolledSuccess(true);
       setTimeout(() => {
         navigate(`/classroom?courseId=${courseId}`);
@@ -73,6 +78,7 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
           const data = snap.data();
           const rawModules = Array.isArray(data.modules) ? data.modules : [];
           const formattedModules: CourseModule[] = rawModules.map((m: any, idx: number) => ({
+            id: m.id || `module-${idx}`,
             title: m.title || `Módulo ${idx + 1}`,
             lessonCount: Array.isArray(m.lessons) ? m.lessons.length : (m.lessonCount || 0)
           }));
@@ -95,25 +101,6 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
       }
     };
     fetchCourse();
-  }, [courseId]);
-
-  useEffect(() => {
-    const checkEnrollment = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-      try {
-        const userSnap = await getDoc(doc(db, 'users', user.uid));
-        if (userSnap.exists()) {
-          const enrolled = userSnap.data().enrolledCourses || [];
-          if (Array.isArray(enrolled) && enrolled.includes(courseId)) {
-            setIsAlreadyEnrolled(true);
-          }
-        }
-      } catch (err) {
-        console.error("Error checking enrollment:", err);
-      }
-    };
-    checkEnrollment();
   }, [courseId]);
 
   if (loading) {
@@ -140,10 +127,10 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   }
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 -m-6 md:-m-10 overflow-hidden">
+    <div className="relative min-h-screen bg-[#0a0a0a] text-white p-4 sm:p-6 md:p-10 -m-4 sm:-m-6 md:-m-10 overflow-hidden">
       {/* CAPA DO CURSO NO FUNDO COM CONTRASTE PREMIUM */}
       {course.image && (
-        <div className="absolute top-0 left-0 right-0 h-[520px] overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-0 left-0 right-0 h-[300px] sm:h-[400px] md:h-[520px] overflow-hidden pointer-events-none z-0">
           <img 
             src={course.image} 
             alt={course.title} 
@@ -160,55 +147,86 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
         <button 
           id="btn-back-marketplace"
           onClick={onBack} 
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-black/60 border border-gray-800/80 text-gray-300 hover:text-[#e9c349] hover:border-[#e9c349]/50 mb-8 transition-all text-sm font-medium cursor-pointer backdrop-blur-md shadow-lg"
+          className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-black/60 border border-gray-800/80 text-gray-300 hover:text-[#e9c349] hover:border-[#e9c349]/50 mb-4 sm:mb-8 transition-all text-xs sm:text-sm font-medium cursor-pointer backdrop-blur-md shadow-lg"
         >
-          <ArrowLeft className="w-4 h-4" /> Voltar para vitrine
+          <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Voltar para vitrine
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 sm:gap-10">
           {/* Coluna da Esquerda: Descrição e Módulos */}
-          <div className="lg:col-span-2 space-y-10">
-            <div className="bg-[#131313]/70 backdrop-blur-md p-6 md:p-8 rounded-3xl border border-gray-800/80 shadow-xl">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="px-3.5 py-1 bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/30 rounded-full text-xs font-bold font-mono uppercase tracking-widest shadow-sm">
+          <div className="order-2 lg:order-1 lg:col-span-2 space-y-6 sm:space-y-10">
+            <div className="bg-[#131313]/70 backdrop-blur-md p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-gray-800/80 shadow-xl">
+              <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                <span className="px-2.5 py-0.5 sm:px-3.5 sm:py-1 bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/30 rounded-full text-[10px] sm:text-xs font-bold font-mono uppercase tracking-widest shadow-sm">
                   🌟 Programa Oficial CFA
                 </span>
               </div>
-              <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-4 font-headline leading-tight drop-shadow-md">
+              <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-white mb-2 sm:mb-4 font-headline leading-tight drop-shadow-md">
                 {course.title}
               </h1>
               <LinkifiedText 
                 text={course.description || 'Descrição completa do treinamento e orientações.'} 
-                className="text-gray-300 text-base md:text-lg leading-relaxed" 
+                className="text-gray-300 text-xs sm:text-base md:text-lg leading-relaxed" 
               />
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-6 px-1">
-                <h3 className="text-xl md:text-2xl font-bold text-white font-headline">Conteúdo Programático</h3>
-                <span className="text-xs text-stone-400 font-mono bg-black/50 px-3 py-1 rounded-full border border-gray-800">
+              <div className="flex items-center justify-between mb-4 sm:mb-6 px-1">
+                <h3 className="text-base sm:text-xl md:text-2xl font-bold text-white font-headline">Conteúdo Programático</h3>
+                <span className="text-[10px] sm:text-xs text-stone-400 font-mono bg-black/50 px-2.5 py-1 rounded-full border border-gray-800">
                   {course.modules.reduce((acc, m) => acc + m.lessonCount, 0)} aulas no total
                 </span>
               </div>
               
               <div className="space-y-3">
-                {course.modules.map((mod, idx) => (
-                  <div 
-                    key={idx} 
-                    className="bg-[#131313]/90 backdrop-blur-md border border-gray-800/80 p-4 md:p-5 rounded-2xl flex items-center justify-between hover:border-gray-700 transition-all shadow-md"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-gray-800/90 border border-gray-700 flex items-center justify-center shrink-0 shadow-inner">
-                        <Lock className="w-4 h-4 text-gray-400" />
+                {course.modules.map((mod, idx) => {
+                  const isUnlocked = isAlreadyEnrolled || (!course.price || course.price === 0);
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => {
+                        if (isUnlocked) {
+                          navigate(`/classroom?courseId=${courseId}&moduleId=${mod.id}`);
+                        }
+                      }}
+                      className={`bg-[#131313]/90 backdrop-blur-md border p-4 md:p-5 rounded-2xl flex items-center justify-between transition-all shadow-md ${
+                        isUnlocked 
+                          ? 'border-[#e9c349]/30 hover:border-[#e9c349] cursor-pointer group bg-gradient-to-r from-[#131313] to-[#181818]' 
+                          : 'border-gray-800/80 hover:border-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5 sm:gap-4">
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-inner ${
+                          isUnlocked 
+                            ? 'bg-[#e9c349]/15 border-[#e9c349]/40 text-[#e9c349]' 
+                            : 'bg-gray-800/90 border-gray-700 text-gray-400'
+                        }`}>
+                          {isUnlocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <h4 className={`font-semibold text-sm md:text-base font-headline ${isUnlocked ? 'text-white group-hover:text-[#e9c349] transition-colors' : 'text-white'}`}>
+                            {mod.title}
+                          </h4>
+                          <p className="text-xs text-gray-400 font-mono mt-0.5">{mod.lessonCount} aulas com material complementar</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-white font-medium text-sm md:text-base font-headline">{mod.title}</h4>
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">{mod.lessonCount} aulas com material complementar</p>
-                      </div>
+
+                      {isUnlocked ? (
+                        <button
+                          type="button"
+                          className="text-xs text-black font-bold bg-[#e9c349] hover:bg-[#d4b03f] px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-all active:scale-95 shrink-0"
+                        >
+                          <span>Entrar no Módulo</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-500 font-mono uppercase tracking-wider bg-gray-800/50 px-2.5 py-1 rounded-md border border-gray-700/50">
+                          Bloqueado
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-[#e9c349]/70 font-mono uppercase tracking-wider bg-[#e9c349]/10 px-2.5 py-1 rounded-md border border-[#e9c349]/20">Bloqueado</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -239,7 +257,7 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
           </div>
 
           {/* Coluna da Direita: Card de Compra */}
-          <div className="relative">
+          <div className="order-1 lg:order-2 lg:col-span-1 relative">
             <div className="sticky top-10 bg-[#131313]/95 backdrop-blur-xl border border-[#e9c349]/40 rounded-3xl p-6 shadow-2xl">
               <div className="aspect-video bg-gray-900 border border-gray-800 rounded-2xl mb-6 flex items-center justify-center relative overflow-hidden group shadow-md">
                 {course.image ? (

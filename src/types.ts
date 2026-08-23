@@ -36,6 +36,12 @@ export interface Transaction {
   proofUrl?: string;
 }
 
+export interface LessonLink {
+  id?: string;
+  label: string;
+  url: string;
+}
+
 export interface Lesson {
   id: string;
   moduleId?: string;
@@ -48,6 +54,8 @@ export interface Lesson {
   videoData?: string; // Se for youtube, guarda o Link. Se for wistia, guarda o ID (código).
   videoUrl?: string; // Compatibilidade legado
   materials?: string;
+  description?: string; // Descrição textual da aula
+  links?: LessonLink[]; // Múltiplos links personalizados (WhatsApp, PDFs, etc)
 }
 
 export interface Module {
@@ -69,6 +77,7 @@ export interface Course {
   singleLessonVideoData?: string;
   singleLessonMaterials?: string;
   singleLessonDescription?: string;
+  singleLessonLinks?: LessonLink[];
   modules: Module[];
 }
 

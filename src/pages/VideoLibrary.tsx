@@ -3,9 +3,13 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { logout, auth, db } from '../firebase';
+import { subscribeUserEnrollments } from '../services/enrollmentService';
+import { Lock } from 'lucide-react';
 import WistiaPlayer from '../components/WistiaPlayer';
 import { LinkifiedText } from '../components/LinkifiedText';
 import { parseVideoUrlOrIframe } from '../utils/videoParser';
+
+import { LessonLink } from '../types';
 
 interface Lesson {
   id: string;
@@ -18,6 +22,8 @@ interface Lesson {
   videoData?: string; // Link se YouTube, ID se Wistia
   videoUrl?: string; // Compatibilidade legado
   materials?: string; // Slides/docs links
+  description?: string;
+  links?: LessonLink[];
 }
 
 interface Module {
@@ -38,6 +44,7 @@ interface Course {
   singleLessonVideoData?: string;
   singleLessonMaterials?: string;
   singleLessonDescription?: string;
+  singleLessonLinks?: LessonLink[];
   modules: Module[];
 }
 
@@ -75,6 +82,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   const [toastMessage, setToastMessage] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // Sidebar expand/collapse for modules
   const [collapsedSidebarModules, setCollapsedSidebarModules] = useState<Record<string, boolean>>({});
@@ -95,28 +103,36 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
     setIsAdminSimulating(isSimulating);
   }, []);
 
-  // Monitor Auth and Load User Profile
+  // Monitor Auth and Load User Profile in Real-Time
   useEffect(() => {
+    let unsubEnroll = () => {};
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUserId(user.uid);
-        
-        // Listen to live user profile changes (e.g. completedLessons)
-        const userRef = doc(db, 'users', user.uid);
-        const unsubscribeUser = onSnapshot(userRef, (snap) => {
-          if (snap.exists()) {
-            setUserProfile(snap.data() as UserProfile);
-          }
+        unsubEnroll = subscribeUserEnrollments(user, (enrollData) => {
+          const profileData = enrollData.userProfile || {
+            uid: user.uid,
+            email: user.email,
+            role: 'student',
+            subscriptionStatus: 'active'
+          };
+          setUserProfile({
+            ...profileData,
+            enrolledCourses: enrollData.enrolledCourses,
+            completedLessons: enrollData.completedLessons
+          } as UserProfile);
         });
-
-        return () => unsubscribeUser();
       } else {
         setCurrentUserId(null);
         setUserProfile(null);
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      unsubEnroll();
+    };
   }, []);
 
   // Monitor Course collection in Real-Time
@@ -159,18 +175,57 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
               videoSource: data.singleLessonVideoSource || 'youtube',
               videoData: data.singleLessonVideoData || '',
               materials: data.singleLessonMaterials || '',
+              description: data.singleLessonDescription || '',
+              links: data.singleLessonLinks || (data.singleLessonMaterials ? [{ id: '1', label: 'Acesse o Material da Aula', url: data.singleLessonMaterials }] : [])
             };
             setActiveLesson(virtualLesson);
             setActiveModuleId('single_lesson_module');
           } else {
-            // Auto-select first lesson if none selected yet
+            // Auto-select lesson if query params specify module/lesson or default to first
             if (data.modules && data.modules.length > 0) {
+              const queryModuleId = searchParams.get('moduleId');
+              const queryLessonId = searchParams.get('lessonId');
               const publishedModules = data.modules.filter(m => !m.status || m.status === 'published');
               const modulesToSearch = publishedModules.length > 0 ? publishedModules : data.modules;
-              const firstModule = modulesToSearch[0];
-              if (firstModule && firstModule.lessons && firstModule.lessons.length > 0) {
-                setActiveLesson(firstModule.lessons[0]);
-                setActiveModuleId(firstModule.id);
+              
+              let targetModule = modulesToSearch[0];
+              let targetLesson = targetModule?.lessons?.[0] || null;
+
+              if (queryModuleId) {
+                const foundMod = modulesToSearch.find(m => m.id === queryModuleId);
+                if (foundMod) {
+                  targetModule = foundMod;
+                  if (foundMod.lessons && foundMod.lessons.length > 0) {
+                    targetLesson = foundMod.lessons[0];
+                  }
+                }
+              } else if (queryLessonId) {
+                for (const mod of modulesToSearch) {
+                  const foundL = mod.lessons?.find(l => l.id === queryLessonId);
+                  if (foundL) {
+                    targetModule = mod;
+                    targetLesson = foundL;
+                    break;
+                  }
+                }
+              }
+
+              // Se o módulo inicial não tinha aulas, procura o primeiro módulo que possua aulas
+              if (!targetLesson) {
+                for (const mod of modulesToSearch) {
+                  if (mod.lessons && mod.lessons.length > 0) {
+                    targetModule = mod;
+                    targetLesson = mod.lessons[0];
+                    break;
+                  }
+                }
+              }
+
+              if (targetLesson) {
+                setActiveLesson(targetLesson);
+              }
+              if (targetModule) {
+                setActiveModuleId(targetModule.id);
               }
             }
           }
@@ -216,17 +271,21 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
               videoSource: data.singleLessonVideoSource || 'youtube',
               videoData: data.singleLessonVideoData || '',
               materials: data.singleLessonMaterials || '',
+              description: data.singleLessonDescription || '',
+              links: data.singleLessonLinks || (data.singleLessonMaterials ? [{ id: '1', label: 'Acesse o Material da Aula', url: data.singleLessonMaterials }] : [])
             };
             setActiveLesson(virtualLesson);
             setActiveModuleId('single_lesson_module');
           } else {
             if (data.modules && data.modules.length > 0) {
-              const publishedModules = data.modules.filter(m => m.status === 'published');
+              const publishedModules = data.modules.filter(m => !m.status || m.status === 'published');
               const modulesToSearch = publishedModules.length > 0 ? publishedModules : data.modules;
-              const firstModule = modulesToSearch[0];
-              if (firstModule && firstModule.lessons && firstModule.lessons.length > 0) {
-                setActiveLesson(firstModule.lessons[0]);
-                setActiveModuleId(firstModule.id);
+              for (const mod of modulesToSearch) {
+                if (mod.lessons && mod.lessons.length > 0) {
+                  setActiveLesson(mod.lessons[0]);
+                  setActiveModuleId(mod.id);
+                  break;
+                }
               }
             }
           }
@@ -373,7 +432,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
 
     if (currentIndex > -1 && currentIndex < allLessons.length - 1) {
       const next = allLessons[currentIndex + 1];
-      handleLessonSelect({ id: next.id, title: next.title, duration: next.duration, videoUrl: next.videoUrl, materials: next.materials }, next.moduleId);
+      handleLessonSelect(next, next.moduleId);
       showNotification('Avançando para a próxima aula.');
     } else {
       showNotification('Parabéns! Você já está na última aula disponível.');
@@ -390,7 +449,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
 
     if (currentIndex > 0) {
       const prev = allLessons[currentIndex - 1];
-      handleLessonSelect({ id: prev.id, title: prev.title, duration: prev.duration, videoUrl: prev.videoUrl, materials: prev.materials }, prev.moduleId);
+      handleLessonSelect(prev, prev.moduleId);
       showNotification('Retornando para a aula anterior.');
     } else {
       showNotification('Você já está na primeira aula.');
@@ -499,13 +558,27 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
         )}
 
         {/* Sidebar (Desktop) */}
-        <aside className="hidden md:flex w-80 bg-[#0e0e0e] border-r border-[#353534]/30 flex-col h-full overflow-hidden shrink-0">
+        <aside className={`hidden md:flex flex-col bg-[#0e0e0e] border-r border-[#353534]/30 h-full overflow-hidden shrink-0 transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? '!hidden w-0 opacity-0 border-none' : 'w-80 opacity-100'
+        }`}>
           <div className="p-8">
-            <h1 className="text-xl font-extrabold text-[#e9c349] tracking-tighter font-headline flex items-center gap-2">
-              <span className="material-symbols-outlined">school</span>
-              CFA
-            </h1>
-            <p className="text-[9px] text-[#bccabe]/50 uppercase tracking-widest mt-1 font-mono">Cassaminha Financial Academy</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-extrabold text-[#e9c349] tracking-tighter font-headline flex items-center gap-2">
+                  <span className="material-symbols-outlined">school</span>
+                  CFA
+                </h1>
+                <p className="text-[9px] text-[#bccabe]/50 uppercase tracking-widest mt-1 font-mono">Cassaminha Financial Academy</p>
+              </div>
+              <button
+                onClick={() => setIsSidebarCollapsed(true)}
+                className="p-1.5 rounded-xl bg-white/5 text-gray-400 hover:text-[#e9c349] hover:bg-[#e9c349]/10 transition-colors cursor-pointer border border-white/5"
+                title="Ocultar Módulos"
+                aria-label="Ocultar Módulos"
+              >
+                <span className="material-symbols-outlined text-lg">menu_open</span>
+              </button>
+            </div>
 
             <div className="flex flex-col gap-2 mt-4">
               <Link
@@ -774,157 +847,336 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
 
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#121212]">
-          {activeLesson ? (
-            <>
-              {/* Top Bar for video details */}
-              <header className="min-h-16 border-b border-[#353534]/30 flex flex-wrap sm:flex-nowrap items-center justify-between px-4 sm:px-8 py-3 bg-[#131313] shrink-0 gap-2">
-                <div className="flex items-center gap-2 sm:gap-3 max-w-full sm:max-w-[60%]">
+          {/* Top Bar - Sempre visível para permitir alternar módulos e voltar */}
+          <header className="min-h-16 border-b border-[#353534]/30 flex flex-wrap sm:flex-nowrap items-center justify-between px-4 sm:px-8 py-3 bg-[#131313] shrink-0 gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 max-w-full sm:max-w-[70%]">
+              <button 
+                id="btn-open-sidebar-mobile"
+                onClick={() => {
+                  if (window.innerWidth >= 768) {
+                    setIsSidebarCollapsed(!isSidebarCollapsed);
+                  } else {
+                    setIsMobileDrawerOpen(!isMobileDrawerOpen);
+                  }
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/40 hover:bg-[#e9c349]/30 rounded-xl text-xs font-bold shrink-0 cursor-pointer active:scale-95 transition-all shadow-md"
+                title={isSidebarCollapsed ? "Exibir Módulos e Aulas" : "Ocultar Módulos"}
+                aria-label="Alternar Módulos e Aulas"
+              >
+                <span className="material-symbols-outlined text-xl">menu</span>
+                <span className="font-headline hidden sm:inline">
+                  {isSidebarCollapsed ? 'Exibir Módulos' : 'Módulos'}
+                </span>
+                <span className="font-headline sm:hidden">Módulos & Aulas</span>
+              </button>
+
+              {!activeLesson && (
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] text-[#e9c349] font-mono uppercase font-bold">Programa</span>
+                  <h2 className="font-bold text-xs sm:text-base text-[#e5e2e1] truncate">{course.title || 'Carregando Curso...'}</h2>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3 ml-auto sm:ml-0">
+              {activeLesson && course.structureType !== 'single_lesson' && (
+                <>
                   <button 
-                    onClick={() => setIsMobileDrawerOpen(true)}
-                    className="md:hidden flex items-center gap-1.5 px-3 py-1.5 bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/30 rounded-xl text-xs font-bold shrink-0 cursor-pointer active:scale-95"
+                    onClick={handlePrevLesson}
+                    className="flex items-center gap-1 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs text-gray-300 hover:text-white bg-white/5 sm:bg-transparent rounded-lg transition-colors cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-sm">menu_book</span>
-                    <span>Aulas</span>
+                    <span className="material-symbols-outlined text-sm">arrow_back</span>
+                    <span className="hidden sm:inline">Anterior</span>
                   </button>
-                  <span className="hidden sm:inline-block px-2 py-1 bg-[#353534] text-[#e9c349] text-[9px] font-bold uppercase rounded font-mono">Aula Ativa</span>
-                  <h2 className="font-bold text-xs sm:text-base text-[#e5e2e1] truncate">{activeLesson.title}</h2>
+                  <button 
+                    onClick={handleNextLesson}
+                    className="flex items-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-5 sm:py-2 bg-[#e9c349] text-[#131313] rounded-lg font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer shadow-md active:scale-95"
+                  >
+                    <span>Próxima</span>
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
+                </>
+              )}
+
+              <Link
+                to="/my-courses"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#353534]/50 hover:bg-[#353534] text-gray-300 hover:text-white border border-gray-700/50 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+              >
+                <span className="material-symbols-outlined text-sm">grid_view</span>
+                <span className="hidden sm:inline">Meus Cursos</span>
+              </Link>
+            </div>
+          </header>
+
+          {activeLesson ? (
+            /* Player/Details Container */
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-12">
+              <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+                
+                {/* Dynamic Video Player Stage */}
+                <div className="aspect-video bg-black rounded-xl sm:rounded-2xl border border-[#353534]/50 flex items-center justify-center relative group overflow-hidden shadow-2xl">
+                  {renderVideoPlayer(activeLesson)}
                 </div>
 
-                {course.structureType !== 'single_lesson' && (
-                  <div className="flex items-center gap-2 sm:gap-4 ml-auto sm:ml-0">
-                    <button 
-                      onClick={handlePrevLesson}
-                      className="flex items-center gap-1 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs text-gray-300 hover:text-white bg-white/5 sm:bg-transparent rounded-lg transition-colors cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-sm">arrow_back</span>
-                      <span className="hidden sm:inline">Anterior</span>
-                    </button>
-                    <button 
-                      onClick={handleNextLesson}
-                      className="flex items-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-5 sm:py-2 bg-[#e9c349] text-[#131313] rounded-lg font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer shadow-md active:scale-95"
-                    >
-                      <span>Próxima</span>
-                      <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                    </button>
-                  </div>
-                )}
-              </header>
+                {/* Título da Aula (Abaixo da aula e acima das descrições e links) */}
+                <div className="p-4 sm:p-5 bg-[#161616] border border-[#353534]/40 rounded-2xl shadow-md">
+                  <span className="text-[10px] sm:text-xs text-[#e9c349] font-mono uppercase font-bold tracking-wider block mb-1">
+                    Aula Ativa
+                  </span>
+                  <h1 className="text-base sm:text-2xl font-extrabold text-[#e5e2e1] font-headline leading-tight">
+                    {activeLesson.title}
+                  </h1>
+                </div>
 
-              {/* Player/Details Container */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-12">
-                <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
-                  
-                  {/* Dynamic Video Player Stage */}
-                  <div className="aspect-video bg-black rounded-xl sm:rounded-2xl border border-[#353534]/50 flex items-center justify-center relative group overflow-hidden shadow-2xl">
-                    {renderVideoPlayer(activeLesson)}
+                {/* Watch Complete Progress Actions - Compacto no Mobile */}
+                <div className="flex flex-row justify-between items-center p-3.5 sm:p-5 bg-[#181818] border border-[#353534]/30 rounded-2xl gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-xs sm:text-sm text-[#e5e2e1] truncate">Progresso da Aula</h4>
+                    <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 hidden xs:block">Marque como concluída após assistir o conteúdo.</p>
                   </div>
+                  {/* Mark complete status - Botão compacto no mobile */}
+                  <button 
+                    onClick={() => handleToggleLessonCompleted(activeLesson.id)}
+                    className={`px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 sm:gap-2 transition-all outline-none cursor-pointer shrink-0 ${
+                      userProfile?.completedLessons?.includes(activeLesson.id)
+                        ? 'bg-[#e5e2e1]/10 text-secondary border border-secondary/20'
+                        : 'bg-[#e9c349] text-[#131313] hover:opacity-90 shadow-[0_0_15px_rgba(233,195,73,0.15)] active:scale-95'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm sm:text-[18px]">
+                      {userProfile?.completedLessons?.includes(activeLesson.id) ? 'task_alt' : 'circle'}
+                    </span>
+                    <span className="text-[11px] sm:text-xs">
+                      {userProfile?.completedLessons?.includes(activeLesson.id) ? 'Concluída' : 'Marcar Concluída'}
+                    </span>
+                  </button>
+                </div>
 
-                  {/* Watch Complete Progress Actions */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 sm:p-6 bg-[#181818] border border-[#353534]/30 rounded-2xl gap-3 sm:gap-4">
-                    <div>
-                      <h4 className="font-bold text-xs sm:text-sm text-[#e5e2e1]">Controle o seu progresso neste treinamento</h4>
-                      <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 sm:mt-1">Marque a aula como concluída se você já assimilou o conteúdo.</p>
-                    </div>
-                    {/* Mark complete status requested by client */}
-                    <button 
-                      onClick={() => handleToggleLessonCompleted(activeLesson.id)}
-                      className={`w-full sm:w-auto justify-center px-4 sm:px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 sm:gap-2.5 transition-all outline-none cursor-pointer ${
-                        userProfile?.completedLessons?.includes(activeLesson.id)
-                          ? 'bg-[#e5e2e1]/10 text-secondary border border-secondary/20'
-                          : 'bg-[#e9c349] text-[#131313] hover:opacity-90 shadow-[0_0_15px_rgba(233,195,73,0.15)] active:scale-95'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {userProfile?.completedLessons?.includes(activeLesson.id) ? 'task_alt' : 'circle'}
-                      </span>
-                      {userProfile?.completedLessons?.includes(activeLesson.id) ? 'Aula Concluída' : 'Marcar como Concluída'}
-                    </button>
-                  </div>
+                {/* Details section & Comments */}
+                <div className="space-y-8 max-w-4xl">
+                  <div className="space-y-6">
+                    {/* DESCRIÇÃO DA AULA (ESTILO YOUTUBE) */}
+                    {activeLesson.description && (
+                      <div className="p-5 sm:p-6 bg-[#161616] rounded-2xl border border-[#353534]/30 shadow-lg">
+                        <h3 className="font-bold mb-3 flex items-center gap-2.5 text-xs sm:text-sm text-[#e9c349] font-headline uppercase tracking-wider">
+                          <span className="material-symbols-outlined text-base">description</span>
+                          Descrição da Aula
+                        </h3>
+                        <div className="text-xs sm:text-sm text-gray-300 leading-relaxed whitespace-pre-wrap font-sans">
+                          {activeLesson.description}
+                        </div>
+                      </div>
+                    )}
 
-                  {/* Details section & Comments */}
-                  <div className="space-y-8 max-w-4xl">
-                    <div className="space-y-6">
-                      {activeLesson.materials && (
-                        <div className="p-6 bg-[#353534]/10 rounded-2xl border border-[#353534]/20">
-                          <h3 className="font-bold mb-4 flex items-center gap-2.5 text-sm">
-                            <span className="material-symbols-outlined text-[#e9c349]">attach_file</span>
-                            Material Complementar
+                    {/* LINKS & MATERIAIS PERSONALIZADOS */}
+                    {(() => {
+                      const rawLinks = activeLesson.links && activeLesson.links.length > 0
+                        ? activeLesson.links
+                        : activeLesson.materials
+                          ? [{ label: 'Acesse o Material da Aula', url: activeLesson.materials }]
+                          : [];
+
+                      if (rawLinks.length === 0) return null;
+
+                      return (
+                        <div className="p-5 sm:p-6 bg-[#161616] rounded-2xl border border-[#353534]/30 shadow-lg">
+                          <h3 className="font-bold mb-4 flex items-center gap-2.5 text-xs sm:text-sm text-[#e9c349] font-headline uppercase tracking-wider">
+                            <span className="material-symbols-outlined text-base">attach_file</span>
+                            Links & Materiais de Apoio
                           </h3>
-                          <div className="space-y-3">
-                            <a 
-                              href={activeLesson.materials} 
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center justify-between p-3.5 bg-[#0e0e0e]/50 rounded-xl border border-[#353534]/30 hover:border-[#e9c349]/30 transition-colors"
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="material-symbols-outlined text-gray-400">description</span>
-                                <span className="text-xs font-bold font-mono text-gray-300">Acesse o Material da Aula</span>
-                              </div>
-                              <span className="material-symbols-outlined text-sm text-[#e9c349]">open_in_new</span>
-                            </a>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {rawLinks.map((link, idx) => {
+                              const urlLower = (link.url || '').toLowerCase();
+                              const labelLower = (link.label || '').toLowerCase();
+                              const isWhatsapp = urlLower.includes('whatsapp') || urlLower.includes('wa.me') || labelLower.includes('whatsapp');
+                              const isTelegram = urlLower.includes('telegram') || urlLower.includes('t.me') || labelLower.includes('telegram');
+                              const isDoc = urlLower.includes('pdf') || urlLower.includes('drive.google') || urlLower.includes('dropbox') || labelLower.includes('pdf') || labelLower.includes('material') || labelLower.includes('apostila');
+
+                              let cardStyle = "bg-[#0e0e0e]/80 border-[#353534]/40 text-gray-200 hover:border-[#e9c349]/50 hover:bg-[#1a1a1a]";
+                              let icon = "description";
+                              let badgeText = "Link";
+                              let badgeColor = "bg-gray-800 text-gray-400";
+
+                              if (isWhatsapp) {
+                                cardStyle = "bg-emerald-950/30 border-emerald-500/30 text-emerald-300 hover:border-emerald-400 hover:bg-emerald-900/40";
+                                icon = "chat";
+                                badgeText = "WhatsApp";
+                                badgeColor = "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                              } else if (isTelegram) {
+                                cardStyle = "bg-sky-950/30 border-sky-500/30 text-sky-300 hover:border-sky-400 hover:bg-sky-900/40";
+                                icon = "send";
+                                badgeText = "Telegram";
+                                badgeColor = "bg-sky-500/20 text-sky-400 border border-sky-500/30";
+                              } else if (isDoc) {
+                                cardStyle = "bg-amber-950/20 border-amber-500/30 text-amber-300 hover:border-amber-400 hover:bg-amber-900/30";
+                                icon = "article";
+                                badgeText = "Documento";
+                                badgeColor = "bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                              }
+
+                              return (
+                                <a
+                                  key={idx}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`flex items-center justify-between p-3.5 rounded-xl border transition-all duration-200 shadow-md cursor-pointer ${cardStyle}`}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0 pr-2">
+                                    <span className="material-symbols-outlined text-lg shrink-0">{icon}</span>
+                                    <span className="text-xs sm:text-sm font-bold truncate">
+                                      {link.label || 'Acessar Link'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>
+                                      {badgeText}
+                                    </span>
+                                    <span className="material-symbols-outlined text-sm opacity-70">open_in_new</span>
+                                  </div>
+                                </a>
+                              );
+                            })}
                           </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Discussion List / Comments Zone */}
+                  <div className="bg-[#353534]/10 rounded-2xl border border-[#353534]/20 p-6 lg:p-8 flex flex-col">
+                    <h3 className="font-bold mb-4 text-xs uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[#e9c349] text-base">forum</span>
+                      Comentários & Dúvidas dos Alunos ({comments.length})
+                    </h3>
+                    <div className="space-y-4 mb-6 max-h-[450px] overflow-y-auto pr-2 scrollbar-thin">
+                      {comments.length > 0 ? (
+                        comments.map((c, i) => (
+                          <div key={i} className="text-xs bg-[#121212]/80 p-4 rounded-xl border border-[#353534]/20">
+                            <span className="font-bold text-[#e9c349]">{c.author}</span>
+                            <p className="text-gray-300 mt-1.5 leading-relaxed">{c.text}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-gray-500 italic text-xs text-center py-8">
+                          Nenhum comentário enviado para esta aula. Seja o primeiro a participar da discussão!
                         </div>
                       )}
                     </div>
-
-                    {/* Discussion List / Comments Zone */}
-                    <div className="bg-[#353534]/10 rounded-2xl border border-[#353534]/20 p-6 lg:p-8 flex flex-col">
-                      <h3 className="font-bold mb-4 text-xs uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[#e9c349] text-base">forum</span>
-                        Comentários & Dúvidas dos Alunos ({comments.length})
-                      </h3>
-                      <div className="space-y-4 mb-6 max-h-[450px] overflow-y-auto pr-2 scrollbar-thin">
-                        {comments.length > 0 ? (
-                          comments.map((c, i) => (
-                            <div key={i} className="text-xs bg-[#121212]/80 p-4 rounded-xl border border-[#353534]/20">
-                              <span className="font-bold text-[#e9c349]">{c.author}</span>
-                              <p className="text-gray-300 mt-1.5 leading-relaxed">{c.text}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-gray-500 italic text-xs text-center py-8">
-                            Nenhum comentário enviado para esta aula. Seja o primeiro a participar da discussão!
-                          </div>
-                        )}
-                      </div>
-                      
-                      <form 
-                        className="relative"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (comment.trim()) {
-                            const newComments = [...comments, { author: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}` : 'Estudante', text: comment.trim() }];
-                            setCommentsByLesson(prev => ({
-                              ...prev,
-                              [activeLesson.id]: newComments
-                            }));
-                            setComment('');
-                            showNotification('Comentário enviado!');
-                          }
-                        }}
-                      >
-                        <input 
-                          type="text" 
-                          value={comment}
-                          onChange={(e) => setComment(e.target.value)}
-                          placeholder="Escreva sua dúvida ou comentário sobre a aula..." 
-                          className="w-full bg-[#121212] border border-[#353534]/50 rounded-xl pl-4 pr-12 py-3.5 text-xs text-white focus:outline-none focus:border-[#e9c349]/50 transition-colors" 
-                        />
-                        <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#e9c349] hover:opacity-80">
-                          <span className="material-symbols-outlined text-[18px]">send</span>
-                        </button>
-                      </form>
-                    </div>
+                    
+                    <form 
+                      className="relative"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (comment.trim()) {
+                          const newComments = [...comments, { author: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}` : 'Estudante', text: comment.trim() }];
+                          setCommentsByLesson(prev => ({
+                            ...prev,
+                            [activeLesson.id]: newComments
+                          }));
+                          setComment('');
+                          showNotification('Comentário enviado!');
+                        }
+                      }}
+                    >
+                      <input 
+                        type="text" 
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Escreva sua dúvida ou comentário sobre a aula..." 
+                        className="w-full bg-[#121212] border border-[#353534]/50 rounded-xl pl-4 pr-12 py-3.5 text-xs text-white focus:outline-none focus:border-[#e9c349]/50 transition-colors" 
+                      />
+                      <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#e9c349] hover:opacity-80">
+                        <span className="material-symbols-outlined text-[18px]">send</span>
+                      </button>
+                    </form>
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-              <span className="material-symbols-outlined text-[#e9c349] text-6xl mb-4 animate-bounce">video_library</span>
-              <h2 className="text-xl font-bold">Nenhuma aula disponível</h2>
-              <p className="text-gray-400 text-sm mt-1">Carregando as aulas disponíveis no programa...</p>
+            /* Tela quando não há aula selecionada ou módulo selecionado sem vídeo */
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex flex-col items-center justify-center">
+              <div className="max-w-xl w-full bg-[#181818] border border-[#353534]/60 rounded-3xl p-6 sm:p-8 text-center shadow-2xl space-y-6">
+                <div className="w-16 h-16 bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                  <span className="material-symbols-outlined text-3xl">video_library</span>
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="text-lg sm:text-xl font-bold text-white font-headline">Nenhuma aula selecionada</h2>
+                  <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">
+                    O módulo atual não possui videoaulas cadastradas ou você pode escolher outro módulo com conteúdo no botão abaixo.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      if (window.innerWidth < 768) {
+                        setIsMobileDrawerOpen(true);
+                      } else {
+                        setIsSidebarCollapsed(false);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-5 py-3 bg-[#e9c349] hover:bg-[#d8b238] text-[#131313] font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-lg">menu_book</span>
+                    <span>Ver Módulos e Aulas</span>
+                  </button>
+
+                  <Link
+                    to="/my-courses"
+                    className="w-full sm:w-auto px-5 py-3 bg-[#353534]/60 hover:bg-[#353534] text-gray-200 border border-gray-700/60 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-lg">grid_view</span>
+                    <span>Voltar para Meus Cursos</span>
+                  </Link>
+                </div>
+
+                {/* Lista de Módulos do Curso na própria tela */}
+                {course.modules && course.modules.length > 0 && (
+                  <div className="pt-4 border-t border-[#353534]/50 text-left space-y-3">
+                    <span className="text-xs font-bold text-[#e9c349] uppercase tracking-wider block">
+                      Módulos do Programa ({course.modules.length})
+                    </span>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {course.modules.map((mod) => {
+                        const lessonCount = mod.lessons?.length || 0;
+                        return (
+                          <div
+                            key={mod.id}
+                            onClick={() => {
+                              setActiveModuleId(mod.id);
+                              if (mod.lessons && mod.lessons.length > 0) {
+                                setActiveLesson(mod.lessons[0]);
+                              } else {
+                                if (window.innerWidth < 768) {
+                                  setIsMobileDrawerOpen(true);
+                                }
+                              }
+                            }}
+                            className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all cursor-pointer ${
+                              activeModuleId === mod.id
+                                ? 'bg-[#e9c349]/15 border-[#e9c349]/40 text-[#e9c349]'
+                                : 'bg-[#121212] border-gray-800 text-gray-300 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                              <span className="material-symbols-outlined text-base text-[#e9c349] shrink-0">folder</span>
+                              <span className="font-bold truncate">{mod.title}</span>
+                            </div>
+                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                              lessonCount > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-800 text-gray-400'
+                            }`}>
+                              {lessonCount} {lessonCount === 1 ? 'aula' : 'aulas'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </main>

@@ -12,16 +12,23 @@ import {
   HelpCircle, 
   MessageSquare,
   Copy,
-  Check
+  Check,
+  Menu
 } from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [isOpenMobile, setIsOpenMobile] = useState(false);
   const [viewAsStudent, setViewAsStudent] = useState(() => {
     return localStorage.getItem('viewAsStudent') === 'true';
   });
+
+  // Fecha a barra lateral no mobile sempre que mudar de rota
+  useEffect(() => {
+    setIsOpenMobile(false);
+  }, [location.pathname]);
 
   const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_CFA_LOGO);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
@@ -100,14 +107,55 @@ export default function Sidebar() {
           <span className="text-xs font-bold">{toastMsg}</span>
         </div>
       )}
-      <aside className="fixed left-0 top-0 h-full flex flex-col pt-20 pb-8 bg-[#0e0e0e] w-72 border-r border-[#353534]/30 z-40">
-        <div className="px-6 mb-6">
-          <Link to="/dashboard" className="block">
+
+      {/* BARRA SUPERIOR MOBILE (HEADER ADMIN MOBILE) */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-[#0e0e0e]/95 backdrop-blur-md border-b border-[#353534]/40 z-30 flex items-center justify-between px-4 lg:hidden">
+        <div className="flex items-center gap-3">
+          <button
+            id="btn-open-sidebar-mobile"
+            onClick={() => setIsOpenMobile(true)}
+            className="p-2 rounded-xl bg-[#181818] border border-[#353534]/50 text-[#e9c349] hover:bg-[#353534]/40 transition-all cursor-pointer active:scale-95"
+            aria-label="Abrir Menu Administrativo"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <Link to="/dashboard" className="flex items-center gap-2">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo CFA" className="h-8 w-auto object-contain" />
+            ) : (
+              <span className="font-headline font-bold text-sm text-white">CFA Admin</span>
+            )}
+          </Link>
+        </div>
+
+        <button
+          onClick={toggleStudentView}
+          className="text-[10px] font-bold uppercase tracking-wider text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 px-3 py-1.5 rounded-lg hover:bg-[#e9c349]/20 transition-all cursor-pointer"
+        >
+          Visão Aluno
+        </button>
+      </header>
+
+      {/* BACKDROP OVERLAY NO MOBILE */}
+      {isOpenMobile && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden animate-in fade-in duration-200"
+          onClick={() => setIsOpenMobile(false)}
+        />
+      )}
+
+      {/* BARRA LATERAL (DRAWER NO MOBILE / FIXO NO DESKTOP) */}
+      <aside className={`fixed left-0 top-0 h-full flex flex-col pt-6 lg:pt-20 pb-8 bg-[#0e0e0e] w-72 border-r border-[#353534]/30 z-50 lg:z-40 transition-transform duration-300 ease-in-out ${
+        isOpenMobile ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+      }`}>
+        <div className="px-6 mb-6 flex items-center justify-between">
+          <Link to="/dashboard" onClick={() => setIsOpenMobile(false)} className="block">
             {logoUrl ? (
               <img 
                 src={logoUrl} 
                 alt="Logo CFA" 
-                className="max-h-14 w-auto object-contain mx-0 drop-shadow" 
+                className="max-h-12 lg:max-h-14 w-auto object-contain mx-0 drop-shadow" 
               />
             ) : (
               <div className="flex items-center gap-3">
@@ -121,10 +169,19 @@ export default function Sidebar() {
               </div>
             )}
           </Link>
-          <p className="text-[10px] text-stone-400 font-body mt-2">
-            Uma empresa do <strong className="text-[#e9c349]">Grupo Cassaminha</strong>
-          </p>
+
+          {/* Botão para fechar no Mobile */}
+          <button
+            onClick={() => setIsOpenMobile(false)}
+            className="lg:hidden text-stone-400 hover:text-white p-1.5 rounded-xl bg-[#181818] border border-stone-800 transition-colors cursor-pointer"
+            aria-label="Fechar Menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
+        <p className="text-[10px] text-stone-400 font-body px-6 mb-4">
+          Uma empresa do <strong className="text-[#e9c349]">Grupo Cassaminha</strong>
+        </p>
         <nav className="flex-1 space-y-1 overflow-y-auto">
         <Link
           to="/dashboard"

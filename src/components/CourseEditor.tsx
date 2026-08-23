@@ -28,9 +28,13 @@ import {
   Link as LinkIcon,
   CheckCircle2,
   GripVertical,
+  ChevronUp,
+  ChevronDown,
   ExternalLink
 } from 'lucide-react';
 import LessonModal from './LessonModal';
+
+import { LessonLink } from '../types';
 
 interface Lesson {
   id: string;
@@ -43,6 +47,8 @@ interface Lesson {
   videoData?: string;
   videoUrl?: string;
   materials?: string;
+  description?: string;
+  links?: LessonLink[];
 }
 
 interface Module {
@@ -76,6 +82,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [singleLessonVideoData, setSingleLessonVideoData] = useState('');
   const [singleLessonMaterials, setSingleLessonMaterials] = useState('');
   const [singleLessonDescription, setSingleLessonDescription] = useState('');
+  const [singleLessonLinks, setSingleLessonLinks] = useState<LessonLink[]>([]);
   
   // Estado do Auto-save
   const [saveStatus, setSaveStatus] = useState<'Salvo' | 'Salvando...' | 'Erro'>('Salvo');
@@ -85,9 +92,10 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
 
-  // Estados para Drag & Drop de Aulas entre Módulos
+  // Estados para Drag & Drop de Aulas entre Módulos e Reordenação
   const [draggingLesson, setDraggingLesson] = useState<{ moduleId: string; lessonId: string } | null>(null);
   const [draggedOverModuleId, setDraggedOverModuleId] = useState<string | null>(null);
+  const [draggedOverLesson, setDraggedOverLesson] = useState<{ lessonId: string; position: 'above' | 'below' } | null>(null);
 
   // 1. Carregar dados do curso e módulos do Firebase
   useEffect(() => {
@@ -120,6 +128,13 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             setSingleLessonVideoData(data.singleLessonVideoData || '');
             setSingleLessonMaterials(data.singleLessonMaterials || '');
             setSingleLessonDescription(data.singleLessonDescription || '');
+            if (data.singleLessonLinks && data.singleLessonLinks.length > 0) {
+              setSingleLessonLinks(data.singleLessonLinks);
+            } else if (data.singleLessonMaterials) {
+              setSingleLessonLinks([{ id: '1', label: 'Acesse o Material da Aula', url: data.singleLessonMaterials }]);
+            } else {
+              setSingleLessonLinks([]);
+            }
           }
         } else {
           // Curso novo limpo pronto para o administrador cadastrar dados reais
@@ -180,6 +195,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           singleLessonVideoData,
           singleLessonMaterials,
           singleLessonDescription,
+          singleLessonLinks,
           updatedAt: serverTimestamp()
         }, { merge: true });
 
@@ -211,7 +227,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   }, [
     title, description, coverImage, price, isPublished, modules, 
     structureType, directLinkUrl, singleLessonVideoSource, 
-    singleLessonVideoData, singleLessonMaterials, singleLessonDescription, 
+    singleLessonVideoData, singleLessonMaterials, singleLessonDescription, singleLessonLinks,
     courseId, isLoading
   ]);
 
@@ -355,6 +371,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     videoSource: 'youtube' | 'wistia';
     videoData: string;
     materials?: string;
+    description?: string;
+    links?: LessonLink[];
   }) => {
     if (!selectedModuleId) return;
 
@@ -373,7 +391,9 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                   videoSource: lessonData.videoSource,
                   videoData: lessonData.videoData.trim(),
                   videoUrl: lessonData.videoData.trim(),
-                  materials: (lessonData.materials || '').trim()
+                  materials: (lessonData.materials || '').trim(),
+                  description: (lessonData.description || '').trim(),
+                  links: lessonData.links || []
                 };
               }
               return l;
@@ -391,7 +411,9 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             videoSource: lessonData.videoSource,
             videoData: lessonData.videoData.trim(),
             videoUrl: lessonData.videoData.trim(),
-            materials: (lessonData.materials || '').trim()
+            materials: (lessonData.materials || '').trim(),
+            description: (lessonData.description || '').trim(),
+            links: lessonData.links || []
           };
           return {
             ...mod,
@@ -403,7 +425,27 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     }));
   };
 
-  // Eventos de Drag & Drop para mover aulas
+  // 8. Reordenação e Mover Aulas (Mesmo Módulo ou entre Módulos)
+  const handleMoveLesson = (moduleId: string, lessonIndex: number, direction: 'up' | 'down') => {
+    setModules(prevModules => prevModules.map(mod => {
+      if (mod.id !== moduleId) return mod;
+
+      const lessons = [...mod.lessons];
+      const targetIndex = direction === 'up' ? lessonIndex - 1 : lessonIndex + 1;
+
+      if (targetIndex < 0 || targetIndex >= lessons.length) return mod;
+
+      const temp = lessons[lessonIndex];
+      lessons[lessonIndex] = lessons[targetIndex];
+      lessons[targetIndex] = temp;
+
+      const reorderedLessons = lessons.map((l, idx) => ({ ...l, order: idx + 1 }));
+
+      return { ...mod, lessons: reorderedLessons };
+    }));
+  };
+
+  // Eventos de Drag & Drop para reordenar aulas
   const handleDragStart = (e: React.DragEvent, sourceModId: string, lessonId: string) => {
     setDraggingLesson({ moduleId: sourceModId, lessonId });
     e.dataTransfer.setData('text/plain', JSON.stringify({ moduleId: sourceModId, lessonId }));
@@ -419,9 +461,101 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     setDraggedOverModuleId(null);
   };
 
+  const handleDragOverLesson = (e: React.DragEvent, lessonId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'above' : 'below';
+
+    setDraggedOverLesson({ lessonId, position });
+  };
+
+  const handleDropOnLesson = (e: React.DragEvent, targetModId: string, targetLessonId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const pos = draggedOverLesson?.position || 'below';
+    setDraggedOverLesson(null);
+    setDraggedOverModuleId(null);
+
+    let sourceModId = '';
+    let sourceLessonId = '';
+
+    if (draggingLesson) {
+      sourceModId = draggingLesson.moduleId;
+      sourceLessonId = draggingLesson.lessonId;
+    } else {
+      try {
+        const rawData = e.dataTransfer.getData('text/plain');
+        if (rawData) {
+          const parsed = JSON.parse(rawData);
+          sourceModId = parsed.moduleId;
+          sourceLessonId = parsed.lessonId;
+        }
+      } catch {
+        return;
+      }
+    }
+
+    if (!sourceModId || !sourceLessonId || sourceLessonId === targetLessonId) return;
+
+    setModules(prevModules => {
+      const sourceMod = prevModules.find(m => m.id === sourceModId);
+      if (!sourceMod) return prevModules;
+
+      const lessonToMove = sourceMod.lessons.find(l => l.id === sourceLessonId);
+      if (!lessonToMove) return prevModules;
+
+      const updatedLesson = { ...lessonToMove, moduleId: targetModId };
+
+      if (sourceModId === targetModId) {
+        // Reordenação dentro do MESMO módulo
+        const lessonsWithoutMoved = sourceMod.lessons.filter(l => l.id !== sourceLessonId);
+        const targetIdx = lessonsWithoutMoved.findIndex(l => l.id === targetLessonId);
+        if (targetIdx === -1) return prevModules;
+
+        const insertIdx = pos === 'below' ? targetIdx + 1 : targetIdx;
+        lessonsWithoutMoved.splice(insertIdx, 0, updatedLesson);
+
+        const reordered = lessonsWithoutMoved.map((l, idx) => ({ ...l, order: idx + 1 }));
+
+        return prevModules.map(m => m.id === sourceModId ? { ...m, lessons: reordered } : m);
+      } else {
+        // Mover entre MÓDULOS DIFERENTES para uma posição específica
+        return prevModules.map(m => {
+          if (m.id === sourceModId) {
+            return {
+              ...m,
+              lessons: m.lessons.filter(l => l.id !== sourceLessonId)
+            };
+          }
+          if (m.id === targetModId) {
+            const targetIdx = m.lessons.findIndex(l => l.id === targetLessonId);
+            const insertIdx = targetIdx === -1 
+              ? m.lessons.length 
+              : (pos === 'below' ? targetIdx + 1 : targetIdx);
+
+            const newLessons = [...m.lessons];
+            newLessons.splice(insertIdx, 0, updatedLesson);
+            return {
+              ...m,
+              lessons: newLessons.map((l, idx) => ({ ...l, order: idx + 1 }))
+            };
+          }
+          return m;
+        });
+      }
+    });
+
+    setDraggingLesson(null);
+  };
+
   const handleDropOnModule = (e: React.DragEvent, targetModId: string) => {
     e.preventDefault();
     setDraggedOverModuleId(null);
+    setDraggedOverLesson(null);
 
     let sourceModId = '';
     let lessonId = '';
@@ -479,10 +613,11 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const handleDragEnd = () => {
     setDraggingLesson(null);
     setDraggedOverModuleId(null);
+    setDraggedOverLesson(null);
   };
 
   return (
-    <div className="p-6 lg:p-10 text-white max-w-6xl mx-auto min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-10 text-white max-w-6xl mx-auto min-h-screen">
       {/* Barra Superior / Header de Controle */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-800">
         <div className="flex items-center gap-4">
@@ -676,25 +811,77 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Link de Materiais de Apoio (Opcional)</label>
-                  <input
-                    type="url"
-                    value={singleLessonMaterials}
-                    onChange={(e) => setSingleLessonMaterials(e.target.value)}
-                    placeholder="https://drive.google.com/..."
-                    className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Informações Adicionais / Descrição da Aula</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Descrição da Aula / Texto Explicativo (Opcional)</label>
                   <textarea
                     rows={3}
                     value={singleLessonDescription}
                     onChange={(e) => setSingleLessonDescription(e.target.value)}
-                    placeholder="Notas específicas para esta masterclass..."
+                    placeholder="Escreva detalhes, resumo da aula ou instruções que ficarão visíveis abaixo do vídeo..."
                     className="w-full bg-black border border-gray-700 text-white rounded-lg p-2.5 focus:border-[#e9c349] outline-none text-xs leading-relaxed"
                   />
+                </div>
+
+                <div className="border-t border-gray-800 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-white flex items-center gap-1.5">
+                      <LinkIcon className="w-3.5 h-3.5 text-[#e9c349]" />
+                      Links e Materiais Personalizados
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSingleLessonLinks([...singleLessonLinks, { id: String(Date.now()), label: '', url: '' }])}
+                      className="text-[11px] bg-[#e9c349]/10 text-[#e9c349] hover:bg-[#e9c349] hover:text-black border border-[#e9c349]/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" /> Adicionar Link
+                    </button>
+                  </div>
+
+                  {singleLessonLinks.length > 0 ? (
+                    <div className="space-y-2">
+                      {singleLessonLinks.map((link, idx) => (
+                        <div key={link.id || idx} className="p-2.5 bg-black/60 border border-gray-800 rounded-lg space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">Botão #{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSingleLessonLinks(singleLessonLinks.filter((_, i) => i !== idx))}
+                              className="text-gray-500 hover:text-red-400 p-0.5 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={link.label}
+                              onChange={(e) => {
+                                const copy = [...singleLessonLinks];
+                                copy[idx].label = e.target.value;
+                                setSingleLessonLinks(copy);
+                              }}
+                              placeholder="Nome do Botão (Ex: Grupo do WhatsApp)"
+                              className="w-full bg-[#141414] border border-gray-700 text-white rounded p-1.5 text-xs focus:border-[#e9c349] outline-none"
+                            />
+                            <input
+                              type="url"
+                              value={link.url}
+                              onChange={(e) => {
+                                const copy = [...singleLessonLinks];
+                                copy[idx].url = e.target.value;
+                                setSingleLessonLinks(copy);
+                              }}
+                              placeholder="Link (Ex: https://chat.whatsapp.com/...)"
+                              className="w-full bg-[#141414] border border-gray-700 text-white rounded p-1.5 text-xs focus:border-[#e9c349] outline-none font-mono"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-3 bg-black/30 border border-dashed border-gray-800 rounded-lg text-gray-500 text-[11px]">
+                      Nenhum link adicionado. Clique em "+ Adicionar Link" para incluir materiais ou grupo do WhatsApp.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -810,8 +997,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-start gap-3 text-sm text-yellow-300">
                 <span className="text-base shrink-0">💡</span>
                 <div>
-                  <p className="font-bold text-white mb-0.5">Dica de Organização</p>
-                  <p className="text-xs text-gray-300 leading-relaxed">Você pode mover aulas de um módulo para outro de forma rápida: basta **clicar e arrastar** qualquer aula para dentro do módulo desejado!</p>
+                  <p className="font-bold text-white mb-0.5">Dica de Reordenação</p>
+                  <p className="text-xs text-gray-300 leading-relaxed">Você pode mover as aulas **para cima ou para baixo** no mesmo módulo usando os botões de seta (⬆️ ⬇️) ou **arrastando** uma aula para a posição desejada! Também é possível arrastar aulas de um módulo para outro.</p>
                 </div>
               </div>
             )}
@@ -890,17 +1077,26 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                       mod.lessons.map((lesson, lIdx) => {
                         const isWistia = lesson.videoSource === 'wistia' || (lesson.videoData || '').includes('wistia') || (!lesson.videoData?.includes('youtube') && (lesson.videoData || '').length < 25 && !lesson.videoData?.startsWith('http'));
                         const isCurrentlyDragged = draggingLesson?.lessonId === lesson.id;
-                        
+                        const isDraggingOverThis = draggedOverLesson?.lessonId === lesson.id;
+                        const dropPos = isDraggingOverThis ? draggedOverLesson?.position : null;
+
                         return (
                           <div 
                             key={lesson.id} 
                             draggable
                             onDragStart={(e) => handleDragStart(e, mod.id, lesson.id)}
+                            onDragOver={(e) => handleDragOverLesson(e, lesson.id)}
+                            onDragLeave={() => setDraggedOverLesson(null)}
+                            onDrop={(e) => handleDropOnLesson(e, mod.id, lesson.id)}
                             onDragEnd={handleDragEnd}
-                            className={`bg-black/60 border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                            className={`relative bg-black/60 border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing ${
                               isCurrentlyDragged 
                                 ? 'opacity-40 border-[#e9c349]/50 border-dashed bg-[#e9c349]/10' 
-                                : 'border-gray-800/80 hover:border-gray-700'
+                                : isDraggingOverThis
+                                  ? dropPos === 'above'
+                                    ? 'border-t-2 border-t-[#e9c349] border-gray-700 bg-[#e9c349]/5'
+                                    : 'border-b-2 border-b-[#e9c349] border-gray-700 bg-[#e9c349]/5'
+                                  : 'border-gray-800/80 hover:border-gray-700'
                             }`}
                           >
                             <div className="flex items-center gap-3 flex-1 min-w-[200px]">
@@ -931,7 +1127,32 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                               </div>
                             </div>
      
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              {/* Botões de Mover para Cima / Baixo */}
+                              <button
+                                type="button"
+                                id={`btn-move-up-lesson-${lesson.id}`}
+                                onClick={(e) => { e.stopPropagation(); handleMoveLesson(mod.id, lIdx, 'up'); }}
+                                disabled={lIdx === 0}
+                                className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 disabled:opacity-20 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed"
+                                title="Mover aula para cima"
+                              >
+                                <ChevronUp className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                id={`btn-move-down-lesson-${lesson.id}`}
+                                onClick={(e) => { e.stopPropagation(); handleMoveLesson(mod.id, lIdx, 'down'); }}
+                                disabled={lIdx === mod.lessons.length - 1}
+                                className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 disabled:opacity-20 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed"
+                                title="Mover aula para baixo"
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+
+                              <div className="w-[1px] h-4 bg-gray-800/80 mx-1" />
+
                               <button
                                 id={`btn-edit-lesson-${lesson.id}`}
                                 onClick={() => openEditLesson(mod.id, lesson)}
@@ -1078,7 +1299,9 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           duration: editingLesson.duration,
           videoSource: editingLesson.videoSource || (editingLesson.videoData?.includes('youtube') ? 'youtube' : 'wistia'),
           videoData: editingLesson.videoData || editingLesson.videoUrl || '',
-          materials: editingLesson.materials || ''
+          materials: editingLesson.materials || '',
+          description: editingLesson.description || '',
+          links: editingLesson.links || []
         } : null}
         onSave={handleSaveLesson}
       />

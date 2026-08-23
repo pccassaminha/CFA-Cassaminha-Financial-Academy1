@@ -452,7 +452,7 @@ export default function Settings() {
       
       <Sidebar />
 
-      <main className="ml-72 min-h-screen pt-10 pb-20 px-8 lg:px-12 relative">
+      <main className="lg:ml-72 ml-0 min-h-screen pt-16 lg:pt-10 pb-20 px-4 sm:px-8 lg:px-12 relative">
         {/* Toast Notification */}
         {showToast && (
           <div className={`fixed top-4 right-4 z-[9999] bg-[#1a1a1a] border ${
@@ -480,7 +480,7 @@ export default function Settings() {
         <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-outline-variant/10">
           <div>
             <p className="font-label text-xs text-[#e9c349] tracking-[0.3em] uppercase mb-1 font-bold">Gestão & Sistema</p>
-            <h2 className="font-headline text-3xl lg:text-4xl font-extrabold tracking-tight text-white">Painel de Configurações</h2>
+            <h2 className="font-headline text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">Painel de Configurações</h2>
             <p className="text-xs text-stone-400 mt-1">Clique em qualquer bloco abaixo para abrir o pop-up e configurar seus dados.</p>
           </div>
           <div className="flex gap-3">

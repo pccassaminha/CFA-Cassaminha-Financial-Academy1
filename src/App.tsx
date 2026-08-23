@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { subscribeUserEnrollments } from './services/enrollmentService';
 import Login from './pages/Login';
 import StudentDirectory from './pages/StudentDirectory';
 import VideoLibrary from './pages/VideoLibrary';
@@ -62,51 +63,27 @@ export default function App() {
       }
 
       if (currentUser) {
-        const userRef = doc(db, 'users', currentUser.uid);
-        unsubscribeProfile = onSnapshot(userRef, async (snap) => {
+        unsubscribeProfile = subscribeUserEnrollments(currentUser, (enrollData) => {
           const isMaster = isMasterEmail(currentUser.email);
-          if (snap.exists()) {
-            const data = snap.data();
-            if (isMaster && (data.role !== 'admin' || data.subscriptionStatus !== 'active')) {
-              setUserProfile({ ...data, role: 'admin', subscriptionStatus: 'active', roleType: 'admin' });
-              try {
-                await setDoc(userRef, { role: 'admin', subscriptionStatus: 'active', roleType: 'admin' }, { merge: true });
-              } catch (e) {
-                console.error("Failed to correct admin privileges in firestore:", e);
-              }
-            } else {
-              setUserProfile(data);
-            }
-          } else {
-            if (isMaster) {
-              const masterProfile = {
-                uid: currentUser.uid,
-                email: currentUser.email,
-                role: 'admin',
-                roleType: 'admin',
-                subscriptionStatus: 'active'
-              };
-              setUserProfile(masterProfile);
-              try {
-                await setDoc(userRef, masterProfile);
-              } catch (e) {
-                console.error("Failed to create admin profile in firestore:", e);
-              }
-            } else {
-              setUserProfile(null);
-            }
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("Error loading user profile:", error);
-          if (isMasterEmail(currentUser.email)) {
-            setUserProfile({
+          let baseProfile = enrollData.userProfile || {};
+
+          if (isMaster) {
+            baseProfile = {
+              ...baseProfile,
               uid: currentUser.uid,
               email: currentUser.email,
               role: 'admin',
+              roleType: 'admin',
               subscriptionStatus: 'active'
-            });
+            };
           }
+
+          setUserProfile({
+            ...baseProfile,
+            enrolledCourses: enrollData.enrolledCourses,
+            completedLessons: enrollData.completedLessons,
+            subscriptionStatus: isMaster ? 'active' : (baseProfile.subscriptionStatus || enrollData.subscriptionStatus)
+          });
           setLoading(false);
         });
       } else {
@@ -117,9 +94,7 @@ export default function App() {
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeProfile) {
-        unsubscribeProfile();
-      }
+      if (unsubscribeProfile) unsubscribeProfile();
     };
   }, []);
 
@@ -134,25 +109,44 @@ export default function App() {
   return (
     <BrowserRouter>
       {isReallyAdmin && viewAsStudent && (
-        <div style={{ zIndex: 9999 }} className="fixed top-0 left-0 right-0 min-h-12 bg-gradient-to-r from-[#e9c349] to-amber-500 text-[#0e0e0e] flex flex-wrap items-center justify-between px-3 sm:px-6 py-2 shadow-xl font-headline font-bold text-xs sm:text-sm select-none gap-2">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="material-symbols-outlined text-lg sm:text-xl animate-pulse">visibility</span>
-            <span className="text-xs sm:text-sm leading-tight">Navegando em <strong className="underline">Visão de Aluno</strong></span>
+        <div 
+          style={{ zIndex: 9999 }} 
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 group flex items-center bg-[#0e0e0e]/95 backdrop-blur-xl border border-[#e9c349]/70 text-[#e9c349] p-2 rounded-full shadow-2xl hover:bg-[#18181b] transition-all duration-300 select-none overflow-hidden hover:pr-3 cursor-pointer"
+          title="Visão de Aluno (Passe o mouse ou toque para expandir)"
+        >
+          {/* Ícone compacto padrão */}
+          <div className="flex items-center gap-2 p-1">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e9c349] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#e9c349]"></span>
+            </span>
+            <span className="material-symbols-outlined text-lg sm:text-xl text-[#e9c349]">visibility</span>
           </div>
-          <button
-            onClick={() => {
-              localStorage.setItem('viewAsStudent', 'false');
-              window.dispatchEvent(new Event('student-view-changed'));
-              window.location.href = '/dashboard';
-            }}
-            className="bg-[#0e0e0e] text-[#e9c349] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-zinc-900 transition-all cursor-pointer active:scale-95 shadow-md ml-auto sm:ml-0"
-          >
-            <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
-            Voltar para Admin
-          </button>
+
+          {/* Conteúdo expandido no hover/toque */}
+          <div className="max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2 transition-all duration-300 ease-in-out flex items-center gap-2.5 whitespace-nowrap overflow-hidden">
+            <div className="flex items-center gap-1.5 text-xs font-bold font-headline">
+              <span className="text-gray-300 text-[11px] font-medium hidden sm:inline">Modo:</span>
+              <span className="text-[#e9c349] text-xs font-bold">Visão de Aluno</span>
+            </div>
+            <span className="h-4 w-[1px] bg-gray-800 my-auto" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                localStorage.setItem('viewAsStudent', 'false');
+                window.dispatchEvent(new Event('student-view-changed'));
+                window.location.href = '/dashboard';
+              }}
+              className="bg-[#e9c349] hover:bg-[#d8b238] text-black px-3 py-1.5 rounded-full text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-md shrink-0"
+              title="Sair da Visão de Aluno e voltar para o Painel Admin"
+            >
+              <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
+              <span className="text-[11px] sm:text-xs">Voltar Admin</span>
+            </button>
+          </div>
         </div>
       )}
-      <div className={isReallyAdmin && viewAsStudent ? "pt-12 min-h-screen" : "min-h-screen"}>
+      <div className="min-h-screen">
         <Routes>
           <Route 
             path="/" 
