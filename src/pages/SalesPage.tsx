@@ -116,34 +116,34 @@ export default function SalesPage() {
       
       {/* Top Navigation Bar (Middle Links removed per requested focus layout selection) */}
       <nav className="fixed top-0 w-full z-50 bg-[#131313]/85 backdrop-blur-xl transition-all border-b border-white/5">
-        <div className="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto font-headline tracking-tight">
+        <div className="flex justify-between items-center px-4 sm:px-8 py-2.5 sm:py-4 max-w-7xl mx-auto font-headline tracking-tight">
           <Link to="/sales" className="flex items-center cursor-pointer" id="sales-logo-link">
             {logoUrl ? (
               <img 
                 src={logoUrl} 
                 alt="Logo" 
-                className="h-16 md:h-20 w-auto object-contain rounded-xl shadow-md transition-all" 
+                className="h-11 sm:h-16 md:h-20 w-auto object-contain rounded-lg sm:rounded-xl shadow-md transition-all" 
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-[#e9c349] flex items-center justify-center font-black text-black text-base">CFA</div>
-                <span className="text-2xl font-black tracking-tighter text-[#e9c349]">CFA Academy</span>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-[#e9c349] flex items-center justify-center font-black text-black text-xs sm:text-base">CFA</div>
+                <span className="text-lg sm:text-2xl font-black tracking-tighter text-[#e9c349]">CFA Academy</span>
               </div>
             )}
           </Link>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             {currentUser ? (
-              <Link to="/library" className="bg-[#e9c349] text-stone-900 px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
-                <BookOpen className="w-4 h-4" /> Ir para Minha Área
+              <Link to="/library" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Ir para </span>Minha Área
               </Link>
             ) : (
               <>
-                <Link to="/" className="text-stone-300 hover:text-[#e9c349] font-bold text-sm px-4 py-2 transition-colors">
+                <Link to="/" className="text-stone-300 hover:text-[#e9c349] font-bold text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 transition-colors">
                   Entrar
                 </Link>
-                <Link to="/" state={{ register: true }} className="bg-[#e9c349] text-stone-900 px-5 py-2.5 rounded-xl font-black text-sm hover:opacity-90 transition-all shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                <Link to="/" state={{ register: true }} className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
                   Criar Conta
                 </Link>
               </>
@@ -155,7 +155,7 @@ export default function SalesPage() {
       <main className="pt-24 relative z-10">
         
         {/* Dynamic Premium Hero Section */}
-        <section className="relative min-h-[640px] md:min-h-[750px] flex items-center overflow-hidden px-6 lg:px-12 mb-16">
+        <section className="relative min-h-[460px] sm:min-h-[580px] md:min-h-[750px] flex items-center overflow-hidden px-4 sm:px-6 lg:px-12 mb-8 sm:mb-16">
           <div className="absolute inset-0 z-0">
             <div className="absolute inset-0 bg-gradient-to-r from-[#131313] via-[#131313]/90 to-transparent z-10"></div>
             <img 
@@ -164,54 +164,35 @@ export default function SalesPage() {
               src="https://images.unsplash.com/photo-1591696205602-2f950c417cb9?auto=format&fit=crop&q=80&w=1200" 
             />
           </div>
-          <div className="relative z-20 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center pt-8">
-            <div className="space-y-6 md:space-y-8">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-high/60 border border-[#e9c349]/10">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-amber-300 font-label">Cassaminha Financial Academy</span>
-              </div>
-              <h1 className="font-headline text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] text-white">
-                Aprenda as Habilidades <span className="bg-gradient-to-br from-[#e9c349] to-[#b39129] bg-clip-text text-transparent">Que Geram Resultados</span>
-              </h1>
-              <p className="text-stone-300 text-base md:text-lg max-w-xl font-body leading-relaxed">
-                Tenha acesso a cursos práticos de alto impacto criados por especialistas de diversos nichos. Desenvolva novos talentos, domine ferramentas modernas e conquiste seus objetivos passo a passo.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
-                <Link to="/" state={{ register: true }} className="w-full sm:w-auto bg-[#e9c349] text-stone-900 px-8 py-4 rounded-xl font-bold text-base text-center hover:opacity-90 transition-all flex items-center justify-center gap-3 shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
-                  Criar Minha Conta Grátis
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
-                <a href="#cursos" className="w-full sm:w-auto px-6 py-4 rounded-xl font-semibold text-sm text-stone-300 hover:text-white bg-stone-800/40 hover:bg-stone-800/80 border border-stone-700/50 text-center transition-all">
-                  Explorar Catálogo de Cursos
-                </a>
-              </div>
+          <div className="relative z-20 max-w-3xl mx-auto w-full text-center flex flex-col items-center space-y-3.5 sm:space-y-6 md:space-y-8 pt-4 sm:pt-8">
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-stone-900/80 border border-[#e9c349]/20 shadow-md">
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.25em] font-bold text-amber-300 font-label">Cassaminha Financial Academy</span>
             </div>
-
-            {/* Video Presentation Placeholder Frame */}
-            <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#181818]/80 group cursor-pointer">
-              <img 
-                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700 opacity-45" 
-                alt="Presentation Preview" 
-                src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=800" 
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-[#e9c349]/20 backdrop-blur-xl flex items-center justify-center border border-[#e9c349]/40 group-hover:scale-110 transition-transform duration-300">
-                  <Play className="w-7 h-7 text-[#e9c349] fill-[#e9c349]" />
-                </div>
-              </div>
-              <div className="absolute bottom-4 left-4 bg-[#131313]/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/5">
-                <p className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349]">Apresentação Oficial</p>
-              </div>
+            <h1 className="font-headline text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] sm:leading-[1.05] text-white">
+              Aprenda as Habilidades <span className="bg-gradient-to-br from-[#e9c349] to-[#b39129] bg-clip-text text-transparent">Que Geram Resultados</span>
+            </h1>
+            <p className="text-stone-300 text-xs sm:text-base md:text-lg max-w-2xl font-body leading-relaxed mx-auto px-2 sm:px-0">
+              Tenha acesso a cursos práticos de alto impacto criados por especialistas de diversos nichos. Desenvolva novos talentos, domine ferramentas modernas e conquiste seus objetivos passo a passo.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4 pt-1 sm:pt-2 w-full sm:w-auto px-4 sm:px-0">
+              <Link to="/" state={{ register: true }} className="w-full sm:w-auto bg-[#e9c349] text-stone-900 px-5 sm:px-8 py-2.5 sm:py-4 rounded-xl font-bold text-xs sm:text-base text-center hover:opacity-90 transition-all flex items-center justify-center gap-2 sm:gap-3 shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
+                Criar Minha Conta Grátis
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+              </Link>
+              <a href="#cursos" className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-4 rounded-xl font-semibold text-xs sm:text-sm text-stone-300 hover:text-white bg-stone-800/40 hover:bg-stone-800/80 border border-stone-700/50 text-center transition-all">
+                Explorar Catálogo de Cursos
+              </a>
             </div>
           </div>
         </section>
 
         {/* Dynamic Showcase of Available Courses */}
-        <section id="cursos" className="max-w-7xl mx-auto px-6 lg:px-12 py-16 scroll-mt-20">
-          <div className="mb-12 text-center md:text-left space-y-2">
-            <span className="text-[#e9c349] font-bold uppercase tracking-[0.3em] text-xs">Formações Exclusivas</span>
-            <h2 className="font-headline text-3xl md:text-5xl font-black text-white">Nossos Treinamentos Disponíveis</h2>
-            <p className="text-stone-400 text-sm md:text-base max-w-2xl leading-relaxed">
+        <section id="cursos" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-8 sm:py-16 scroll-mt-20">
+          <div className="mb-6 sm:mb-12 text-center md:text-left space-y-1.5 sm:space-y-2">
+            <span className="text-[#e9c349] font-bold uppercase tracking-[0.2em] sm:tracking-[0.3em] text-[10px] sm:text-xs">Formações Exclusivas</span>
+            <h2 className="font-headline text-xl sm:text-3xl md:text-5xl font-black text-white">Nossos Treinamentos Disponíveis</h2>
+            <p className="text-stone-400 text-xs sm:text-sm md:text-base max-w-2xl leading-relaxed">
               Inicie agora mesmo a sua capacitação prática. Selecione abaixo o treinamento que melhor atende ao seu momento profissional:
             </p>
           </div>
@@ -407,18 +388,25 @@ export default function SalesPage() {
         </div>
       </footer>
 
-      {/* Floating Support WhatsApp Button */}
+      {/* Floating Support WhatsApp Button - Collapsed by default, expands on hover/focus/click */}
       <a 
         href="https://wa.me/244923000000?text=Olá!%20Gostaria%20de%20tirar%20dúvidas%20sobre%20os%20cursos%20da%20CFA%20Academy." 
         target="_blank" 
         rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#25D366] text-white px-4 py-3 rounded-full font-bold shadow-2xl hover:bg-[#20ba5a] active:scale-95 transition-all duration-200 group cursor-pointer"
+        className="fixed bottom-6 right-6 z-50 flex items-center bg-[#25D366] text-white p-3.5 hover:px-4 sm:hover:px-5 hover:py-3.5 rounded-full font-bold shadow-[0_4px_25px_rgba(37,211,102,0.4)] hover:bg-[#20ba5a] active:scale-95 transition-all duration-300 ease-out group cursor-pointer border border-white/20"
         title="Dúvidas? Fale conosco no WhatsApp"
       >
-        <MessageCircle className="w-5 h-5 fill-white" />
-        <span className="text-xs tracking-wide uppercase font-headline">Dúvidas? WhatsApp</span>
-        {/* Glow pulsing ring around the green button */}
-        <span className="absolute -inset-1 rounded-full border-2 border-[#25D366]/40 animate-ping pointer-events-none"></span>
+        <MessageCircle className="w-6 h-6 fill-white shrink-0 group-hover:scale-110 transition-transform duration-200" />
+        
+        {/* Label only expands smoothly on hover or focus */}
+        <div className="max-w-0 opacity-0 overflow-hidden group-hover:max-w-xs group-hover:opacity-100 group-focus:max-w-xs group-focus:opacity-100 transition-all duration-300 ease-in-out whitespace-nowrap">
+          <span className="text-xs tracking-wide uppercase font-headline pl-2 font-black">
+            Dúvidas? WhatsApp
+          </span>
+        </div>
+
+        {/* Glow pulsing ring */}
+        <span className="absolute -inset-1 rounded-full border-2 border-[#25D366]/40 animate-ping pointer-events-none group-hover:opacity-0 transition-opacity"></span>
       </a>
 
       {/* Authentic Auth Warning Modal */}
