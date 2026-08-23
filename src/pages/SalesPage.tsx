@@ -117,7 +117,7 @@ export default function SalesPage() {
       {/* Top Navigation Bar (Middle Links removed per requested focus layout selection) */}
       <nav className="fixed top-0 w-full z-50 bg-[#131313]/85 backdrop-blur-xl transition-all border-b border-white/5">
         <div className="flex justify-between items-center px-4 sm:px-8 py-2.5 sm:py-4 max-w-7xl mx-auto font-headline tracking-tight">
-          <Link to="/sales" className="flex items-center cursor-pointer" id="sales-logo-link">
+          <Link to="/" className="flex items-center cursor-pointer" id="sales-logo-link">
             {logoUrl ? (
               <img 
                 src={logoUrl} 
@@ -140,10 +140,10 @@ export default function SalesPage() {
               </Link>
             ) : (
               <>
-                <Link to="/" className="text-stone-300 hover:text-[#e9c349] font-bold text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 transition-colors">
+                <Link to="/entrar" className="text-stone-300 hover:text-[#e9c349] font-bold text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 transition-colors">
                   Entrar
                 </Link>
-                <Link to="/" state={{ register: true }} className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                <Link to="/criar-conta" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
                   Criar Conta
                 </Link>
               </>
@@ -176,7 +176,7 @@ export default function SalesPage() {
               Tenha acesso a cursos práticos de alto impacto criados por especialistas de diversos nichos. Desenvolva novos talentos, domine ferramentas modernas e conquiste seus objetivos passo a passo.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4 pt-1 sm:pt-2 w-full sm:w-auto px-4 sm:px-0">
-              <Link to="/" state={{ register: true }} className="w-full sm:w-auto bg-[#e9c349] text-stone-900 px-5 sm:px-8 py-2.5 sm:py-4 rounded-xl font-bold text-xs sm:text-base text-center hover:opacity-90 transition-all flex items-center justify-center gap-2 sm:gap-3 shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
+              <Link to="/criar-conta" className="w-full sm:w-auto bg-[#e9c349] text-stone-900 px-5 sm:px-8 py-2.5 sm:py-4 rounded-xl font-bold text-xs sm:text-base text-center hover:opacity-90 transition-all flex items-center justify-center gap-2 sm:gap-3 shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
                 Criar Minha Conta Grátis
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </Link>
@@ -207,7 +207,7 @@ export default function SalesPage() {
               <BookOpen className="w-12 h-12 text-stone-500 mx-auto opacity-50" />
               <h3 className="font-bold text-lg text-white">Nenhum treinamento publicado ainda</h3>
               <p className="text-sm text-stone-400">Nossa equipe está configurando novos cursos exclusivos. Por favor, volte a visitar esta página em instantes ou crie seu cadastro para receber avisos.</p>
-              <Link to="/" state={{ register: true }} className="inline-block px-6 py-2.5 bg-[#e9c349] text-stone-900 rounded-xl font-bold text-xs hover:opacity-90">
+              <Link to="/criar-conta" className="inline-block px-6 py-2.5 bg-[#e9c349] text-stone-900 rounded-xl font-bold text-xs hover:opacity-90">
                 Criar Cadastro de Espera
               </Link>
             </div>
@@ -356,10 +356,10 @@ export default function SalesPage() {
             <p className="text-stone-400 mb-8 max-w-lg mx-auto text-sm">Cadastre-se hoje mesmo para ter acesso instantâneo ao nosso catálogo e começar a assistir às aulas gratuitas.</p>
             
             <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto justify-center mb-6">
-              <Link to="/" state={{ register: true }} className="w-full sm:w-auto px-8 bg-[#e9c349] text-stone-900 py-4 rounded-xl font-bold text-base hover:opacity-90 transition-all shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
+              <Link to="/criar-conta" className="w-full sm:w-auto px-8 bg-[#e9c349] text-stone-900 py-4 rounded-xl font-bold text-base hover:opacity-90 transition-all shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
                 Criar Minha Conta de Aluno
               </Link>
-              <Link to="/" className="w-full sm:w-auto px-8 bg-stone-800 text-stone-200 border border-stone-700 py-4 rounded-xl font-bold text-base hover:bg-stone-700 transition-all">
+              <Link to="/entrar" className="w-full sm:w-auto px-8 bg-stone-800 text-stone-200 border border-stone-700 py-4 rounded-xl font-bold text-base hover:bg-stone-700 transition-all">
                 Entrar na Conta
               </Link>
             </div>
@@ -440,14 +440,13 @@ export default function SalesPage() {
 
             <div className="space-y-3 pt-2">
               <Link 
-                to="/" 
-                state={{ register: true }} 
+                to="/criar-conta" 
                 className="w-full py-3 bg-[#e9c349] text-stone-900 rounded-xl font-bold text-sm block hover:opacity-90 transition-all shadow-md shadow-[#e9c349]/10"
               >
                 Criar Minha Conta Grátis
               </Link>
               <Link 
-                to="/" 
+                to="/entrar" 
                 className="w-full py-3 bg-stone-800 text-stone-200 border border-stone-700 rounded-xl font-semibold text-sm block hover:bg-stone-700 transition-all"
               >
                 Já tenho conta (Entrar)

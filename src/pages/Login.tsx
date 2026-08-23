@@ -9,7 +9,7 @@ export default function Login() {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(location.state?.register || false);
+  const [isRegistering, setIsRegistering] = useState(location.pathname === '/criar-conta');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -45,10 +45,8 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (location.state?.register !== undefined) {
-      setIsRegistering(location.state.register);
-    }
-  }, [location.state]);
+    setIsRegistering(location.pathname === '/criar-conta');
+  }, [location.pathname]);
 
   // Clear states when toggling views
   useEffect(() => {
@@ -261,23 +259,27 @@ export default function Login() {
         <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent"></div>
         <div className="absolute inset-0 grain-overlay"></div>
       </div>
-      <header className="relative z-10 w-full px-8 py-10 flex justify-center md:justify-start" id="login-header">
-        <Link to="/sales" className="flex items-center gap-2 hover:opacity-80 transition-all cursor-pointer group" id="cfa-brand-logo">
+      <header className="relative z-10 w-full px-8 py-8 flex justify-between items-center" id="login-header">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-all cursor-pointer group" id="cfa-brand-logo">
           {logoUrl ? (
             <img 
               src={logoUrl} 
               alt="Logo" 
-              className="h-18 md:h-22 w-auto object-contain rounded-xl shadow-md transition-all" 
+              className="h-12 md:h-16 w-auto object-contain rounded-xl shadow-md transition-all" 
               referrerPolicy="no-referrer"
             />
           ) : (
             <>
-              <span className="material-symbols-outlined text-primary text-4xl group-hover:scale-[1.05] transition-transform" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span className="material-symbols-outlined text-primary text-3xl group-hover:scale-[1.05] transition-transform" style={{ fontVariationSettings: "'FILL' 1" }}>
                 school
               </span>
-              <h1 className="text-4xl font-black tracking-tighter text-primary font-headline">CFA</h1>
+              <h1 className="text-3xl font-black tracking-tighter text-primary font-headline">CFA</h1>
             </>
           )}
+        </Link>
+        <Link to="/" className="text-xs font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-1.5 bg-surface-container-highest/80 px-4 py-2 rounded-lg border border-outline-variant/30 backdrop-blur-md">
+          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          Voltar ao Site
         </Link>
       </header>
       <main className="relative z-10 flex-grow flex items-center justify-center px-4 pb-20">
@@ -302,7 +304,7 @@ export default function Login() {
                       <button
                         type="button"
                         onClick={() => {
-                          setIsRegistering(false);
+                          navigate('/entrar');
                           setErrorMessage(null);
                         }}
                         className="bg-primary hover:brightness-110 active:scale-95 text-black font-black text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer"
@@ -564,7 +566,7 @@ export default function Login() {
           
           <div className="mt-8 flex flex-col gap-4 text-center">
             <button 
-              onClick={() => setIsRegistering(!isRegistering)}
+              onClick={() => navigate(isRegistering ? '/entrar' : '/criar-conta')}
               className="text-sm text-primary font-medium hover:underline decoration-primary/30 underline-offset-4 transition-all font-body"
             >
               {isRegistering ? 'Já tem uma conta? Faça login' : 'Não tem uma conta? Cadastre-se'}

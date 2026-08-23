@@ -148,8 +148,10 @@ export default function App() {
       )}
       <div className="min-h-screen">
         <Routes>
+          <Route path="/" element={<SalesPage />} />
+          
           <Route 
-            path="/" 
+            path="/entrar" 
             element={
               !user ? <Login /> : (
                 (effectiveRole === 'admin' || effectiveRole === 'producer') ? (
@@ -162,42 +164,57 @@ export default function App() {
               )
             } 
           />
-          <Route path="/sales" element={<SalesPage />} />
+          
+          <Route 
+            path="/criar-conta" 
+            element={
+              !user ? <Login /> : (
+                (effectiveRole === 'admin' || effectiveRole === 'producer') ? (
+                  (effectiveStatus === 'pending_approval' || (userProfile?.isApproved === false && !isAdminEmail))
+                    ? <Navigate to="/pending" replace />
+                    : <Navigate to="/dashboard" replace />
+                ) : (
+                  <Navigate to="/library" replace />
+                )
+              )
+            } 
+          />
+
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/confirmation" element={<PurchaseConfirmation />} />
           
           <Route 
             path="/dashboard" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Dashboard /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/" replace />} 
+            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Dashboard /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/directory" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <StudentDirectory /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/" replace />} 
+            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <StudentDirectory /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/content" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <ContentManager /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/" replace />} 
+            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <ContentManager /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/analytics" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Analytics /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/" replace />} 
+            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Analytics /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/settings" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Settings /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/" replace />} 
+            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Settings /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
           />
           
           <Route 
             path="/library" 
-            element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
+            element={user ? <StudentPortal /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/library/:slug" 
-            element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
+            element={user ? <StudentPortal /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/portal" 
-            element={user ? <StudentPortal /> : <Navigate to="/" replace />} 
+            element={user ? <StudentPortal /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/classroom" 
@@ -216,8 +233,8 @@ export default function App() {
               user ? (
                 ((effectiveRole === 'admin' || effectiveRole === 'producer') && (effectiveStatus === 'pending_approval' || userProfile?.isApproved === false && !isAdminEmail)) 
                   ? <PendingSubscription /> 
-                  : <Navigate to="/" replace />
-              ) : <Navigate to="/" replace />
+                  : <Navigate to="/entrar" replace />
+              ) : <Navigate to="/entrar" replace />
             } 
           />
           <Route path="/termos" element={<Terms />} />
