@@ -108,44 +108,6 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      {isReallyAdmin && viewAsStudent && (
-        <div 
-          style={{ zIndex: 9999 }} 
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 group flex items-center bg-[#0e0e0e]/95 backdrop-blur-xl border border-[#e9c349]/70 text-[#e9c349] p-2 rounded-full shadow-2xl hover:bg-[#18181b] transition-all duration-300 select-none overflow-hidden hover:pr-3 cursor-pointer"
-          title="Visão de Aluno (Passe o mouse ou toque para expandir)"
-        >
-          {/* Ícone compacto padrão */}
-          <div className="flex items-center gap-2 p-1">
-            <span className="relative flex h-3 w-3 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e9c349] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#e9c349]"></span>
-            </span>
-            <span className="material-symbols-outlined text-lg sm:text-xl text-[#e9c349]">visibility</span>
-          </div>
-
-          {/* Conteúdo expandido no hover/toque */}
-          <div className="max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2 transition-all duration-300 ease-in-out flex items-center gap-2.5 whitespace-nowrap overflow-hidden">
-            <div className="flex items-center gap-1.5 text-xs font-bold font-headline">
-              <span className="text-gray-300 text-[11px] font-medium hidden sm:inline">Modo:</span>
-              <span className="text-[#e9c349] text-xs font-bold">Visão de Aluno</span>
-            </div>
-            <span className="h-4 w-[1px] bg-gray-800 my-auto" />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                localStorage.setItem('viewAsStudent', 'false');
-                window.dispatchEvent(new Event('student-view-changed'));
-                window.location.href = '/dashboard';
-              }}
-              className="bg-[#e9c349] hover:bg-[#d8b238] text-black px-3 py-1.5 rounded-full text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-md shrink-0"
-              title="Sair da Visão de Aluno e voltar para o Painel Admin"
-            >
-              <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
-              <span className="text-[11px] sm:text-xs">Voltar Admin</span>
-            </button>
-          </div>
-        </div>
-      )}
       <div className="min-h-screen">
         <Routes>
           <Route path="/" element={<SalesPage />} />

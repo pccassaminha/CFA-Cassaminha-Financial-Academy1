@@ -34,6 +34,7 @@ export default function SalesPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Modal State for authentication prompts
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -42,8 +43,27 @@ export default function SalesPage() {
 
   // Track auth state
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.role === 'admin' || data.role === 'producer') {
+              setIsAdmin(true);
+            }
+          }
+          const email = user.email?.toLowerCase().trim();
+          if (email === 'exportacoes.extras@gmail.com' || email === 'grupocassaminha@gmail.com') {
+            setIsAdmin(true);
+          }
+        } catch (err) {
+          console.error("Error checking role:", err);
+        }
+      } else {
+        setIsAdmin(false);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -135,9 +155,15 @@ export default function SalesPage() {
           
           <div className="flex items-center gap-1.5 sm:gap-3">
             {currentUser ? (
-              <Link to="/library" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
-                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Ir para </span>Minha Área
-              </Link>
+              isAdmin ? (
+                <Link to="/dashboard" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                  <span className="material-symbols-outlined text-sm sm:text-base">admin_panel_settings</span> <span className="hidden xs:inline">Área </span>Administrativa
+                </Link>
+              ) : (
+                <Link to="/library" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                  <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Ir para </span>Minha Área
+                </Link>
+              )
             ) : (
               <>
                 <Link to="/entrar" className="text-stone-300 hover:text-[#e9c349] font-bold text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 transition-colors">

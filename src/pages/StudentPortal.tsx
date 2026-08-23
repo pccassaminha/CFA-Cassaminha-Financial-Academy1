@@ -217,6 +217,15 @@ export default function StudentPortal() {
         </nav>
 
         <div className="flex items-center justify-end gap-2 sm:gap-3">
+          {isAdmin && (
+            <button
+              onClick={handleReturnToAdmin}
+              className="bg-[#e9c349]/10 border border-[#e9c349]/20 text-[#e9c349] hover:bg-[#e9c349] hover:text-black px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+            >
+              <Compass className="w-4 h-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </button>
+          )}
           <button
             id="student-logout-top-btn"
             onClick={handleLogout}

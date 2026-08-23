@@ -918,36 +918,31 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                   {renderVideoPlayer(activeLesson)}
                 </div>
 
-                {/* Título da Aula (Abaixo da aula e acima das descrições e links) */}
-                <div className="p-4 sm:p-5 bg-[#161616] border border-[#353534]/40 rounded-2xl shadow-md">
-                  <span className="text-[10px] sm:text-xs text-[#e9c349] font-mono uppercase font-bold tracking-wider block mb-1">
-                    Aula Ativa
-                  </span>
-                  <h1 className="text-base sm:text-2xl font-extrabold text-[#e5e2e1] font-headline leading-tight">
-                    {activeLesson.title}
-                  </h1>
-                </div>
-
-                {/* Watch Complete Progress Actions - Compacto no Mobile */}
-                <div className="flex flex-row justify-between items-center p-3.5 sm:p-5 bg-[#181818] border border-[#353534]/30 rounded-2xl gap-3">
+                {/* Título da Aula e Progresso */}
+                <div className="flex flex-row justify-between items-start gap-4 p-4 sm:p-5 bg-[#161616] border border-[#353534]/40 rounded-2xl shadow-md">
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-xs sm:text-sm text-[#e5e2e1] truncate">Progresso da Aula</h4>
-                    <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 hidden xs:block">Marque como concluída após assistir o conteúdo.</p>
+                    <span className="text-[10px] sm:text-xs text-[#e9c349] font-mono uppercase font-bold tracking-wider block mb-1">
+                      Aula Ativa
+                    </span>
+                    <h1 className="text-base sm:text-2xl font-extrabold text-[#e5e2e1] font-headline leading-tight">
+                      {activeLesson.title}
+                    </h1>
                   </div>
-                  {/* Mark complete status - Botão compacto no mobile */}
+                  
+                  {/* Mark complete status - Botão pequeno */}
                   <button 
                     onClick={() => handleToggleLessonCompleted(activeLesson.id)}
-                    className={`px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 sm:gap-2 transition-all outline-none cursor-pointer shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg font-bold text-[10px] sm:text-xs flex items-center gap-1.5 transition-all outline-none cursor-pointer shrink-0 mt-1 ${
                       userProfile?.completedLessons?.includes(activeLesson.id)
-                        ? 'bg-[#e5e2e1]/10 text-secondary border border-secondary/20'
-                        : 'bg-[#e9c349] text-[#131313] hover:opacity-90 shadow-[0_0_15px_rgba(233,195,73,0.15)] active:scale-95'
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/30'
+                        : 'bg-[#353534]/50 text-gray-300 border border-[#353534] hover:bg-[#e9c349] hover:text-black hover:border-[#e9c349] active:scale-95'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-sm sm:text-[18px]">
-                      {userProfile?.completedLessons?.includes(activeLesson.id) ? 'task_alt' : 'circle'}
+                    <span className="material-symbols-outlined text-sm">
+                      {userProfile?.completedLessons?.includes(activeLesson.id) ? 'check_circle' : 'circle'}
                     </span>
-                    <span className="text-[11px] sm:text-xs">
-                      {userProfile?.completedLessons?.includes(activeLesson.id) ? 'Concluída' : 'Marcar Concluída'}
+                    <span>
+                      {userProfile?.completedLessons?.includes(activeLesson.id) ? 'Concluída' : 'Concluir'}
                     </span>
                   </button>
                 </div>
