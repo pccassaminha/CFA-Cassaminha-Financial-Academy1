@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Shield, CheckCircle2, Key, Phone, BookOpen, Lock, AlertCircle, Hash, RefreshCw, Send, Edit2, Save, X } from 'lucide-react';
+import { User, Mail, Shield, CheckCircle2, Key, Phone, BookOpen, Lock, AlertCircle, Hash, RefreshCw, Send, Edit2, Save, X, MessageCircle } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 
 export default function StudentProfile() {
   const [profile, setProfile] = useState<any>(null);
+  const [supportWhatsApp, setSupportWhatsApp] = useState<string>('244923456789');
   const [loading, setLoading] = useState(true);
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -72,6 +73,19 @@ export default function StudentProfile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
+        // Fetch platform support settings in parallel
+        getDoc(doc(db, 'settings', 'platform')).then(snap => {
+          if (snap.exists() && snap.data().supportWhatsApp) {
+            setSupportWhatsApp(snap.data().supportWhatsApp);
+          }
+        }).catch(() => {});
+
+        getDoc(doc(db, 'settings', 'general')).then(snap => {
+          if (snap.exists() && snap.data().supportWhatsApp) {
+            setSupportWhatsApp(snap.data().supportWhatsApp);
+          }
+        }).catch(() => {});
+
         const user = auth.currentUser;
         if (!user) {
           setLoading(false);
@@ -319,25 +333,37 @@ export default function StudentProfile() {
         </div>
 
         {/* Suporte e Ajuda */}
-        <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center font-bold shrink-0">
-              <Phone className="w-6 h-6" />
+        {(() => {
+          const cleanPhone = (supportWhatsApp || '244923456789').replace(/[^0-9]/g, '');
+          const studentEmail = profile?.email || auth.currentUser?.email || '';
+          const msg = encodeURIComponent(
+            `Olá, equipe de Suporte CFA! Preciso de ajuda com a minha conta de aluno.\n\n👤 *Nome:* ${fullName}\n📧 *E-mail:* ${studentEmail}\n🔖 *ID de Matrícula:* #${numericId}`
+          );
+          const waUrl = `https://wa.me/${cleanPhone}?text=${msg}`;
+
+          return (
+            <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-green-500/15 text-green-400 flex items-center justify-center font-bold shrink-0">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-base">Precisa de Ajuda ou Suporte Técnico?</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Entre em contato direto com a nossa equipe acadêmica no WhatsApp para assistência imediata.</p>
+                </div>
+              </div>
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-[#25D366] text-black font-extrabold px-6 py-3.5 rounded-xl text-xs hover:bg-[#20ba5a] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-green-500/10 shrink-0"
+              >
+                <MessageCircle className="w-4 h-4 fill-black" />
+                <span>Falar com Suporte WhatsApp</span>
+              </a>
             </div>
-            <div>
-              <h4 className="font-bold text-white text-base">Precisa de Ajuda ou Suporte Técnico?</h4>
-              <p className="text-xs text-gray-400 mt-0.5">Entre em contato com nossa equipe acadêmica para assistência imediata.</p>
-            </div>
-          </div>
-          <a
-            href="https://wa.me/244900000000"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-[#25D366] text-black font-bold px-5 py-3 rounded-xl text-xs hover:bg-[#20ba5a] transition-all flex items-center gap-2 cursor-pointer shadow-md shrink-0"
-          >
-            Falar com Suporte WhatsApp
-          </a>
-        </div>
+          );
+        })()}
       </div>
     </div>
   );
