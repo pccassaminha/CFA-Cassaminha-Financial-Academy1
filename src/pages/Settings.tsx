@@ -275,21 +275,42 @@ export default function Settings() {
     }
   };
 
+  // Helper to remove any undefined fields before writing to Firestore
+  const cleanUndefined = (obj: any): any => {
+    if (Array.isArray(obj)) {
+      return obj.map(cleanUndefined);
+    }
+    if (obj !== null && typeof obj === 'object') {
+      const res: Record<string, any> = {};
+      for (const key of Object.keys(obj)) {
+        if (obj[key] !== undefined) {
+          res[key] = cleanUndefined(obj[key]);
+        }
+      }
+      return res;
+    }
+    return obj;
+  };
+
   // Save Coupons to Firebase with dual persistence (settings/coupons doc AND coupons collection)
   const handleSaveCouponsToDb = async (updatedCoupons: Coupon[]) => {
     try {
+      const sanitizedList = cleanUndefined(updatedCoupons);
+
       // 1. Grava no documento centralizado settings/coupons
       await setDoc(doc(db, 'settings', 'coupons'), {
-        list: updatedCoupons,
+        list: sanitizedList,
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
       // 2. Grava individualmente na coleção coupons para redundância e consultas rápidas
-      for (const cp of updatedCoupons) {
-        await setDoc(doc(db, 'coupons', cp.id), {
-          ...cp,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+      for (const cp of sanitizedList) {
+        if (cp && cp.id) {
+          await setDoc(doc(db, 'coupons', cp.id), {
+            ...cp,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
       }
     } catch (err) {
       console.error("Error saving coupons to Firebase:", err);
@@ -329,8 +350,10 @@ export default function Settings() {
         type: couponForm.type,
         discountValue: val,
         scope: couponForm.scope,
-        courseId: couponForm.scope === 'course' ? couponForm.courseId : undefined,
-        courseTitle: couponForm.scope === 'course' ? selectedCourseTitle : undefined,
+        ...(couponForm.scope === 'course' && couponForm.courseId ? {
+          courseId: couponForm.courseId,
+          courseTitle: selectedCourseTitle
+        } : {}),
         active: couponForm.active,
         createdAt: new Date().toISOString()
       };
@@ -339,16 +362,24 @@ export default function Settings() {
       await handleSaveCouponsToDb(updatedCoupons);
       showNotification(`Cupão "${cleanCode}" criado com sucesso!`, 'success');
     } else if (couponForm.couponId) {
-      updatedCoupons = coupons.map(c => c.id === couponForm.couponId ? {
-        ...c,
-        code: cleanCode,
-        type: couponForm.type,
-        discountValue: val,
-        scope: couponForm.scope,
-        courseId: couponForm.scope === 'course' ? couponForm.courseId : undefined,
-        courseTitle: couponForm.scope === 'course' ? selectedCourseTitle : undefined,
-        active: couponForm.active
-      } : c);
+      updatedCoupons = coupons.map(c => {
+        if (c.id !== couponForm.couponId) return c;
+        const base: Coupon = {
+          ...c,
+          code: cleanCode,
+          type: couponForm.type,
+          discountValue: val,
+          scope: couponForm.scope,
+          active: couponForm.active
+        };
+        delete base.courseId;
+        delete base.courseTitle;
+        if (couponForm.scope === 'course' && couponForm.courseId) {
+          base.courseId = couponForm.courseId;
+          base.courseTitle = selectedCourseTitle;
+        }
+        return base;
+      });
       setCoupons(updatedCoupons);
       await handleSaveCouponsToDb(updatedCoupons);
       showNotification(`Cupão "${cleanCode}" atualizado com sucesso!`, 'success');
@@ -374,8 +405,9 @@ export default function Settings() {
       const updated = coupons.filter(c => c.id !== couponId);
       setCoupons(updated);
       try {
+        const sanitizedList = cleanUndefined(updated);
         await setDoc(doc(db, 'settings', 'coupons'), {
-          list: updated,
+          list: sanitizedList,
           updatedAt: new Date().toISOString()
         }, { merge: true });
         // Tenta remover também da collection se existir
