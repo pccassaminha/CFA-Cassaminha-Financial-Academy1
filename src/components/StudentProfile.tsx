@@ -18,6 +18,9 @@ export default function StudentProfile() {
   const [phoneError, setPhoneError] = useState('');
   const [phoneSuccess, setPhoneSuccess] = useState('');
 
+  const [isActivatingProducer, setIsActivatingProducer] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly'>('quarterly');
+
   const handlePasswordReset = async () => {
     const email = profile?.email || auth.currentUser?.email;
     if (!email) {
@@ -131,9 +134,6 @@ export default function StudentProfile() {
 
   const enrolledCount = Array.isArray(profile?.enrolledCourses) ? profile.enrolledCourses.length : 0;
   const completedCount = Array.isArray(profile?.completedLessons) ? profile.completedLessons.length : 0;
-
-  const [isActivatingProducer, setIsActivatingProducer] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly'>('quarterly');
 
   const handleActivateProducerRole = async () => {
     const user = auth.currentUser;
