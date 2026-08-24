@@ -11,6 +11,7 @@ interface CheckoutProps {
   coursePrice: number;
   courseCover?: string;
   onBack: () => void;
+  preAppliedCoupon?: Coupon | null;
 }
 
 const DEFAULT_PAYMENT_METHODS = [
@@ -20,7 +21,7 @@ const DEFAULT_PAYMENT_METHODS = [
   { id: 'kwik', type: 'kwik', shortName: 'KWIK Pagamentos', bankName: 'Transferência KWIK', accountNumber: '931 112 233', holderName: 'GRUPOCASSAMINHA' }
 ];
 
-export default function CourseCheckout({ courseId, courseTitle, coursePrice, courseCover, onBack }: CheckoutProps) {
+export default function CourseCheckout({ courseId, courseTitle, coursePrice, courseCover, onBack, preAppliedCoupon }: CheckoutProps) {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [existingTxStatus, setExistingTxStatus] = useState<'pending' | 'approved' | null>(null);
@@ -108,6 +109,27 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           }
         }
         setCouponsList(loadedCoupons);
+
+        // Aplicação inteligente automática de cupão
+        if (preAppliedCoupon) {
+          setAppliedCoupon(preAppliedCoupon);
+          const discountStr = preAppliedCoupon.type === 'percentage' 
+            ? `${preAppliedCoupon.discountValue}%` 
+            : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(Number(preAppliedCoupon.discountValue));
+          setCouponSuccessMsg(`Cupão ${preAppliedCoupon.code} aplicado com sucesso! (-${discountStr})`);
+        } else if (loadedCoupons.length > 0) {
+          const activeCoupons = loadedCoupons.filter(c => c && c.active !== false);
+          const courseSpecific = activeCoupons.find(c => c.scope === 'course' && c.courseId === courseId);
+          const general = activeCoupons.find(c => c.scope === 'all' || !c.scope || !c.courseId);
+          const best = courseSpecific || general;
+          if (best) {
+            setAppliedCoupon(best);
+            const discountStr = best.type === 'percentage' 
+              ? `${best.discountValue}%` 
+              : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(Number(best.discountValue));
+            setCouponSuccessMsg(`Cupão ${best.code} aplicado com sucesso! (-${discountStr})`);
+          }
+        }
 
         // 3. Métodos de Pagamento das Configurações
         const activeMethods: any[] = [];

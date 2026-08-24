@@ -129,6 +129,9 @@ export default function StudentProfile() {
     );
   }
 
+  const enrolledCount = Array.isArray(profile?.enrolledCourses) ? profile.enrolledCourses.length : 0;
+  const completedCount = Array.isArray(profile?.completedLessons) ? profile.completedLessons.length : 0;
+
   const [isActivatingProducer, setIsActivatingProducer] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly'>('quarterly');
 
@@ -158,7 +161,6 @@ export default function StudentProfile() {
       setIsActivatingProducer(false);
     }
   };
-  const completedCount = Array.isArray(profile?.completedLessons) ? profile.completedLessons.length : 0;
   const numericId = getNumericId(profile?.uid || auth.currentUser?.uid || '');
   const fullName = profile?.firstName ? `${profile.firstName} ${profile.lastName || ''}` : (auth.currentUser?.displayName || 'Estudante CFA');
   const currentPhone = profile?.phoneNumber ? `${profile.phoneCountryCode || ''} ${profile.phoneNumber}`.trim() : 'Não informado';

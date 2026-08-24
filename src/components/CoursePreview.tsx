@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check, Unlock, ArrowRight } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check, Unlock, ArrowRight, Sparkles, Tag } from 'lucide-react';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
 import { LinkifiedText } from './LinkifiedText';
 import { useNavigate } from 'react-router-dom';
+import { Coupon } from '../types';
 
 interface CoursePreviewProps {
   courseId: string;
   onBack: () => void;
-  onOpenCheckout: () => void;
+  onOpenCheckout: (coupon?: Coupon | null) => void;
 }
 
 interface CourseModule {
@@ -33,6 +34,45 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [enrolledSuccess, setEnrolledSuccess] = useState(false);
   const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
+  const [detectedCoupon, setDetectedCoupon] = useState<Coupon | null>(null);
+
+  useEffect(() => {
+    const fetchCoupon = async () => {
+      if (!courseId) return;
+      try {
+        const couponsSnap = await getDoc(doc(db, 'settings', 'coupons')).catch(() => null);
+        let loadedCoupons: Coupon[] = [];
+        if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list)) {
+          loadedCoupons = couponsSnap.data().list;
+        } else {
+          const directCouponsSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
+          if (directCouponsSnap && !directCouponsSnap.empty) {
+            loadedCoupons = directCouponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+          }
+        }
+
+        const activeCoupons = loadedCoupons.filter(c => c && c.active !== false);
+        if (activeCoupons.length === 0) return;
+
+        // 1. Cupão específico para este curso
+        const courseSpecific = activeCoupons.find(c => c.scope === 'course' && c.courseId === courseId);
+        if (courseSpecific) {
+          setDetectedCoupon(courseSpecific);
+          return;
+        }
+
+        // 2. Cupão geral (todos os cursos)
+        const generalCoupon = activeCoupons.find(c => c.scope === 'all' || !c.scope || !c.courseId);
+        if (generalCoupon) {
+          setDetectedCoupon(generalCoupon);
+        }
+      } catch (err) {
+        console.error("Erro ao verificar cupões no preview do curso:", err);
+      }
+    };
+
+    fetchCoupon();
+  }, [courseId]);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -279,15 +319,51 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
                 )}
               </div>
 
-              <div className="mb-6">
-                <span className="text-xs uppercase text-gray-400 font-bold tracking-wider">Investimento Total</span>
-                <div className={`text-3xl font-extrabold font-headline mt-1 ${!course.price || course.price === 0 ? 'text-emerald-400' : 'text-[#e9c349]'}`}>
-                  {!course.price || course.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                </div>
-                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-[#e9c349]" /> {!course.price || course.price === 0 ? 'Acesso livre e imediato ao conteúdo' : 'Pagamento único via Multicaixa / Express'}
-                </p>
-              </div>
+              {(() => {
+                let discountAmount = 0;
+                if (detectedCoupon && course && course.price > 0) {
+                  if (detectedCoupon.type === 'percentage') {
+                    discountAmount = (course.price * Number(detectedCoupon.discountValue)) / 100;
+                  } else if (detectedCoupon.type === 'fixed') {
+                    discountAmount = Number(detectedCoupon.discountValue);
+                  }
+                  if (discountAmount > course.price) discountAmount = course.price;
+                }
+                const discountedPrice = course ? Math.max(0, course.price - discountAmount) : 0;
+
+                return (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                      <span className="text-xs uppercase text-gray-400 font-bold tracking-wider">Investimento Total</span>
+                      {detectedCoupon && course.price > 0 && (
+                        <span className="bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/40 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 font-mono shadow-sm">
+                          <Sparkles className="w-3 h-3 text-[#e9c349]" />
+                          Cupom {detectedCoupon.code}: -{detectedCoupon.type === 'percentage' ? `${detectedCoupon.discountValue}%` : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(Number(detectedCoupon.discountValue))}
+                        </span>
+                      )}
+                    </div>
+
+                    {detectedCoupon && course.price > 0 ? (
+                      <div className="flex items-baseline gap-2.5 mt-1">
+                        <div className="text-3xl font-extrabold font-headline text-[#e9c349]">
+                          {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountedPrice)}
+                        </div>
+                        <div className="text-sm line-through text-stone-500 font-bold font-mono">
+                          {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`text-3xl font-extrabold font-headline mt-1 ${!course.price || course.price === 0 ? 'text-emerald-400' : 'text-[#e9c349]'}`}>
+                        {!course.price || course.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                      </div>
+                    )}
+
+                    <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-[#e9c349]" /> {!course.price || course.price === 0 ? 'Acesso livre e imediato ao conteúdo' : 'Pagamento único via Multicaixa / Express'}
+                    </p>
+                  </div>
+                );
+              })()}
               
               {isAlreadyEnrolled ? (
                 <button 
@@ -313,10 +389,11 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
               ) : (
                 <button 
                   id="btn-buy-course-preview"
-                  onClick={onOpenCheckout}
-                  className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-4 rounded-xl hover:bg-[#d4b03f] active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base"
+                  onClick={() => onOpenCheckout(detectedCoupon)}
+                  className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-4 rounded-xl hover:bg-[#d4b03f] active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base flex items-center justify-center gap-2"
                 >
-                  Comprar Curso
+                  {detectedCoupon && <Sparkles className="w-5 h-5 fill-black" />}
+                  <span>{detectedCoupon ? 'Aproveitar Oferta' : 'Comprar Curso'}</span>
                 </button>
               )}
               

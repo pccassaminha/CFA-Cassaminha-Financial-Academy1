@@ -3,7 +3,7 @@ export interface Coupon {
   code: string; // Ex: "PROMO10", "CASSAMINHA20"
   type: 'percentage' | 'fixed'; // Porcentagem (%) ou Valor Fixo (Kz)
   discountValue: number; // Ex: 10 para 10% ou 5000 para 5.000 Kz
-  scope: 'general' | 'course'; // 'general' = todos os cursos, 'course' = curso específico
+  scope: 'general' | 'course' | 'all'; // 'general'/'all' = todos os cursos, 'course' = curso específico
   courseId?: string; // ID do curso se for específico
   courseTitle?: string; // Título do curso para exibição
   active: boolean; // Ativo / Inativo

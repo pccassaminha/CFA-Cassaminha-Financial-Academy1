@@ -161,12 +161,29 @@ export default function Checkout() {
         }
 
         // Load Coupons
+        let loadedCoupons: Coupon[] = [];
         if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list)) {
-          setCouponsList(couponsSnap.data().list);
+          loadedCoupons = couponsSnap.data().list;
         } else {
           const cSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
           if (cSnap && !cSnap.empty) {
-            setCouponsList(cSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon)));
+            loadedCoupons = cSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+          }
+        }
+        setCouponsList(loadedCoupons);
+
+        // Auto apply coupon if available
+        const activeCoupons = loadedCoupons.filter(c => c && c.active !== false);
+        if (activeCoupons.length > 0) {
+          const courseSpecific = activeCoupons.find(c => c.scope === 'course' && c.courseId === courseIdParam);
+          const general = activeCoupons.find(c => c.scope === 'all' || !c.scope || !c.courseId);
+          const best = courseSpecific || general;
+          if (best) {
+            setAppliedCoupon(best);
+            const discountStr = best.type === 'percentage' 
+              ? `${best.discountValue}%` 
+              : `Kz ${Number(best.discountValue).toLocaleString('pt-AO')}`;
+            setCouponSuccessMsg(`Cupão ${best.code} aplicado com sucesso! (-${discountStr})`);
           }
         }
       } catch (err) {

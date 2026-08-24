@@ -17,6 +17,7 @@ export default function StudentPortal() {
   
   const [currentView, setCurrentView] = useState<'catalog' | 'my-courses' | 'profile' | 'preview' | 'checkout'>('catalog');
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [preAppliedCoupon, setPreAppliedCoupon] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_CFA_LOGO);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -143,7 +144,8 @@ export default function StudentPortal() {
     navigate(`/library/${slugify(course.title)}`);
   };
 
-  const handleProceedToCheckout = () => {
+  const handleProceedToCheckout = (coupon?: any) => {
+    setPreAppliedCoupon(coupon || null);
     setCurrentView('checkout');
     // Keeping same URL, just showing checkout component
   };
@@ -304,6 +306,7 @@ export default function StudentPortal() {
             courseTitle={selectedCourse.title}
             coursePrice={selectedCourse.price}
             courseCover={selectedCourse.coverImage}
+            preAppliedCoupon={preAppliedCoupon}
             onBack={() => setCurrentView('preview')}
           />
         )}
