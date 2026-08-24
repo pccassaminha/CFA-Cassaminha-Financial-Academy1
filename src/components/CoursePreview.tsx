@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check, Unlock, ArrowRight, Sparkles, Tag } from 'lucide-react';
+import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check, Unlock, ArrowRight, Sparkles, Tag, Laptop, RefreshCw } from 'lucide-react';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
 import { LinkifiedText } from './LinkifiedText';
 import { useNavigate } from 'react-router-dom';
 import { Coupon } from '../types';
+import { slugify } from '../utils/slugify';
 
 interface CoursePreviewProps {
   courseId: string;
@@ -35,6 +36,22 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   const [enrolledSuccess, setEnrolledSuccess] = useState(false);
   const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
   const [detectedCoupon, setDetectedCoupon] = useState<Coupon | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalType, setAuthModalType] = useState<'checkout' | 'enroll'>('checkout');
+
+  const handleAuthRedirect = (action: 'checkout' | 'enroll') => {
+    sessionStorage.setItem('post_register_course_id', courseId);
+    sessionStorage.setItem('post_register_action', action);
+    sessionStorage.setItem('post_register_slug', slugify(course?.title || ''));
+    navigate('/criar-conta');
+  };
+
+  const handleLoginRedirect = (action: 'checkout' | 'enroll') => {
+    sessionStorage.setItem('post_register_course_id', courseId);
+    sessionStorage.setItem('post_register_action', action);
+    sessionStorage.setItem('post_register_slug', slugify(course?.title || ''));
+    navigate('/entrar');
+  };
 
   useEffect(() => {
     const fetchCoupon = async () => {
@@ -380,7 +397,15 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
               ) : !course.price || course.price === 0 ? (
                 <button 
                   id="btn-access-free-course"
-                  onClick={handleFreeEnroll}
+                  onClick={() => {
+                    const user = auth.currentUser;
+                    if (!user) {
+                      setAuthModalType('enroll');
+                      setShowAuthModal(true);
+                      return;
+                    }
+                    handleFreeEnroll();
+                  }}
                   disabled={isEnrolling}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-4 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base disabled:opacity-50 flex items-center justify-center gap-2"
                 >
@@ -389,7 +414,15 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
               ) : (
                 <button 
                   id="btn-buy-course-preview"
-                  onClick={() => onOpenCheckout(detectedCoupon)}
+                  onClick={() => {
+                    const user = auth.currentUser;
+                    if (!user) {
+                      setAuthModalType('checkout');
+                      setShowAuthModal(true);
+                      return;
+                    }
+                    onOpenCheckout(detectedCoupon);
+                  }}
                   className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-4 rounded-xl hover:bg-[#d4b03f] active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base flex items-center justify-center gap-2"
                 >
                   {detectedCoupon && <Sparkles className="w-5 h-5 fill-black" />}
@@ -404,6 +437,72 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
           </div>
         </div>
       </div>
+
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="bg-[#121212] border border-[#e9c349]/30 rounded-3xl max-w-lg w-full p-6 sm:p-8 relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-xl sm:text-2xl font-black font-headline text-white text-center mb-2 tracking-wide">
+              Sincronizar Acesso ao Treinamento
+            </h3>
+            <p className="text-gray-400 text-xs sm:text-sm text-center mb-6 leading-relaxed">
+              Para prosseguir e adquirir ou liberar <strong className="text-white">"{course?.title}"</strong>, escolha como prefere conectar-se abaixo.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              {/* Option 1: New Device / Register */}
+              <div className="bg-[#181818] border border-white/5 rounded-2xl p-4 flex flex-col justify-between hover:border-[#e9c349]/20 transition-all group">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 flex items-center justify-center text-[#e9c349] mb-3 group-hover:scale-110 transition-transform">
+                    <Laptop className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-white font-extrabold text-sm mb-1 font-headline">
+                    Novo Dispositivo ou Aluno
+                  </h4>
+                  <p className="text-gray-400 text-[11px] leading-relaxed mb-4">
+                    Se este é um novo dispositivo ou ainda não possui cadastro na CFA Academy, crie a sua conta agora.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleAuthRedirect(authModalType)}
+                  className="w-full bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold py-2.5 px-3 rounded-xl transition-all font-headline text-xs shadow-md cursor-pointer text-center"
+                >
+                  Criar Conta de Aluno
+                </button>
+              </div>
+
+              {/* Option 2: Sync Existing Account */}
+              <div className="bg-[#181818] border border-white/5 rounded-2xl p-4 flex flex-col justify-between hover:border-[#e9c349]/20 transition-all group">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-3 group-hover:scale-110 transition-transform">
+                    <RefreshCw className="w-5 h-5 animate-spin-slow" />
+                  </div>
+                  <h4 className="text-white font-extrabold text-sm mb-1 font-headline">
+                    Sincronizar Conta Existente
+                  </h4>
+                  <p className="text-gray-400 text-[11px] leading-relaxed mb-4">
+                    Já possui um registro ou comprou outro curso? Faça login para sincronizar a sua conta neste dispositivo.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleLoginRedirect(authModalType)}
+                  className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-2.5 px-3 rounded-xl border border-white/10 transition-all text-xs cursor-pointer text-center"
+                >
+                  Entrar
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center">
+              <button
+                onClick={() => setShowAuthModal(false)}
+                className="text-gray-500 hover:text-white transition-colors text-xs font-semibold py-2 cursor-pointer"
+              >
+                Voltar aos detalhes do curso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

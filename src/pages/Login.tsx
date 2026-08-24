@@ -155,7 +155,12 @@ export default function Login() {
       navigate('/pending');
     } else {
       // Aluno (ativo ou inativo) acessa o portal do aluno para ver cursos disponíveis e matriculados
-      navigate('/library');
+      const postRegSlug = sessionStorage.getItem('post_register_slug');
+      if (postRegSlug) {
+        navigate(`/library/${postRegSlug}`);
+      } else {
+        navigate('/library');
+      }
     }
   };
 

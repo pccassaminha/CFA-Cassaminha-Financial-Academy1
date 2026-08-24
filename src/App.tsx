@@ -168,15 +168,15 @@ export default function App() {
           
           <Route 
             path="/library" 
-            element={user ? <StudentPortal /> : <Navigate to="/entrar" replace />} 
+            element={<StudentPortal />} 
           />
           <Route 
             path="/library/:slug" 
-            element={user ? <StudentPortal /> : <Navigate to="/entrar" replace />} 
+            element={<StudentPortal />} 
           />
           <Route 
             path="/portal" 
-            element={user ? <StudentPortal /> : <Navigate to="/entrar" replace />} 
+            element={<StudentPortal />} 
           />
           <Route 
             path="/classroom" 

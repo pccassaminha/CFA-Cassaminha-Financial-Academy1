@@ -21,6 +21,14 @@ export default function StudentPortal() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_CFA_LOGO);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [user, setUser] = useState<any>(auth.currentUser);
+
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      setUser(u);
+    });
+    return () => unsub();
+  }, []);
 
   // Sync URL to view state
   useEffect(() => {
@@ -32,12 +40,22 @@ export default function StudentPortal() {
       }
 
       if (slug === 'meus-cursos') {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          navigate('/entrar', { replace: true });
+          return;
+        }
         setCurrentView('my-courses');
         setIsInitializing(false);
         return;
       }
 
       if (slug === 'perfil') {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          navigate('/entrar', { replace: true });
+          return;
+        }
         setCurrentView('profile');
         setIsInitializing(false);
         return;
@@ -54,8 +72,18 @@ export default function StudentPortal() {
           
           if (matchedCourse) {
             setSelectedCourse(matchedCourse);
-            // Default to preview when loaded from URL, unless they are already in checkout
-            if (currentView !== 'checkout') {
+            
+            // Check post-registration actions
+            const postRegAction = sessionStorage.getItem('post_register_action');
+            const postRegId = sessionStorage.getItem('post_register_course_id');
+            
+            if (postRegId === matchedCourse.id && (postRegAction === 'checkout' || postRegAction === 'enroll')) {
+              setCurrentView('checkout');
+              // Clear these items so they don't loop
+              sessionStorage.removeItem('post_register_action');
+              sessionStorage.removeItem('post_register_course_id');
+              sessionStorage.removeItem('post_register_slug');
+            } else if (currentView !== 'checkout') {
               setCurrentView('preview');
             }
           } else {
@@ -75,8 +103,20 @@ export default function StudentPortal() {
 
   const handleSetView = (view: typeof currentView) => {
     if (view === 'catalog') navigate('/library');
-    else if (view === 'my-courses') navigate('/library/meus-cursos');
-    else if (view === 'profile') navigate('/library/perfil');
+    else if (view === 'my-courses') {
+      if (!user) {
+        navigate('/entrar');
+      } else {
+        navigate('/library/meus-cursos');
+      }
+    }
+    else if (view === 'profile') {
+      if (!user) {
+        navigate('/entrar');
+      } else {
+        navigate('/library/perfil');
+      }
+    }
     // preview and checkout are handled via handleSelectCourse / handleProceedToCheckout
     else setCurrentView(view);
   };
@@ -228,14 +268,24 @@ export default function StudentPortal() {
               <span className="hidden sm:inline">Admin</span>
             </button>
           )}
-          <button
-            id="student-logout-top-btn"
-            onClick={handleLogout}
-            className="bg-white/5 border border-white/10 text-gray-300 hover:text-red-400 hover:border-red-500/30 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Sair</span>
-          </button>
+          {user ? (
+            <button
+              id="student-logout-top-btn"
+              onClick={handleLogout}
+              className="bg-white/5 border border-white/10 text-gray-300 hover:text-red-400 hover:border-red-500/30 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+          ) : (
+            <button
+              id="student-login-top-btn"
+              onClick={() => navigate('/entrar')}
+              className="bg-[#e9c349] text-black hover:bg-[#d4b03f] px-4.5 py-1.5 sm:px-5 sm:py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
+            >
+              <span>Entrar</span>
+            </button>
+          )}
         </div>
       </header>
 

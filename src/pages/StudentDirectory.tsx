@@ -596,22 +596,26 @@ export default function StudentDirectory() {
               >
                 Com Assinatura ({activeUsersCount})
               </button>
-              <button
-                onClick={() => setRoleFilter('registered_only')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                  roleFilter === 'registered_only' ? 'bg-amber-400 text-black shadow-sm' : 'text-amber-400 hover:bg-amber-500/10'
-                }`}
-              >
-                Apenas Cadastrados ({registeredOnlyCount})
-              </button>
-              <button
-                onClick={() => setRoleFilter('producers')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                  roleFilter === 'producers' ? 'bg-[#e9c349] text-black shadow-sm' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                Produtores & Admins
-              </button>
+              {isMasterUser && (
+                <>
+                  <button
+                    onClick={() => setRoleFilter('registered_only')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      roleFilter === 'registered_only' ? 'bg-amber-400 text-black shadow-sm' : 'text-amber-400 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    Apenas Cadastrados ({registeredOnlyCount})
+                  </button>
+                  <button
+                    onClick={() => setRoleFilter('producers')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      roleFilter === 'producers' ? 'bg-[#e9c349] text-black shadow-sm' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Produtores & Admins
+                  </button>
+                </>
+              )}
               {pendingApprovals.length > 0 && (
                 <button
                   onClick={() => setRoleFilter('pending')}
