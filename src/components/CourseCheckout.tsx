@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { ArrowLeft, Copy, Check, MessageCircle, ShieldCheck, Building2, Smartphone, CreditCard } from 'lucide-react';
+import { ArrowLeft, Copy, Check, MessageCircle, ShieldCheck, Building2, Smartphone, CreditCard, Ticket, Tag, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Coupon } from '../types';
 
 interface CheckoutProps {
   courseId: string;
@@ -34,8 +35,28 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [effectiveCover, setEffectiveCover] = useState<string>(courseCover || '');
 
+  // Estado dos Cupões de Desconto
+  const [couponsList, setCouponsList] = useState<Coupon[]>([]);
+  const [showCouponInput, setShowCouponInput] = useState(false);
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponSuccessMsg, setCouponSuccessMsg] = useState<string | null>(null);
+
   const safePrice = coursePrice || 0;
   const safeTitle = courseTitle || 'Curso Selecionado';
+
+  // Cálculo de desconto e preço final
+  let discountAmount = 0;
+  if (appliedCoupon) {
+    if (appliedCoupon.type === 'percentage') {
+      discountAmount = (safePrice * Number(appliedCoupon.discountValue)) / 100;
+    } else if (appliedCoupon.type === 'fixed') {
+      discountAmount = Number(appliedCoupon.discountValue);
+    }
+    if (discountAmount > safePrice) discountAmount = safePrice;
+  }
+  const finalPrice = Math.max(0, safePrice - discountAmount);
 
   useEffect(() => {
     if (courseCover) {
@@ -61,11 +82,12 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
     const fetchCheckoutConfig = async () => {
       try {
         // Executa todas as buscas em PARALELO para velocidade máxima
-        const [genSnap, platSnap, paymentSettingsSnap, methodsSnap] = await Promise.all([
+        const [genSnap, platSnap, paymentSettingsSnap, methodsSnap, couponsSnap] = await Promise.all([
           getDoc(doc(db, 'settings', 'general')).catch(() => null),
           getDoc(doc(db, 'settings', 'platform')).catch(() => null),
           getDoc(doc(db, 'settings', 'payment')).catch(() => null),
-          getDocs(collection(db, 'paymentMethods')).catch(() => null)
+          getDocs(collection(db, 'paymentMethods')).catch(() => null),
+          getDoc(doc(db, 'settings', 'coupons')).catch(() => null)
         ]);
 
         // 1. Suporte WhatsApp
@@ -75,7 +97,19 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           setSupportNumber(platSnap.data().supportWhatsApp);
         }
 
-        // 2. Métodos de Pagamento das Configurações
+        // 2. Cupões de Desconto
+        let loadedCoupons: Coupon[] = [];
+        if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list)) {
+          loadedCoupons = couponsSnap.data().list;
+        } else {
+          const directCouponsSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
+          if (directCouponsSnap && !directCouponsSnap.empty) {
+            loadedCoupons = directCouponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+          }
+        }
+        setCouponsList(loadedCoupons);
+
+        // 3. Métodos de Pagamento das Configurações
         const activeMethods: any[] = [];
 
         if (paymentSettingsSnap?.exists()) {
@@ -126,7 +160,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           }
         }
 
-        // 3. Collection complementar paymentMethods
+        // 4. Collection complementar paymentMethods
         if (methodsSnap && !methodsSnap.empty) {
           methodsSnap.docs.forEach(docSnap => {
             const data = docSnap.data();
@@ -147,7 +181,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           setPaymentMethods(activeMethods);
         }
 
-        // 4. Usuário e duplicidade de transação
+        // 5. Usuário e duplicidade de transação
         const u = auth.currentUser;
         if (u) {
           const userDocSnap = await getDoc(doc(db, 'users', u.uid)).catch(() => null);
@@ -195,6 +229,45 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
     fetchCheckoutConfig();
   }, [courseId]);
 
+  const handleApplyCoupon = () => {
+    setCouponError(null);
+    setCouponSuccessMsg(null);
+    const clean = couponCodeInput.trim().toUpperCase();
+    if (!clean) {
+      setCouponError('Por favor, digite o código do cupão.');
+      return;
+    }
+
+    const match = couponsList.find(c => c.code && c.code.trim().toUpperCase() === clean);
+    if (!match) {
+      setCouponError('Cupão de desconto inválido ou inexistente.');
+      return;
+    }
+
+    if (match.active === false) {
+      setCouponError('Este cupão de desconto não está mais ativo.');
+      return;
+    }
+
+    if (match.scope === 'course' && match.courseId && match.courseId !== courseId) {
+      setCouponError(`Cupão válido apenas para o curso "${match.courseTitle || 'específico'}".`);
+      return;
+    }
+
+    setAppliedCoupon(match);
+    const discountLabel = match.type === 'percentage' 
+      ? `${match.discountValue}% de desconto` 
+      : `${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(Number(match.discountValue))} de desconto`;
+    setCouponSuccessMsg(`Cupão ${match.code} aplicado com sucesso! (${discountLabel})`);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput('');
+    setCouponError(null);
+    setCouponSuccessMsg(null);
+  };
+
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
@@ -227,7 +300,10 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
         courseTitle: safeTitle,
         referenceNumber: bankReference,
         paymentMethod: selectedMethod.shortName || selectedMethod.bankName || 'Transferência',
-        amount: safePrice,
+        amount: finalPrice,
+        originalAmount: safePrice,
+        discountAmount: discountAmount,
+        appliedCoupon: appliedCoupon ? appliedCoupon.code : null,
         status: 'pending',
         createdAt: serverTimestamp()
       });
@@ -236,9 +312,17 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
       setExistingTxStatus('pending');
 
       const cleanSupport = supportNumber.replace(/[^0-9]/g, '');
+      const couponLine = appliedCoupon 
+        ? `%0A🎟️ *Cupão de Desconto:* ${appliedCoupon.code} (Desconto de ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountAmount)})`
+        : '';
+
+      const originalPriceLine = discountAmount > 0 
+        ? ` _(Valor original: ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(safePrice)})_` 
+        : '';
+
       const message = `Olá, equipe CFA! Realizei o pagamento do curso.%0A%0A` +
         `📚 *Curso:* ${safeTitle}%0A` +
-        `💵 *Valor:* ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(safePrice)}%0A` +
+        `💵 *Valor:* ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(finalPrice)}${originalPriceLine}${couponLine}%0A` +
         `👤 *Aluno:* ${finalUser.name}%0A` +
         `💳 *Método:* ${selectedMethod.shortName || selectedMethod.bankName}%0A` +
         `🔖 *Referência do Talão:* ${bankReference}%0A%0A` +
@@ -346,7 +430,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
             <div className="bg-[#131313] border border-gray-800 rounded-3xl p-6 md:p-8 sticky top-8 shadow-2xl">
               <h3 className="text-xl font-bold mb-6 pb-4 border-b border-gray-800 font-headline">Resumo da Inscrição</h3>
               
-              <div className="space-y-4 mb-8">
+              <div className="space-y-4 mb-6">
                 {courseCover && (
                   <div className="aspect-video w-full rounded-2xl overflow-hidden border border-gray-800 bg-black/40">
                     <img 
@@ -358,14 +442,129 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
                   </div>
                 )}
                 <div>
-                  <span className="text-xs text-gray-400 uppercase tracking-wider block mb-1">Curso</span>
-                  <span className="text-white font-bold text-base md:text-lg block line-clamp-2">{safeTitle}</span>
+                  <span className="text-[11px] font-bold text-[#e9c349] uppercase tracking-wider block mb-1 font-mono">Curso</span>
+                  <span className="text-white font-bold text-base md:text-lg block leading-snug">{safeTitle}</span>
                 </div>
-                <div className="flex justify-between items-center pt-4 border-t border-gray-800">
-                  <span className="text-gray-300 font-medium">Total:</span>
-                  <span className="text-2xl font-black text-[#e9c349]">
-                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(safePrice)}
-                  </span>
+
+                {/* Preços e Subtotal com Detalhamento de Desconto */}
+                <div className="pt-4 border-t border-gray-800/80 space-y-2.5">
+                  <div className="flex justify-between items-center text-xs text-gray-400">
+                    <span>Preço do Curso:</span>
+                    <span className={`font-semibold ${discountAmount > 0 ? 'line-through text-gray-500' : 'text-gray-200'}`}>
+                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(safePrice)}
+                    </span>
+                  </div>
+
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between items-center text-xs text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl">
+                      <span className="flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5" />
+                        Desconto ({appliedCoupon?.code}):
+                      </span>
+                      <span className="font-mono font-bold">- {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountAmount)}</span>
+                    </div>
+                  )}
+
+                  {/* SEÇÃO DO CUPÃO DE DESCONTO */}
+                  <div className="pt-2 pb-1">
+                    {!appliedCoupon ? (
+                      <div>
+                        {!showCouponInput ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCouponInput(true)}
+                            className="w-full flex items-center justify-between text-xs text-gray-400 hover:text-[#e9c349] p-3 rounded-xl bg-black/40 hover:bg-black/60 border border-gray-800 hover:border-[#e9c349]/30 transition-all cursor-pointer group"
+                          >
+                            <span className="flex items-center gap-2 font-medium">
+                              <Ticket className="w-4 h-4 text-[#e9c349] group-hover:scale-110 transition-transform" />
+                              Possui um cupão de desconto?
+                            </span>
+                            <span className="text-[11px] font-bold text-[#e9c349] underline group-hover:no-underline">Inserir código</span>
+                          </button>
+                        ) : (
+                          <div className="bg-black/70 border border-gray-700/80 rounded-2xl p-3.5 space-y-2.5 animate-in fade-in duration-200">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                                <Ticket className="w-3.5 h-3.5 text-[#e9c349]" />
+                                Digite o Cupão de Desconto
+                              </label>
+                              <button 
+                                type="button" 
+                                onClick={() => { setShowCouponInput(false); setCouponError(null); }}
+                                className="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer"
+                              >
+                                Fechar
+                              </button>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={couponCodeInput}
+                                onChange={(e) => {
+                                  setCouponCodeInput(e.target.value.toUpperCase());
+                                  setCouponError(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleApplyCoupon();
+                                  }
+                                }}
+                                placeholder="EX: CFA10"
+                                className="flex-1 bg-[#131313] border border-gray-700 focus:border-[#e9c349] text-white rounded-xl px-3 py-2 text-xs font-mono uppercase tracking-wider outline-none transition-all placeholder:text-gray-600"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleApplyCoupon}
+                                className="bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
+                              >
+                                Aplicar
+                              </button>
+                            </div>
+
+                            {couponError && (
+                              <p className="text-red-400 text-[11px] font-medium flex items-center gap-1 animate-in fade-in">
+                                <span className="material-symbols-outlined text-[14px]">error</span> {couponError}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                            <Check className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-black text-emerald-400 font-mono tracking-wider">{appliedCoupon.code}</span>
+                              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">
+                                {appliedCoupon.type === 'percentage' ? `${appliedCoupon.discountValue}% OFF` : `-${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(Number(appliedCoupon.discountValue))}`}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-gray-400 block">Cupão aplicado com sucesso!</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveCoupon}
+                          className="text-xs text-gray-400 hover:text-red-400 font-medium px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                          title="Remover cupão"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-800">
+                    <span className="text-gray-300 font-medium">Total:</span>
+                    <span className="text-2xl font-black text-[#e9c349]">
+                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(finalPrice)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
