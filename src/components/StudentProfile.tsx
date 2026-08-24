@@ -129,7 +129,35 @@ export default function StudentProfile() {
     );
   }
 
-  const enrolledCount = Array.isArray(profile?.enrolledCourses) ? profile.enrolledCourses.length : 0;
+  const [isActivatingProducer, setIsActivatingProducer] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly'>('quarterly');
+
+  const handleActivateProducerRole = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      setIsActivatingProducer(true);
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, {
+        role: 'producer',
+        roleType: 'producer',
+        subscriptionStatus: 'active',
+        isApproved: true,
+        producerPlan: selectedPlan,
+        plan: 'Produtor'
+      }, { merge: true });
+
+      localStorage.setItem('viewAsStudent', 'false');
+      window.dispatchEvent(new Event('student-view-changed'));
+      window.location.href = '/dashboard';
+    } catch (err) {
+      console.error("Erro ao ativar conta de produtor:", err);
+      alert("Ocorreu um erro ao ativar a sua conta de produtor. Tente novamente.");
+    } finally {
+      setIsActivatingProducer(false);
+    }
+  };
   const completedCount = Array.isArray(profile?.completedLessons) ? profile.completedLessons.length : 0;
   const numericId = getNumericId(profile?.uid || auth.currentUser?.uid || '');
   const fullName = profile?.firstName ? `${profile.firstName} ${profile.lastName || ''}` : (auth.currentUser?.displayName || 'Estudante CFA');
@@ -260,9 +288,101 @@ export default function StudentProfile() {
               <span className="text-[11px] text-gray-500 uppercase font-mono block mb-1">Tipo de Conta</span>
               <p className="text-white text-sm font-bold capitalize mt-1 flex items-center gap-2">
                 <Shield className="w-4 h-4 text-[#e9c349]" />
-                {profile?.role === 'admin' ? 'Administrador / Produtor' : 'Estudante Verificado'}
+                {profile?.role === 'admin' ? 'Administrador Master' : profile?.role === 'producer' || profile?.roleType === 'producer' ? 'Produtor de Cursos' : 'Estudante Verificado'}
               </p>
             </div>
+          </div>
+
+          {/* Seção de Área de Produtor / Ativação de Produtor */}
+          <div className="mt-8 pt-6 border-t border-gray-800">
+            {profile?.role === 'producer' || profile?.role === 'admin' || profile?.roleType === 'producer' ? (
+              <div className="p-5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-[#e9c349]/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="space-y-1 text-center sm:text-left">
+                  <span className="px-2.5 py-0.5 bg-[#e9c349] text-black font-extrabold text-[10px] uppercase rounded-full tracking-wider">
+                    Conta de Produtor Ativa
+                  </span>
+                  <h4 className="text-base font-extrabold text-white font-headline">Painel Administrativo do Produtor</h4>
+                  <p className="text-xs text-gray-300">
+                    Sua conta tem permissão total para criar cursos, gerenciar módulos, visualizar métricas e registrar dados de recebimento.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('viewAsStudent', 'false');
+                    window.dispatchEvent(new Event('student-view-changed'));
+                    window.location.href = '/dashboard';
+                  }}
+                  className="px-6 py-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-black text-xs rounded-xl transition-all shadow-lg cursor-pointer shrink-0 active:scale-95 flex items-center gap-2"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Acessar Painel do Produtor</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-6 bg-[#0e0e0e] border border-stone-800 rounded-2xl space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-[#e9c349]/15 text-[#e9c349] rounded-xl shrink-0 mt-0.5">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-bold text-white font-headline">Deseja criar e vender cursos na plataforma CFA?</h4>
+                    <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+                      Ative a sua Conta de Produtor para ter acesso à área administrativa, cadastrar vídeo-aulas, gerenciar alunos e receber pagamentos diretos na sua conta bancária / Multicaixa Express.
+                    </p>
+                    <p className="text-[11px] text-emerald-400 font-bold mt-1.5 flex items-center gap-1">
+                      <span>🎁 Cadastro Inicial 100% Gratuito!</span>
+                      <span className="text-stone-400 font-normal">O pagamento da taxa ocorre somente no fim do período de utilização.</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div
+                    onClick={() => setSelectedPlan('monthly')}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      selectedPlan === 'monthly' ? 'bg-[#e9c349]/15 border-[#e9c349]' : 'bg-black/50 border-stone-800 hover:border-stone-700'
+                    }`}
+                  >
+                    <div>
+                      <span className="text-xs font-bold text-white block">Plano Mensal</span>
+                      <span className="text-[11px] text-stone-400 font-mono">3.500 Kz / mês</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedPlan === 'monthly' ? 'border-[#e9c349] bg-[#e9c349]' : 'border-stone-600'}`}>
+                      {selectedPlan === 'monthly' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setSelectedPlan('quarterly')}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      selectedPlan === 'quarterly' ? 'bg-[#e9c349]/15 border-[#e9c349]' : 'bg-black/50 border-stone-800 hover:border-stone-700'
+                    }`}
+                  >
+                    <div>
+                      <span className="text-xs font-bold text-[#e9c349] flex items-center gap-1">
+                        Plano Trimestral
+                        <span className="text-[9px] bg-[#e9c349] text-black px-1.5 py-0.2 font-bold rounded">Recomendado</span>
+                      </span>
+                      <span className="text-[11px] text-stone-400 font-mono">7.000 Kz / 3 meses</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedPlan === 'quarterly' ? 'border-[#e9c349] bg-[#e9c349]' : 'border-stone-600'}`}>
+                      {selectedPlan === 'quarterly' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={handleActivateProducerRole}
+                    disabled={isActivatingProducer}
+                    className="w-full sm:w-auto px-6 py-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{isActivatingProducer ? 'Ativando Conta de Produtor...' : 'Ativar Minha Conta de Produtor Agora'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Botão de Recuperação / Redefinição de Senha */}

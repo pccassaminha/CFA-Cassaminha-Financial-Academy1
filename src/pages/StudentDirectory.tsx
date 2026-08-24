@@ -700,7 +700,7 @@ export default function StudentDirectory() {
                     </div>
 
                     {/* Bottom Actions */}
-                    {isPendingApproval && (
+                    {isPendingApproval ? (
                       <div className="pt-2 border-t border-gray-800/80 flex items-center gap-2">
                         <button
                           onClick={() => handleApproveProducer(userItem.id, userItem.email)}
@@ -714,6 +714,42 @@ export default function StudentDirectory() {
                           className="py-2 px-3 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold text-xs rounded-xl transition-all cursor-pointer"
                         >
                           Tornar Aluno
+                        </button>
+                      </div>
+                    ) : !isMaster && (
+                      <div className="pt-2 border-t border-gray-800/80 flex items-center justify-between gap-2 flex-wrap">
+                        {isProducerRole ? (
+                          <>
+                            <button
+                              onClick={() => setViewProducerCoursesUser(userItem)}
+                              className="px-2.5 py-1.5 bg-purple-500/10 text-purple-300 rounded-xl text-xs font-semibold border border-purple-500/30 cursor-pointer flex items-center gap-1"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>Cursos ({availableCourses.filter(c => c.authorId === userItem.id || c.authorId === userItem.email || (c.producerName && userItem.producerName && c.producerName.toLowerCase() === userItem.producerName.toLowerCase())).length})</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenProducerPlan(userItem)}
+                              className="px-2.5 py-1.5 bg-amber-500/10 text-amber-300 rounded-xl text-xs font-semibold border border-amber-500/30 cursor-pointer flex items-center gap-1"
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              <span>Plano</span>
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleApproveProducer(userItem.id, userItem.email)}
+                            className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-semibold border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Tornar Produtor</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleOpenCourseManager(userItem)}
+                          className="px-3 py-1.5 bg-white/5 text-gray-300 rounded-xl text-xs font-semibold border border-white/5 cursor-pointer flex items-center gap-1.5 ml-auto"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>{isProducerRole ? 'Matricular' : 'Gerenciar Cursos'}</span>
                         </button>
                       </div>
                     )}
@@ -929,6 +965,16 @@ export default function StudentDirectory() {
                                       <span>Plano / Status</span>
                                     </button>
                                   </>
+                                )}
+                                {!isProducerRole && !isMaster && (
+                                  <button
+                                    onClick={() => handleApproveProducer(userItem.id, userItem.email)}
+                                    className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-semibold border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1"
+                                    title="Tornar este usuário um Produtor com acesso ao Painel Administrativo"
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                    <span>Tornar Produtor</span>
+                                  </button>
                                 )}
                                 <button
                                   onClick={() => handleOpenCourseManager(userItem)}

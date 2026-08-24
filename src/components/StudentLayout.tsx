@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Compass, User, LogOut, ShieldCheck, LayoutDashboard } from 'lucide-react';
-import { logout, auth } from '../firebase';
+import { logout, auth, db } from '../firebase';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 interface StudentLayoutProps {
@@ -13,6 +14,7 @@ interface StudentLayoutProps {
 export default function StudentLayout({ children, activeTab, setActiveTab, onLogout }: StudentLayoutProps) {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isProducer, setIsProducer] = useState(false);
 
   useEffect(() => {
     const isMasterEmail = (email?: string | null) => {
@@ -21,15 +23,36 @@ export default function StudentLayout({ children, activeTab, setActiveTab, onLog
       return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
     };
 
+    let unsubUser: (() => void) | null = null;
+
     const checkAdmin = () => {
       const isSimulating = localStorage.getItem('viewAsStudent') === 'true';
-      const currentUserEmail = auth.currentUser?.email;
-      setIsAdmin(isSimulating || isMasterEmail(currentUserEmail));
+      const currentUser = auth.currentUser;
+      const currentUserEmail = currentUser?.email;
+      
+      if (isMasterEmail(currentUserEmail) || isSimulating) {
+        setIsAdmin(true);
+        setIsProducer(true);
+      }
+
+      if (currentUser) {
+        unsubUser = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const hasProducerRole = data.role === 'producer' || data.role === 'admin' || data.roleType === 'producer' || isMasterEmail(currentUserEmail);
+            setIsProducer(hasProducerRole);
+            setIsAdmin(isSimulating || hasProducerRole);
+          }
+        });
+      }
     };
 
     checkAdmin();
     window.addEventListener('student-view-changed', checkAdmin);
-    return () => window.removeEventListener('student-view-changed', checkAdmin);
+    return () => {
+      window.removeEventListener('student-view-changed', checkAdmin);
+      if (unsubUser) unsubUser();
+    };
   }, []);
 
   const handleReturnToAdmin = () => {
@@ -66,15 +89,15 @@ export default function StudentLayout({ children, activeTab, setActiveTab, onLog
             </div>
           </div>
 
-          {isAdmin && (
+          {(isAdmin || isProducer) && (
             <div className="p-3 bg-[#e9c349]/10 border-b border-[#e9c349]/20">
               <button
                 id="btn-return-admin-sidebar"
                 onClick={handleReturnToAdmin}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-[#e9c349] text-black font-bold text-xs hover:bg-[#d4b03f] transition-all cursor-pointer shadow-md active:scale-95"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#e9c349] text-black font-extrabold text-xs hover:bg-[#d4b03f] transition-all cursor-pointer shadow-md active:scale-95"
               >
                 <LayoutDashboard className="w-4 h-4" />
-                Voltar para Admin
+                <span>Painel do Produtor / Admin</span>
               </button>
             </div>
           )}
