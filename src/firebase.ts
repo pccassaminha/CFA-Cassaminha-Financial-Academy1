@@ -32,7 +32,6 @@ export const auth = getAuth(app);
 // Use optimized long polling settings for sandboxed iframe environments
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
-  useFetchStreams: false,
 }, firebaseConfig.firestoreDatabaseId);
 
 export const googleProvider = new GoogleAuthProvider();

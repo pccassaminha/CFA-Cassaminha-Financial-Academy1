@@ -92,10 +92,12 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
 
-  // Estados para Drag & Drop de Aulas entre Módulos e Reordenação
+  // Estados para Drag & Drop de Aulas e Módulos
   const [draggingLesson, setDraggingLesson] = useState<{ moduleId: string; lessonId: string } | null>(null);
   const [draggedOverModuleId, setDraggedOverModuleId] = useState<string | null>(null);
   const [draggedOverLesson, setDraggedOverLesson] = useState<{ lessonId: string; position: 'above' | 'below' } | null>(null);
+  const [draggingModuleIndex, setDraggingModuleIndex] = useState<number | null>(null);
+  const [draggedOverModulePos, setDraggedOverModulePos] = useState<{ index: number; position: 'above' | 'below' } | null>(null);
 
   // 1. Carregar dados do curso e módulos do Firebase
   useEffect(() => {
@@ -334,10 +336,28 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     });
   };
 
+  // Função auxiliar para atualizar o número no título do módulo (ex: "Módulo 2: Aula Prática" -> "Módulo 3: Aula Prática")
+  const updateModuleTitleNumber = (title: string, newNumber: number): string => {
+    const regex = /^(M[óo]dulo\s+)\d+([:\s\-].*|$)/i;
+    if (regex.test(title)) {
+      return title.replace(regex, `$1${newNumber}$2`);
+    }
+    return title;
+  };
+
+  // Renumera automaticamente todos os módulos da lista preservando os nomes customizados
+  const renumberModules = (mods: Module[]): Module[] => {
+    return mods.map((mod, idx) => ({
+      ...mod,
+      title: updateModuleTitleNumber(mod.title, idx + 1)
+    }));
+  };
+
   // Executar Exclusão Confirmada
   const handleConfirmItemDelete = () => {
     if (deleteConfirmModal.type === 'module' && deleteConfirmModal.moduleId) {
-      setModules(modules.filter(m => m.id !== deleteConfirmModal.moduleId));
+      const remaining = modules.filter(m => m.id !== deleteConfirmModal.moduleId);
+      setModules(renumberModules(remaining));
     } else if (deleteConfirmModal.type === 'lesson' && deleteConfirmModal.moduleId && deleteConfirmModal.lessonId) {
       setModules(modules.map(mod => {
         if (mod.id === deleteConfirmModal.moduleId) {
@@ -425,7 +445,69 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     }));
   };
 
-  // 8. Reordenação e Mover Aulas (Mesmo Módulo ou entre Módulos)
+  // 8. Reordenação e Mover Módulos (Troca de posição e renumeração automática)
+  const handleMoveModule = (moduleIndex: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? moduleIndex - 1 : moduleIndex + 1;
+    if (targetIndex < 0 || targetIndex >= modules.length) return;
+
+    const newModules = [...modules];
+    const temp = newModules[moduleIndex];
+    newModules[moduleIndex] = newModules[targetIndex];
+    newModules[targetIndex] = temp;
+
+    setModules(renumberModules(newModules));
+  };
+
+  // Eventos de Drag & Drop para Módulos
+  const handleModuleDragStart = (e: React.DragEvent, modIndex: number) => {
+    if (draggingLesson) return;
+    setDraggingModuleIndex(modIndex);
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'module', moduleIndex: modIndex }));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleModuleDragOver = (e: React.DragEvent, modIndex: number) => {
+    if (draggingModuleIndex === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'above' : 'below';
+
+    setDraggedOverModulePos({ index: modIndex, position });
+  };
+
+  const handleModuleDrop = (e: React.DragEvent, targetIndex: number) => {
+    if (draggingModuleIndex === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sourceIndex = draggingModuleIndex;
+    const pos = draggedOverModulePos?.position || 'below';
+    setDraggingModuleIndex(null);
+    setDraggedOverModulePos(null);
+
+    if (sourceIndex === targetIndex) return;
+
+    const newModules = [...modules];
+    const [movedModule] = newModules.splice(sourceIndex, 1);
+
+    let insertIndex = targetIndex;
+    if (sourceIndex < targetIndex) {
+      insertIndex = pos === 'below' ? targetIndex : targetIndex - 1;
+    } else {
+      insertIndex = pos === 'below' ? targetIndex + 1 : targetIndex;
+    }
+
+    if (insertIndex < 0) insertIndex = 0;
+    if (insertIndex > newModules.length) insertIndex = newModules.length;
+
+    newModules.splice(insertIndex, 0, movedModule);
+    setModules(renumberModules(newModules));
+  };
+
+  // 9. Reordenação e Mover Aulas (Mesmo Módulo ou entre Módulos)
   const handleMoveLesson = (moduleId: string, lessonIndex: number, direction: 'up' | 'down') => {
     setModules(prevModules => prevModules.map(mod => {
       if (mod.id !== moduleId) return mod;
@@ -453,6 +535,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   };
 
   const handleDragOverModule = (e: React.DragEvent, targetModId: string) => {
+    if (draggingModuleIndex !== null) return;
     e.preventDefault();
     setDraggedOverModuleId(targetModId);
   };
@@ -462,6 +545,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   };
 
   const handleDragOverLesson = (e: React.DragEvent, lessonId: string) => {
+    if (draggingModuleIndex !== null) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -473,6 +557,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   };
 
   const handleDropOnLesson = (e: React.DragEvent, targetModId: string, targetLessonId: string) => {
+    if (draggingModuleIndex !== null) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -553,6 +638,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   };
 
   const handleDropOnModule = (e: React.DragEvent, targetModId: string) => {
+    if (draggingModuleIndex !== null) return;
     e.preventDefault();
     setDraggedOverModuleId(null);
     setDraggedOverLesson(null);
@@ -614,6 +700,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     setDraggingLesson(null);
     setDraggedOverModuleId(null);
     setDraggedOverLesson(null);
+    setDraggingModuleIndex(null);
+    setDraggedOverModulePos(null);
   };
 
   return (
@@ -993,12 +1081,14 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           </div>
 
           <div className="space-y-6">
-            {modules.length > 0 && modules.some(m => m.lessons && m.lessons.length > 0) && (
+            {modules.length > 0 && (
               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-start gap-3 text-sm text-yellow-300">
                 <span className="text-base shrink-0">💡</span>
                 <div>
-                  <p className="font-bold text-white mb-0.5">Dica de Reordenação</p>
-                  <p className="text-xs text-gray-300 leading-relaxed">Você pode mover as aulas **para cima ou para baixo** no mesmo módulo usando os botões de seta (⬆️ ⬇️) ou **arrastando** uma aula para a posição desejada! Também é possível arrastar aulas de um módulo para outro.</p>
+                  <p className="font-bold text-white mb-0.5">Dica de Organização e Reordenação</p>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Você pode reordenar tanto os <strong>Módulos</strong> quanto as <strong>Aulas</strong> usando as setas (⬆️ ⬇️) ou <strong>arrastando</strong> para a posição desejada! Ao mudar a ordem dos módulos, a numeração é atualizada automaticamente em tempo real.
+                  </p>
                 </div>
               </div>
             )}
@@ -1016,56 +1106,120 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                 </button>
               </div>
             ) : (
-              modules.map((mod, index) => (
-                <div 
-                  key={mod.id} 
-                  onDragOver={(e) => handleDragOverModule(e, mod.id)}
-                  onDragLeave={handleDragLeaveModule}
-                  onDrop={(e) => handleDropOnModule(e, mod.id)}
-                  className={`bg-[#131313] border rounded-2xl p-6 shadow-xl space-y-4 transition-all duration-200 ${
-                    draggedOverModuleId === mod.id 
-                      ? 'border-[#e9c349] bg-[#e9c349]/5 shadow-yellow-500/5 ring-1 ring-[#e9c349]' 
-                      : 'border-gray-800'
-                  }`}
-                >
-                  {/* Header do Módulo */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-800/80">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-[#e9c349]/10 border border-[#e9c349]/20 flex items-center justify-center text-[#e9c349] font-bold text-xs">
-                        {index + 1}
+              modules.map((mod, index) => {
+                const isCurrentlyDraggedModule = draggingModuleIndex === index;
+                const isDraggingOverThisModule = draggedOverModulePos?.index === index && draggingModuleIndex !== null;
+                const moduleDropPos = isDraggingOverThisModule ? draggedOverModulePos?.position : null;
+
+                return (
+                  <div 
+                    key={mod.id} 
+                    draggable={draggingLesson === null}
+                    onDragStart={(e) => handleModuleDragStart(e, index)}
+                    onDragOver={(e) => {
+                      if (draggingModuleIndex !== null) {
+                        handleModuleDragOver(e, index);
+                      } else {
+                        handleDragOverModule(e, mod.id);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (draggingModuleIndex !== null) {
+                        setDraggedOverModulePos(null);
+                      } else {
+                        handleDragLeaveModule();
+                      }
+                    }}
+                    onDrop={(e) => {
+                      if (draggingModuleIndex !== null) {
+                        handleModuleDrop(e, index);
+                      } else {
+                        handleDropOnModule(e, mod.id);
+                      }
+                    }}
+                    onDragEnd={handleDragEnd}
+                    className={`bg-[#131313] border rounded-2xl p-6 shadow-xl space-y-4 transition-all duration-200 ${
+                      isCurrentlyDraggedModule
+                        ? 'opacity-40 border-[#e9c349]/50 border-dashed bg-[#e9c349]/10 scale-[0.99]'
+                        : isDraggingOverThisModule
+                          ? moduleDropPos === 'above'
+                            ? 'border-t-4 border-t-[#e9c349] border-gray-700 bg-[#e9c349]/5'
+                            : 'border-b-4 border-b-[#e9c349] border-gray-700 bg-[#e9c349]/5'
+                          : draggedOverModuleId === mod.id 
+                            ? 'border-[#e9c349] bg-[#e9c349]/5 shadow-yellow-500/5 ring-1 ring-[#e9c349]' 
+                            : 'border-gray-800'
+                    }`}
+                  >
+                    {/* Header do Módulo */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-800/80">
+                      <div className="flex items-center gap-3">
+                        {/* Alça de Arraste do Módulo */}
+                        <div 
+                          className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-[#e9c349] p-1 rounded transition-colors"
+                          title="Clique e arraste para reordenar este módulo"
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+
+                        <div className="w-8 h-8 rounded-lg bg-[#e9c349]/10 border border-[#e9c349]/20 flex items-center justify-center text-[#e9c349] font-bold text-xs">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-[#e9c349] font-bold uppercase tracking-wider">Módulo {index + 1}</span>
+                          <h3 className="text-lg font-bold text-white font-headline">{mod.title}</h3>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-[#e9c349] font-bold uppercase tracking-wider">Módulo {index + 1}</span>
-                        <h3 className="text-lg font-bold text-white font-headline">{mod.title}</h3>
+       
+                      <div className="flex items-center gap-2">
+                        {/* Botões de Mover Módulo para Cima / Baixo */}
+                        <div className="flex items-center bg-black/40 border border-gray-800 rounded-lg p-0.5 mr-1 shadow-inner">
+                          <button
+                            type="button"
+                            id={`btn-move-up-mod-${mod.id}`}
+                            onClick={() => handleMoveModule(index, 'up')}
+                            disabled={index === 0}
+                            className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 disabled:opacity-20 disabled:hover:text-gray-400 disabled:hover:bg-transparent rounded transition-colors cursor-pointer disabled:cursor-not-allowed"
+                            title={index === 0 ? "Primeiro módulo" : "Mover módulo para cima"}
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            id={`btn-move-down-mod-${mod.id}`}
+                            onClick={() => handleMoveModule(index, 'down')}
+                            disabled={index === modules.length - 1}
+                            className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 disabled:opacity-20 disabled:hover:text-gray-400 disabled:hover:bg-transparent rounded transition-colors cursor-pointer disabled:cursor-not-allowed"
+                            title={index === modules.length - 1 ? "Último módulo" : "Mover módulo para baixo"}
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <button
+                          id={`btn-add-lesson-mod-${mod.id}`}
+                          onClick={() => openAddLesson(mod.id)}
+                          className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Adicionar Aula
+                        </button>
+                        <button
+                          id={`btn-edit-mod-${mod.id}`}
+                          onClick={() => handleOpenEditModule(mod.id, mod.title)}
+                          className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+                          title="Editar Título do Módulo"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          id={`btn-delete-mod-${mod.id}`}
+                          onClick={() => promptDeleteModule(mod.id, mod.title)}
+                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                          title="Apagar Módulo"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-     
-                    <div className="flex items-center gap-2">
-                      <button
-                        id={`btn-add-lesson-mod-${mod.id}`}
-                        onClick={() => openAddLesson(mod.id)}
-                        className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Adicionar Aula
-                      </button>
-                      <button
-                        id={`btn-edit-mod-${mod.id}`}
-                        onClick={() => handleOpenEditModule(mod.id, mod.title)}
-                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
-                        title="Editar Título do Módulo"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button
-                        id={`btn-delete-mod-${mod.id}`}
-                        onClick={() => promptDeleteModule(mod.id, mod.title)}
-                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                        title="Apagar Módulo"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
      
                   {/* Lista de Aulas do Módulo */}
                   <div className="space-y-2.5 pt-1">
@@ -1176,8 +1330,9 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                     )}
                   </div>
                 </div>
-              ))
-            )}
+              );
+            })
+          )}
           </div>
         </>
       ) : (
