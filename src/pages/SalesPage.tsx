@@ -5,6 +5,7 @@ import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import HeroSection from '../components/HeroSection';
+import AnnouncementBar from '../components/AnnouncementBar';
 import { 
   BookOpen, 
   ArrowRight, 
@@ -135,49 +136,52 @@ export default function SalesPage() {
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#e9c349]/5 blur-[150px] rounded-full pointer-events-none"></div>
       <div className="absolute bottom-[20%] right-[-10%] w-[40%] h-[40%] bg-[#e9c349]/5 blur-[150px] rounded-full pointer-events-none"></div>
       
-      {/* Top Navigation Bar (Middle Links removed per requested focus layout selection) */}
-      <nav className="fixed top-0 w-full z-50 bg-[#131313]/85 backdrop-blur-xl transition-all border-b border-white/5">
-        <div className="flex justify-between items-center px-4 sm:px-8 py-2.5 sm:py-4 max-w-7xl mx-auto font-headline tracking-tight">
-          <Link to="/" className="flex items-center cursor-pointer" id="sales-logo-link">
-            {logoUrl ? (
-              <img 
-                src={logoUrl} 
-                alt="Logo" 
-                className="h-11 sm:h-16 md:h-20 w-auto object-contain rounded-lg sm:rounded-xl shadow-md transition-all" 
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-[#e9c349] flex items-center justify-center font-black text-black text-xs sm:text-base">CFA</div>
-                <span className="text-lg sm:text-2xl font-black tracking-tighter text-[#e9c349]">CFA Academy</span>
-              </div>
-            )}
-          </Link>
-          
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            {currentUser ? (
-              isAdmin ? (
-                <Link to="/dashboard" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
-                  <span className="material-symbols-outlined text-sm sm:text-base">admin_panel_settings</span> <span className="hidden xs:inline">Área </span>Administrativa
-                </Link>
+      {/* Top Header with Scrolling Announcement Bar */}
+      <header className="fixed top-0 w-full z-50">
+        <AnnouncementBar />
+        <nav className="w-full bg-[#131313]/90 backdrop-blur-xl transition-all border-b border-white/5">
+          <div className="flex justify-between items-center px-4 sm:px-8 py-2 sm:py-3 max-w-7xl mx-auto font-headline tracking-tight">
+            <Link to="/" className="flex items-center cursor-pointer" id="sales-logo-link">
+              {logoUrl ? (
+                <img 
+                  src={logoUrl} 
+                  alt="Logo" 
+                  className="h-10 sm:h-14 md:h-16 w-auto object-contain rounded-lg sm:rounded-xl shadow-md transition-all" 
+                  referrerPolicy="no-referrer"
+                />
               ) : (
-                <Link to="/library" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
-                  <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Ir para </span>Minha Área
-                </Link>
-              )
-            ) : (
-              <>
-                <Link to="/entrar" className="text-stone-300 hover:text-[#e9c349] font-bold text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 transition-colors">
-                  Entrar
-                </Link>
-                <Link to="/criar-conta" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
-                  Criar Conta
-                </Link>
-              </>
-            )}
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-[#e9c349] flex items-center justify-center font-black text-black text-xs sm:text-base">CFA</div>
+                  <span className="text-lg sm:text-2xl font-black tracking-tighter text-[#e9c349]">CFA Academy</span>
+                </div>
+              )}
+            </Link>
+            
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {currentUser ? (
+                isAdmin ? (
+                  <Link to="/dashboard" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                    <span className="material-symbols-outlined text-sm sm:text-base">admin_panel_settings</span> <span className="hidden xs:inline">Área </span>Administrativa
+                  </Link>
+                ) : (
+                  <Link to="/library" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                    <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Ir para </span>Minha Área
+                  </Link>
+                )
+              ) : (
+                <>
+                  <Link to="/entrar" className="text-stone-300 hover:text-[#e9c349] font-bold text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 transition-colors">
+                    Entrar
+                  </Link>
+                  <Link to="/criar-conta" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
+                    Criar Conta
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </header>
 
       <main className="relative z-10">
         

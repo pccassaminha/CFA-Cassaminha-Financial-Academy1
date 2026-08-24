@@ -120,6 +120,12 @@ export default function Settings() {
   const [timezone, setTimezone] = useState('WAT (UTC+01:00) Luanda');
   const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
 
+  // Announcement Bar State
+  const [announcementText, setAnnouncementText] = useState('Aproveite desconto de 33% em todos os cursos!');
+  const [announcementActive, setAnnouncementActive] = useState(true);
+  const [announcementBgColor, setAnnouncementBgColor] = useState('#e9c349');
+  const [announcementTextColor, setAnnouncementTextColor] = useState('#131313');
+
   // 2. Payment Channels State
   const [paymentSettings, setPaymentSettings] = useState({
     iban: 'AO06 0040 0000 7829 1048 1018 2',
@@ -175,6 +181,11 @@ export default function Settings() {
         if (genData.defaultCurrency) setDefaultCurrency(genData.defaultCurrency);
         if (genData.timezone) setTimezone(genData.timezone);
         if (genData.logoUrl) setLogoUrl(getValidLogoUrl(genData.logoUrl));
+        
+        if (genData.announcementText !== undefined) setAnnouncementText(genData.announcementText);
+        if (genData.announcementActive !== undefined) setAnnouncementActive(genData.announcementActive);
+        if (genData.announcementBgColor) setAnnouncementBgColor(genData.announcementBgColor);
+        if (genData.announcementTextColor) setAnnouncementTextColor(genData.announcementTextColor);
       }
 
       // 3. Platform Settings doc
@@ -236,6 +247,10 @@ export default function Settings() {
         defaultCurrency,
         timezone,
         logoUrl,
+        announcementText: announcementText.trim(),
+        announcementActive,
+        announcementBgColor,
+        announcementTextColor,
         updatedAt: new Date().toISOString()
       };
 
@@ -873,6 +888,64 @@ export default function Settings() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Barra de Anúncio / Comunicado Topo da Home */}
+              <div className="p-4 rounded-xl bg-black/40 border border-[#e9c349]/20 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#e9c349]" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Barra de Anúncio no Topo da Home</span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-[11px] font-semibold text-stone-400">
+                      {announcementActive ? 'Exibindo' : 'Oculto'}
+                    </span>
+                    <input 
+                      type="checkbox"
+                      checked={announcementActive}
+                      onChange={(e) => setAnnouncementActive(e.target.checked)}
+                      className="w-4 h-4 accent-[#e9c349] rounded cursor-pointer"
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-label uppercase tracking-widest text-stone-300 font-bold mb-1.5">
+                    Mensagem em Destaque (Texto Rolante)
+                  </label>
+                  <input 
+                    type="text"
+                    value={announcementText}
+                    onChange={(e) => setAnnouncementText(e.target.value)}
+                    placeholder="Ex: Aproveite desconto de 33% em todos os cursos!"
+                    className="w-full bg-black/60 border border-outline-variant/20 focus:border-[#e9c349] focus:ring-1 focus:ring-[#e9c349] rounded-xl text-white py-2.5 px-4 text-sm font-medium outline-none transition-all"
+                  />
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    Esta mensagem irá deslizar continuamente da direita para a esquerda no topo da página principal.
+                  </p>
+                </div>
+
+                {/* Live Preview */}
+                {announcementActive && announcementText.trim() !== '' && (
+                  <div className="pt-2">
+                    <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1">Pré-visualização do Anúncio:</span>
+                    <div 
+                      className="w-full h-8 overflow-hidden rounded-lg flex items-center font-headline font-bold text-xs"
+                      style={{ backgroundColor: announcementBgColor, color: announcementTextColor }}
+                    >
+                      <div className="animate-marquee items-center py-1">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="flex items-center gap-3 px-6 shrink-0 whitespace-nowrap">
+                            <Sparkles className="w-3.5 h-3.5 shrink-0 opacity-80 animate-pulse" />
+                            <span>{announcementText}</span>
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-40 mx-2"></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
