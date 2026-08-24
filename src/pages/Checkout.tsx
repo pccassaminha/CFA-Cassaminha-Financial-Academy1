@@ -585,7 +585,7 @@ export default function Checkout() {
                                 type="text"
                                 value={couponCodeInput}
                                 onChange={(e) => setCouponCodeInput(e.target.value)}
-                                placeholder="EX: CFA2025"
+                                placeholder=""
                                 className="flex-1 bg-surface-container border border-outline-variant/30 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-mono outline-none focus:border-[#e9c349]"
                               />
                               <button

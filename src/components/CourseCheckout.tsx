@@ -511,7 +511,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
                                     handleApplyCoupon();
                                   }
                                 }}
-                                placeholder="EX: CFA10"
+                                placeholder=""
                                 className="flex-1 bg-[#131313] border border-gray-700 focus:border-[#e9c349] text-white rounded-xl px-3 py-2 text-xs font-mono uppercase tracking-wider outline-none transition-all placeholder:text-gray-600"
                               />
                               <button
