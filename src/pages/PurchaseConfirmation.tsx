@@ -49,9 +49,21 @@ export default function PurchaseConfirmation() {
   const refNum = transaction?.referenceNumber || 'REF-CFA-2024';
   const studentName = transaction?.userName || 'Aluno CFA';
   const courseTitle = transaction?.courseTitle || 'CFA - Cassaminha Financial Academy';
+  const paymentMethod = transaction?.paymentMethod || 'Transferência';
+  const formattedAmount = transaction?.amount && Number(transaction.amount) > 0
+    ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(Number(transaction.amount))
+    : 'A confirmar';
 
   const whatsappMessage = encodeURIComponent(
-    `Olá Suporte CFA! Gostaria de confirmar a minha inscrição no curso "${courseTitle}".\n\nNome: ${studentName}\nNúmero de Referência: ${refNum}\n\nSegue o meu comprovativo.`
+    `Olá! O meu nome é *${studentName}*.\n` +
+    `Acabei de efetuar a inscrição e o pagamento do curso *"${courseTitle}"*.\n\n` +
+    `📋 *Detalhes da Inscrição:*\n` +
+    `• *Curso:* ${courseTitle}\n` +
+    `• *Aluno:* ${studentName}\n` +
+    `• *Valor:* ${formattedAmount}\n` +
+    `• *Código de Referência:* ${refNum}\n` +
+    `• *Método:* ${paymentMethod}\n\n` +
+    `📎 Segue em anexo o meu comprovativo de pagamento para validação e liberação do acesso. Gostaria que confirmassem. Obrigado!`
   );
 
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`;

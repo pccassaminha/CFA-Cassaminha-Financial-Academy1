@@ -24,13 +24,20 @@ const DEFAULT_PAYMENT_METHODS = [
 export default function CourseCheckout({ courseId, courseTitle, coursePrice, courseCover, onBack, preAppliedCoupon }: CheckoutProps) {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
+  const [studentNameInput, setStudentNameInput] = useState('');
+  const [studentPhoneInput, setStudentPhoneInput] = useState('');
   const [existingTxStatus, setExistingTxStatus] = useState<'pending' | 'approved' | null>(null);
   const [hasClickedPaid, setHasClickedPaid] = useState(false);
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [lastSubmittedTx, setLastSubmittedTx] = useState<any>(null);
 
   // Inicializa com métodos padrão imediatamente para renderização instantânea (0ms de atraso)
   const [paymentMethods, setPaymentMethods] = useState<any[]>(DEFAULT_PAYMENT_METHODS);
   const [activeMethodIndex, setActiveMethodIndex] = useState<number>(0);
   const [supportNumber, setSupportNumber] = useState('244923456789');
+  const [producerWhatsApp, setProducerWhatsApp] = useState<string | null>(null);
+  const [producerName, setProducerName] = useState<string | null>(null);
+  const [courseAuthorId, setCourseAuthorId] = useState<string | null>(null);
   const [bankReference, setBankReference] = useState(''); 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -206,23 +213,36 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
             const courseSnap = await getDoc(doc(db, 'courses', courseId));
             if (courseSnap.exists()) {
               const cData = courseSnap.data();
+              if (cData.authorId) setCourseAuthorId(cData.authorId);
+              
               let pIban = cData.producerIban;
               let pHolder = cData.producerHolderName;
               let pBank = cData.producerBankName;
               let pExpress = cData.producerExpressPhone || cData.producerPhone;
+              let pWhatsApp = cData.producerWhatsApp || cData.producerPhone;
               let pName = cData.producerName || cData.instructor || 'Produtor do Curso';
 
               // Se não estiver salvo diretamente no curso, busca no perfil do autor
-              if ((!pIban || !pHolder) && cData.authorId) {
+              if (cData.authorId) {
                 const authorSnap = await getDoc(doc(db, 'users', cData.authorId));
                 if (authorSnap.exists()) {
                   const uData = authorSnap.data();
-                  if (uData.producerIban) pIban = uData.producerIban;
-                  if (uData.producerHolderName) pHolder = uData.producerHolderName;
-                  if (uData.producerBankName) pBank = uData.producerBankName;
-                  if (uData.producerExpressPhone) pExpress = uData.producerExpressPhone;
-                  if (uData.producerName) pName = uData.producerName;
+                  if (uData.producerIban && !pIban) pIban = uData.producerIban;
+                  if (uData.producerHolderName && !pHolder) pHolder = uData.producerHolderName;
+                  if (uData.producerBankName && !pBank) pBank = uData.producerBankName;
+                  if (uData.producerExpressPhone && !pExpress) pExpress = uData.producerExpressPhone;
+                  if (uData.producerWhatsApp || uData.phone || uData.producerPhone) {
+                    pWhatsApp = uData.producerWhatsApp || uData.phone || uData.producerPhone;
+                  }
+                  if (uData.producerName && !cData.producerName) pName = uData.producerName;
                 }
+              }
+
+              if (pWhatsApp) {
+                setProducerWhatsApp(pWhatsApp);
+              }
+              if (pName) {
+                setProducerName(pName);
               }
 
               if (pIban) {
@@ -264,16 +284,20 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           const userDocSnap = await getDoc(doc(db, 'users', u.uid)).catch(() => null);
           let resolvedName = u.displayName || 'Aluno';
           let resolvedEmail = u.email || '';
+          let resolvedPhone = '';
           if (userDocSnap?.exists()) {
             const data = userDocSnap.data();
             resolvedName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.displayName || u.displayName || 'Aluno';
             resolvedEmail = u.email || data.email || '';
+            resolvedPhone = data.phone || data.phoneNumber || '';
           }
           setUser({
             uid: u.uid,
             name: resolvedName,
             email: resolvedEmail
           });
+          setStudentNameInput(resolvedName);
+          if (resolvedPhone) setStudentPhoneInput(resolvedPhone);
 
           // Check for existing transactions
           const { query, where, collection, getDocs } = await import('firebase/firestore');
@@ -351,71 +375,126 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const handleGenerateRefCode = () => {
+    const randomCode = `REF-${Math.floor(100000 + Math.random() * 900000)}`;
+    setBankReference(randomCode);
+  };
+
   const handleConfirmAndRedirect = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!bankReference.trim()) {
-      alert('Por favor, insira o número de referência do seu comprovativo de pagamento.');
+    const finalStudentName = studentNameInput.trim() || user?.name || 'Aluno';
+    const cleanRef = bankReference.trim();
+
+    if (!cleanRef) {
+      alert('Por favor, insira o número de referência ou do talão do seu comprovativo de pagamento.');
       return;
     }
 
-    if (!supportNumber) {
-      alert('O número de suporte não está configurado.');
+    const targetPhone = (producerWhatsApp || supportNumber || '244923456789').replace(/[^0-9]/g, '');
+    if (!targetPhone) {
+      alert('O número de WhatsApp para envio não está configurado.');
       return;
     }
 
     setIsSubmitting(true);
     const selectedMethod = paymentMethods[activeMethodIndex] || paymentMethods[0];
-    const finalUser = user || { uid: 'user_123', name: 'Pedro Cassaminha', email: 'pedro@cassaminha.com' };
+    const finalUser = user || { uid: `guest_${Date.now()}`, name: finalStudentName, email: '' };
+
+    const formattedPrice = new Intl.NumberFormat('pt-AO', { 
+      style: 'currency', 
+      currency: 'AOA', 
+      maximumFractionDigits: 0, 
+      minimumFractionDigits: 0 
+    }).format(finalPrice);
+
+    const txData = {
+      userId: finalUser.uid,
+      userName: finalStudentName,
+      userEmail: finalUser.email || '',
+      userPhone: studentPhoneInput.trim() || '',
+      courseId,
+      courseTitle: safeTitle,
+      referenceNumber: cleanRef,
+      paymentMethod: selectedMethod.shortName || selectedMethod.bankName || 'Transferência',
+      amount: finalPrice,
+      originalAmount: safePrice,
+      discountAmount: discountAmount,
+      appliedCoupon: appliedCoupon ? appliedCoupon.code : null,
+      authorId: courseAuthorId || null,
+      producerWhatsApp: producerWhatsApp || null,
+      producerName: producerName || null,
+      status: 'pending',
+      createdAt: serverTimestamp()
+    };
 
     try {
-      await addDoc(collection(db, 'transactions'), {
-        userId: finalUser.uid,
-        userName: finalUser.name,
-        userEmail: finalUser.email || '',
-        courseId,
-        courseTitle: safeTitle,
-        referenceNumber: bankReference,
-        paymentMethod: selectedMethod.shortName || selectedMethod.bankName || 'Transferência',
-        amount: finalPrice,
-        originalAmount: safePrice,
-        discountAmount: discountAmount,
-        appliedCoupon: appliedCoupon ? appliedCoupon.code : null,
-        status: 'pending',
-        createdAt: serverTimestamp()
-      });
+      // 1. Grava no Firestore na collection 'transactions' para captura imediata pelo painel administrativo
+      const docRef = await addDoc(collection(db, 'transactions'), txData);
 
-      // Update local state to pending so duplicate check triggers instantly
+      // 2. Armazena localmente para persistência de sessão e reenvio
+      const localRecord = {
+        ...txData,
+        id: docRef.id,
+        supportWhatsApp: targetPhone,
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem('cfa_last_transaction', JSON.stringify(localRecord));
+      setLastSubmittedTx(localRecord);
+
+      // 3. Atualiza estado de status pendente na tela
       setExistingTxStatus('pending');
+      setSubmissionSuccess(true);
 
-      const cleanSupport = supportNumber.replace(/[^0-9]/g, '');
-      const couponLine = appliedCoupon 
-        ? `%0A🎟️ *Cupão de Desconto:* ${appliedCoupon.code} (Desconto de ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountAmount)})`
-        : '';
+      // 4. Monta a mensagem completa e organizada para o WhatsApp do produtor/suporte
+      const messageText = `Olá! O meu nome é *${finalStudentName}*.\n` +
+        `Acabei de efetuar a inscrição e o pagamento do curso *"${safeTitle}"*.\n\n` +
+        `📋 *Detalhes da Inscrição:*\n` +
+        `• *Curso:* ${safeTitle}\n` +
+        `• *Aluno:* ${finalStudentName}\n` +
+        `• *Valor Pago:* ${formattedPrice}\n` +
+        `• *Código de Referência:* ${cleanRef}\n` +
+        `• *Método:* ${selectedMethod.shortName || selectedMethod.bankName}\n\n` +
+        `📎 Segue em anexo o meu comprovativo de pagamento para validação e liberação do acesso. Gostaria que confirmassem. Obrigado!`;
 
-      const originalPriceLine = discountAmount > 0 
-        ? ` _(Valor original: ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(safePrice)})_` 
-        : '';
-
-      const message = `Olá, equipe CFA! Realizei o pagamento do curso.%0A%0A` +
-        `📚 *Curso:* ${safeTitle}%0A` +
-        `💵 *Valor:* ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(finalPrice)}${originalPriceLine}${couponLine}%0A` +
-        `👤 *Aluno:* ${finalUser.name}%0A` +
-        `💳 *Método:* ${selectedMethod.shortName || selectedMethod.bankName}%0A` +
-        `🔖 *Referência do Talão:* ${bankReference}%0A%0A` +
-        `Segue em anexo o meu comprovativo de pagamento.`;
-
-      const whatsappUrl = `https://wa.me/${cleanSupport}?text=${message}`;
+      const whatsappUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(messageText)}`;
+      
+      // Abre o WhatsApp imediatamente
       window.open(whatsappUrl, '_blank');
 
     } catch (error) {
-      console.error("Erro ao registrar transação:", error);
-      alert('Ocorreu um erro. Tente novamente.');
+      console.error("Erro ao registrar transação no sistema:", error);
+      
+      // Fallback local se o Firestore falhar momentaneamente
+      const localRecord = {
+        ...txData,
+        id: `tx_${Date.now()}`,
+        supportWhatsApp: targetPhone,
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem('cfa_last_transaction', JSON.stringify(localRecord));
+      setLastSubmittedTx(localRecord);
+      setExistingTxStatus('pending');
+      setSubmissionSuccess(true);
+
+      const messageText = `Olá! O meu nome é *${finalStudentName}*.\n` +
+        `Acabei de efetuar a inscrição e o pagamento do curso *"${safeTitle}"*.\n\n` +
+        `📋 *Detalhes da Inscrição:*\n` +
+        `• *Curso:* ${safeTitle}\n` +
+        `• *Aluno:* ${finalStudentName}\n` +
+        `• *Valor Pago:* ${formattedPrice}\n` +
+        `• *Código de Referência:* ${cleanRef}\n` +
+        `• *Método:* ${selectedMethod.shortName || selectedMethod.bankName}\n\n` +
+        `📎 Segue em anexo o meu comprovativo de pagamento para validação e liberação do acesso. Gostaria que confirmassem. Obrigado!`;
+
+      const whatsappUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(messageText)}`;
+      window.open(whatsappUrl, '_blank');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const targetWhatsAppClean = (producerWhatsApp || supportNumber || '244923456789').replace(/[^0-9]/g, '');
   const activeMethod = paymentMethods[activeMethodIndex] || paymentMethods[0];
 
   return (
@@ -646,65 +725,218 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
               </div>
 
               {existingTxStatus === 'approved' ? (
-                <div className="bg-emerald-500/10 border border-emerald-500/30 p-5 rounded-2xl text-center text-emerald-400 text-sm font-medium">
-                  <p className="mb-3">Você já tem acesso ativo a este curso!</p>
+                <div className="bg-emerald-500/10 border border-emerald-500/30 p-5 rounded-2xl text-center text-emerald-400 text-sm font-medium space-y-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                    <Check className="w-5 h-5" />
+                  </div>
+                  <p className="font-bold text-white">Você já possui acesso ativo a esta formação!</p>
+                  <p className="text-xs text-stone-400">A sua matrícula já foi confirmada e aprovada pela equipe.</p>
                   <button 
                     type="button"
                     onClick={() => {
                       navigate(`/classroom?courseId=${courseId}`);
                     }}
-                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-3 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-3 px-4 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
                   >
                     Assistir Curso Agora
                   </button>
                 </div>
-              ) : existingTxStatus === 'pending' ? (
-                <div className="bg-[#e9c349]/10 border border-[#e9c349]/30 p-5 rounded-2xl text-center text-[#e9c349] text-sm font-medium">
-                  <p>Inscrição pendente de aprovação pela equipe administrativa.</p>
-                  <p className="text-xs text-stone-400 mt-2">Nossa equipe está validando seu pagamento no momento. Por favor, aguarde.</p>
+              ) : (existingTxStatus === 'pending' || submissionSuccess) ? (
+                <div className="bg-surface-container-highest border border-[#e9c349]/40 p-6 rounded-2xl text-left space-y-4 animate-in fade-in">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#e9c349]/20 text-[#e9c349] flex items-center justify-center shrink-0">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#e9c349] font-headline">Inscrição Registada no Sistema!</h4>
+                      <span className="text-[11px] text-stone-400 block">Aguardando Validação do Comprovativo</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-black/60 p-4 rounded-xl border border-gray-800 space-y-2 text-xs">
+                    <div className="flex justify-between items-center border-b border-gray-800/80 pb-2">
+                      <span className="text-stone-400">Código / Referência:</span>
+                      <strong className="text-[#e9c349] font-mono text-sm">{bankReference || lastSubmittedTx?.referenceNumber || 'REF-CFA'}</strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-stone-400">Aluno:</span>
+                      <span className="text-white font-medium">{studentNameInput || lastSubmittedTx?.userName || 'Aluno'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-stone-400">Curso:</span>
+                      <span className="text-white font-medium">{safeTitle}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-stone-400">Valor:</span>
+                      <span className="text-[#e9c349] font-bold">
+                        {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(finalPrice)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-stone-300 leading-relaxed">
+                    A sua solicitação foi encaminhada para a <strong>área administrativa</strong>. Por favor, certifique-se de que enviou o comprovativo bancário no WhatsApp para que a equipe possa aprovar o seu acesso.
+                  </p>
+
+                  <div className="space-y-2 pt-2">
+                    <a
+                      href={`https://wa.me/${targetWhatsAppClean}?text=${encodeURIComponent(
+                        `Olá! O meu nome é *${studentNameInput.trim() || user?.name || 'Aluno'}*.\n` +
+                        `Acabei de efetuar a inscrição e o pagamento do curso *"${safeTitle}"*.\n\n` +
+                        `📋 *Detalhes da Inscrição:*\n` +
+                        `• *Curso:* ${safeTitle}\n` +
+                        `• *Aluno:* ${studentNameInput.trim() || user?.name || 'Aluno'}\n` +
+                        `• *Valor Pago:* ${new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(finalPrice)}\n` +
+                        `• *Código de Referência:* ${bankReference || lastSubmittedTx?.referenceNumber || 'REF-CFA'}\n` +
+                        `• *Método:* ${activeMethod.shortName || activeMethod.bankName}\n\n` +
+                        `📎 Segue em anexo o meu comprovativo de pagamento para validação e liberação do acesso. Gostaria que confirmassem. Obrigado!`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-extrabold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                    >
+                      <MessageCircle className="w-4 h-4 fill-white shrink-0" />
+                      Reenviar no WhatsApp
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      className="w-full bg-black/60 hover:bg-black/90 border border-gray-800 text-stone-400 hover:text-white py-2.5 px-4 rounded-xl text-xs font-medium transition-all cursor-pointer"
+                    >
+                      Voltar aos Detalhes
+                    </button>
+                  </div>
                 </div>
               ) : !hasClickedPaid ? (
                 <button
                   type="button"
                   onClick={() => setHasClickedPaid(true)}
-                  className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#d4b03f] transition-all transform hover:scale-[1.02] text-base cursor-pointer font-headline"
+                  className="w-full bg-[#e9c349] text-black font-extrabold py-4 px-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#d4b03f] transition-all transform hover:scale-[1.02] text-base cursor-pointer font-headline shadow-xl"
                 >
                   <Check className="w-5 h-5 shrink-0" />
                   Já Paguei
                 </button>
               ) : (
-                <form onSubmit={handleConfirmAndRedirect} className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-200">
+                <form onSubmit={handleConfirmAndRedirect} className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-200">
+                  <div className="border-b border-gray-800 pb-2 mb-3">
+                    <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#e9c349]"></span>
+                      Dados para Validação e Envio
+                    </h4>
+                    <p className="text-[11px] text-stone-400 mt-0.5">
+                      Organize suas informações para envio direto ao suporte/produtor.
+                    </p>
+                  </div>
+
+                  {/* Nome Completo */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 font-mono">
+                      Nome Completo do Aluno (Obrigatório)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={studentNameInput}
+                      onChange={(e) => setStudentNameInput(e.target.value)}
+                      placeholder="Ex: João Baptista Silva"
+                      className="w-full bg-black/80 border border-gray-700 text-white rounded-xl p-3 focus:border-[#e9c349] outline-none text-sm placeholder:text-gray-600 transition-all"
+                    />
+                  </div>
+
+                  {/* Contacto / WhatsApp */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 font-mono">
+                      Contacto Telefónico / WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      value={studentPhoneInput}
+                      onChange={(e) => setStudentPhoneInput(e.target.value)}
+                      placeholder="Ex: 923 000 000"
+                      className="w-full bg-black/80 border border-gray-700 text-white rounded-xl p-3 focus:border-[#e9c349] outline-none text-sm placeholder:text-gray-600 transition-all"
+                    />
+                  </div>
+
                   {/* INPUT PARA REFERÊNCIA BANCÁRIA DO ALUNO */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                      Referência do Pagamento / Talão (Obrigatório)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider font-mono">
+                        Código / Nº do Talão (Obrigatório)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateRefCode}
+                        className="text-[11px] text-[#e9c349] hover:underline cursor-pointer font-medium"
+                      >
+                        Gerar Código Auto
+                      </button>
+                    </div>
                     <input
                       type="text"
                       required
                       value={bankReference}
                       onChange={(e) => setBankReference(e.target.value)}
-                      placeholder="Ex: 884920311 ou Nº do Comprovativo"
-                      className="w-full bg-black border border-gray-700 text-white rounded-xl p-4 focus:border-[#e9c349] outline-none font-mono placeholder:font-sans placeholder:text-gray-600 text-lg"
+                      placeholder="Ex: 884920311 ou Talão Multicaixa"
+                      className="w-full bg-black/80 border border-gray-700 text-white rounded-xl p-3 focus:border-[#e9c349] outline-none font-mono text-sm placeholder:font-sans placeholder:text-gray-600 transition-all"
                     />
                   </div>
 
-                  <div className="space-y-4">
+                  {/* Card com Resumo Organizado antes de enviar */}
+                  <div className="bg-black/60 border border-gray-800/80 rounded-xl p-3.5 space-y-1.5 text-[11px]">
+                    <span className="text-[10px] uppercase font-mono text-stone-500 font-bold block mb-1">
+                      Pré-visualização do Envio
+                    </span>
+                    <div className="flex justify-between text-stone-300">
+                      <span>👤 Aluno:</span>
+                      <strong className="text-white">{studentNameInput || 'A preencher'}</strong>
+                    </div>
+                    <div className="flex justify-between text-stone-300">
+                      <span>📚 Curso:</span>
+                      <strong className="text-white">{safeTitle}</strong>
+                    </div>
+                    <div className="flex justify-between text-stone-300">
+                      <span>💵 Valor:</span>
+                      <strong className="text-[#e9c349]">
+                        {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(finalPrice)}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between text-stone-300">
+                      <span>💳 Método:</span>
+                      <span className="text-stone-300">{activeMethod.shortName || activeMethod.bankName}</span>
+                    </div>
+                    <div className="flex justify-between text-stone-300">
+                      <span>📱 Destinatário:</span>
+                      <span className="text-[#e9c349] font-medium">{producerName ? `${producerName} (Produtor)` : 'Suporte Oficial CFA'}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full bg-[#25D366] text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-[#1ebd5a] transition-all transform hover:scale-[1.02] disabled:opacity-50 text-base cursor-pointer"
+                      className="w-full bg-[#25D366] text-white font-extrabold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2.5 hover:bg-[#1ebd5a] transition-all transform hover:scale-[1.01] active:scale-95 disabled:opacity-50 text-xs sm:text-sm uppercase tracking-wider cursor-pointer shadow-lg"
                     >
-                      <MessageCircle className="w-6 h-6 fill-white shrink-0" />
-                      {isSubmitting ? 'Processando...' : 'Enviar para o WhatsApp'}
+                      <MessageCircle className="w-5 h-5 fill-white shrink-0" />
+                      {isSubmitting ? 'A Registar...' : 'Enviar Comprovativo e Referência no WhatsApp'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setHasClickedPaid(false)}
+                      className="w-full bg-black/40 hover:bg-black/70 border border-gray-800 text-stone-400 hover:text-stone-200 py-2.5 px-4 rounded-xl text-xs transition-colors cursor-pointer"
+                    >
+                      Cancelar e Voltar aos Métodos
                     </button>
                   </div>
                 </form>
               )}
 
-              <div className="mt-6 pt-6 border-t border-gray-800 flex items-start gap-3 text-gray-400 text-xs">
-                <ShieldCheck className="w-5 h-5 text-[#e9c349] shrink-0" />
-                <span className="leading-relaxed">Seu acesso será liberado assim que nossa equipe validar a referência inserida no WhatsApp.</span>
+              <div className="mt-6 pt-4 border-t border-gray-800 flex items-start gap-2.5 text-gray-400 text-xs">
+                <ShieldCheck className="w-4 h-4 text-[#e9c349] shrink-0 mt-0.5" />
+                <span className="leading-relaxed text-[11px]">
+                  O seu acesso será liberado assim que o suporte ou produtor validar o comprovativo e a referência no WhatsApp.
+                </span>
               </div>
             </div>
           </div>
