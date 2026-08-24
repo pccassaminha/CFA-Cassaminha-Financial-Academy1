@@ -186,9 +186,9 @@ export default function Analytics() {
   // Available Modules list for selection options
   const availableModules = useMemo(() => {
     if (selectedCourseId === 'all') return [];
-    const course = courses.find(c => c.id === selectedCourseId);
+    const course = isolatedCourses.find(c => c.id === selectedCourseId);
     return course && Array.isArray(course.modules) ? course.modules : [];
-  }, [courses, selectedCourseId]);
+  }, [isolatedCourses, selectedCourseId]);
 
   // Accordion Toggle
   const toggleCourseAccordion = (courseId: string) => {
@@ -438,15 +438,15 @@ export default function Analytics() {
                     setSelectedModuleId('all'); // reset module on course change
                     const selectedName = e.target.value === 'all' 
                       ? 'Todos os Cursos' 
-                      : courses.find(c => c.id === e.target.value)?.title || 'Curso';
+                      : isolatedCourses.find(c => c.id === e.target.value)?.title || 'Curso';
                     showNotification(`Filtrando métricas por: ${selectedName}`);
                   }}
                   className="bg-transparent text-on-surface font-semibold text-xs sm:text-sm focus:outline-none cursor-pointer pr-2"
                 >
                   <option value="all" className="bg-[#181818] text-white">
-                    Todos os Cursos ({courses.length})
+                    Todos os Cursos ({isolatedCourses.length})
                   </option>
-                  {courses.map(c => (
+                  {isolatedCourses.map(c => (
                     <option key={c.id} value={c.id} className="bg-[#181818] text-white">
                       {c.title}
                     </option>
@@ -511,7 +511,7 @@ export default function Analytics() {
           </header>
 
           {/* Warning Banner if No Courses Created */}
-          {courses.length === 0 && !loading && (
+          {isolatedCourses.length === 0 && !loading && (
             <div className="bg-[#241a12] border border-[#e9c349]/30 rounded-2xl p-6 mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <AlertCircle className="w-6 h-6 text-[#e9c349] shrink-0" />
@@ -548,7 +548,7 @@ export default function Analytics() {
                 <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest font-label">Formações / Cursos</p>
                 <BookOpen className="w-5 h-5 text-secondary opacity-60 group-hover:opacity-100 transition-opacity" />
               </div>
-              <h2 className="text-3xl font-extrabold font-headline text-secondary mt-1">{courses.length}</h2>
+              <h2 className="text-3xl font-extrabold font-headline text-secondary mt-1">{isolatedCourses.length}</h2>
               <p className="text-xs text-stone-400 mt-1">
                 {selectedCourseId === 'all' ? 'Cursos totais na academia' : 'Filtrando 1 formação'}
               </p>
@@ -657,8 +657,8 @@ export default function Analytics() {
                         }}
                         className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer pr-1"
                       >
-                        <option value="all" className="bg-[#181818] text-white">Todos os Cursos ({courses.length})</option>
-                        {courses.map(c => (
+                        <option value="all" className="bg-[#181818] text-white">Todos os Cursos ({isolatedCourses.length})</option>
+                        {isolatedCourses.map(c => (
                           <option key={c.id} value={c.id} className="bg-[#181818] text-white">{c.title}</option>
                         ))}
                       </select>

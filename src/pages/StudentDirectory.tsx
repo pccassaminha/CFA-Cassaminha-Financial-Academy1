@@ -565,7 +565,7 @@ export default function StudentDirectory() {
             </div>
             <div className="bg-[#131313] border border-[#353534]/30 rounded-2xl p-4 sm:p-5 shadow-md">
               <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Cursos no Catálogo</p>
-              <h3 className="text-xl sm:text-2xl font-black text-blue-400 font-headline">{availableCourses.length}</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-blue-400 font-headline">{isProducerMode ? isolatedCourses.length : availableCourses.length}</h3>
             </div>
           </div>
 
@@ -578,7 +578,7 @@ export default function StudentDirectory() {
                   roleFilter === 'all' ? 'bg-[#e9c349] text-black shadow-sm' : 'text-gray-400 hover:text-white'
                 }`}
               >
-                Todos ({users.length})
+                Todos ({isProducerMode ? effectiveUsers.length : users.length})
               </button>
               <button
                 onClick={() => setRoleFilter('students')}
@@ -626,7 +626,7 @@ export default function StudentDirectory() {
             </div>
 
             <span className="text-xs text-gray-500 font-mono">
-              Mostrando {filteredUsers.length} de {users.length} usuários
+              Mostrando {filteredUsers.length} de {isProducerMode ? effectiveUsers.length : users.length} usuários
             </span>
           </div>
 

@@ -478,7 +478,7 @@ export default function StudentProfile() {
           )}
         </div>
 
-        {/* Suporte e Ajuda (No final da página, onde estava) */}
+        {/* Suporte e Ajuda (Lado a lado: Texto à esquerda e botão à direita) */}
         {(() => {
           const cleanPhone = (supportWhatsApp || '244923456789').replace(/[^0-9]/g, '');
           const studentEmail = profile?.email || auth.currentUser?.email || '';
@@ -486,9 +486,9 @@ export default function StudentProfile() {
           const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textMessage)}`;
 
           return (
-            <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-green-500/15 text-green-400 flex items-center justify-center font-bold shrink-0">
+            <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+              <div className="flex items-center gap-4 text-center md:text-left">
+                <div className="w-12 h-12 rounded-xl bg-green-500/15 text-green-400 flex items-center justify-center font-bold shrink-0 mx-auto md:mx-0">
                   <MessageCircle className="w-6 h-6" />
                 </div>
                 <div>
@@ -500,7 +500,7 @@ export default function StudentProfile() {
                 href={waUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-[#25D366] text-black font-extrabold px-6 py-3.5 rounded-xl text-xs hover:bg-[#20ba5a] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-green-500/10 shrink-0"
+                className="bg-[#25D366] text-black font-extrabold px-6 py-4 rounded-xl text-xs hover:bg-[#20ba5a] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-green-500/10 shrink-0 w-full md:w-auto"
               >
                 <MessageCircle className="w-4 h-4 fill-black" />
                 <span>Falar com Suporte WhatsApp</span>
