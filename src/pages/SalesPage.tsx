@@ -4,6 +4,7 @@ import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firesto
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
+import HeroSection from '../components/HeroSection';
 import { 
   BookOpen, 
   ArrowRight, 
@@ -178,40 +179,10 @@ export default function SalesPage() {
         </div>
       </nav>
 
-      <main className="pt-24 relative z-10">
+      <main className="relative z-10">
         
-        {/* Dynamic Premium Hero Section */}
-        <section className="relative min-h-[460px] sm:min-h-[580px] md:min-h-[750px] flex items-center overflow-hidden px-4 sm:px-6 lg:px-12 mb-8 sm:mb-16">
-          <div className="absolute inset-0 z-0">
-            <div className="absolute inset-0 bg-gradient-to-r from-[#131313] via-[#131313]/90 to-transparent z-10"></div>
-            <img 
-              className="w-full h-full object-cover object-right opacity-25" 
-              alt="CFA Hero background" 
-              src="https://images.unsplash.com/photo-1591696205602-2f950c417cb9?auto=format&fit=crop&q=80&w=1200" 
-            />
-          </div>
-          <div className="relative z-20 max-w-3xl mx-auto w-full text-center flex flex-col items-center space-y-3.5 sm:space-y-6 md:space-y-8 pt-4 sm:pt-8">
-            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-stone-900/80 border border-[#e9c349]/20 shadow-md">
-              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.25em] font-bold text-amber-300 font-label">Cassaminha Financial Academy</span>
-            </div>
-            <h1 className="font-headline text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] sm:leading-[1.05] text-white">
-              Aprenda as Habilidades <span className="bg-gradient-to-br from-[#e9c349] to-[#b39129] bg-clip-text text-transparent">Que Geram Resultados</span>
-            </h1>
-            <p className="text-stone-300 text-xs sm:text-base md:text-lg max-w-2xl font-body leading-relaxed mx-auto px-2 sm:px-0">
-              Tenha acesso a cursos práticos de alto impacto criados por especialistas de diversos nichos. Desenvolva novos talentos, domine ferramentas modernas e conquiste seus objetivos passo a passo.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4 pt-1 sm:pt-2 w-full sm:w-auto px-4 sm:px-0">
-              <Link to="/criar-conta" className="w-full sm:w-auto bg-[#e9c349] text-stone-900 px-5 sm:px-8 py-2.5 sm:py-4 rounded-xl font-bold text-xs sm:text-base text-center hover:opacity-90 transition-all flex items-center justify-center gap-2 sm:gap-3 shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
-                Criar Minha Conta Grátis
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Link>
-              <a href="#cursos" className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-4 rounded-xl font-semibold text-xs sm:text-sm text-stone-300 hover:text-white bg-stone-800/40 hover:bg-stone-800/80 border border-stone-700/50 text-center transition-all">
-                Explorar Catálogo de Cursos
-              </a>
-            </div>
-          </div>
-        </section>
+        {/* Dynamic Premium 2-Column Hero Section with CFA Dashboard Artwork */}
+        <HeroSection currentUser={currentUser} />
 
         {/* Dynamic Showcase of Available Courses */}
         <section id="cursos" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-8 sm:py-16 scroll-mt-20">
