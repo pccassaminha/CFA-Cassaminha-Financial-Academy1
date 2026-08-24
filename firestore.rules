@@ -64,8 +64,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 4. Configurações da plataforma (Cursos, Métodos de pagamento, Geral)
+    // 4. Configurações da plataforma (Cursos, Métodos de pagamento, Geral, Cupões)
     match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /coupons/{couponId} {
       allow read: if true;
       allow write: if isAdmin();
     }

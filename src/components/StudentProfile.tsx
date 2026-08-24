@@ -336,10 +336,8 @@ export default function StudentProfile() {
         {(() => {
           const cleanPhone = (supportWhatsApp || '244923456789').replace(/[^0-9]/g, '');
           const studentEmail = profile?.email || auth.currentUser?.email || '';
-          const msg = encodeURIComponent(
-            `Olá, equipe de Suporte CFA! Preciso de ajuda com a minha conta de aluno.\n\n👤 *Nome:* ${fullName}\n📧 *E-mail:* ${studentEmail}\n🔖 *ID de Matrícula:* #${numericId}`
-          );
-          const waUrl = `https://wa.me/${cleanPhone}?text=${msg}`;
+          const textMessage = `Olá, equipe de Suporte CFA! Preciso de ajuda com a minha conta de aluno.\n\n*Nome:* ${fullName}\n*E-mail:* ${studentEmail}\n*ID de Matrícula:* #${numericId}`;
+          const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textMessage)}`;
 
           return (
             <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4">

@@ -275,19 +275,29 @@ export default function Settings() {
     }
   };
 
-  // Save Coupons to Firebase
+  // Save Coupons to Firebase with dual persistence (settings/coupons doc AND coupons collection)
   const handleSaveCouponsToDb = async (updatedCoupons: Coupon[]) => {
     try {
+      // 1. Grava no documento centralizado settings/coupons
       await setDoc(doc(db, 'settings', 'coupons'), {
         list: updatedCoupons,
         updatedAt: new Date().toISOString()
       }, { merge: true });
+
+      // 2. Grava individualmente na coleção coupons para redundância e consultas rápidas
+      for (const cp of updatedCoupons) {
+        await setDoc(doc(db, 'coupons', cp.id), {
+          ...cp,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
     } catch (err) {
       console.error("Error saving coupons to Firebase:", err);
+      showNotification('Erro ao sincronizar cupão na base de dados.', 'error');
     }
   };
 
-  const handleCouponFormSubmit = (e: React.FormEvent) => {
+  const handleCouponFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = couponForm.code.trim().toUpperCase();
     if (!cleanCode) {
@@ -325,6 +335,8 @@ export default function Settings() {
         createdAt: new Date().toISOString()
       };
       updatedCoupons = [newCoupon, ...coupons];
+      setCoupons(updatedCoupons);
+      await handleSaveCouponsToDb(updatedCoupons);
       showNotification(`Cupão "${cleanCode}" criado com sucesso!`, 'success');
     } else if (couponForm.couponId) {
       updatedCoupons = coupons.map(c => c.id === couponForm.couponId ? {
@@ -337,32 +349,42 @@ export default function Settings() {
         courseTitle: couponForm.scope === 'course' ? selectedCourseTitle : undefined,
         active: couponForm.active
       } : c);
+      setCoupons(updatedCoupons);
+      await handleSaveCouponsToDb(updatedCoupons);
       showNotification(`Cupão "${cleanCode}" atualizado com sucesso!`, 'success');
     } else {
       updatedCoupons = coupons;
     }
 
-    setCoupons(updatedCoupons);
-    handleSaveCouponsToDb(updatedCoupons);
     setCouponForm(prev => ({ ...prev, isOpen: false, code: '' }));
   };
 
-  const handleToggleCouponStatus = (couponId: string) => {
+  const handleToggleCouponStatus = async (couponId: string) => {
     const updated = coupons.map(c => c.id === couponId ? { ...c, active: !c.active } : c);
     setCoupons(updated);
-    handleSaveCouponsToDb(updated);
+    await handleSaveCouponsToDb(updated);
     const target = updated.find(c => c.id === couponId);
     if (target) {
       showNotification(`Cupão "${target.code}" ${target.active ? 'ativado' : 'desativado'}.`, 'info');
     }
   };
 
-  const handleDeleteCoupon = (couponId: string, code: string) => {
+  const handleDeleteCoupon = async (couponId: string, code: string) => {
     if (window.confirm(`Tem certeza de que deseja eliminar o cupão "${code}"?`)) {
       const updated = coupons.filter(c => c.id !== couponId);
       setCoupons(updated);
-      handleSaveCouponsToDb(updated);
-      showNotification(`Cupão "${code}" eliminado.`, 'info');
+      try {
+        await setDoc(doc(db, 'settings', 'coupons'), {
+          list: updated,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        // Tenta remover também da collection se existir
+        const { deleteDoc } = await import('firebase/firestore');
+        await deleteDoc(doc(db, 'coupons', couponId)).catch(() => {});
+        showNotification(`Cupão "${code}" eliminado.`, 'info');
+      } catch (err) {
+        console.error("Error deleting coupon:", err);
+      }
     }
   };
 
