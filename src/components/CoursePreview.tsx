@@ -337,6 +337,24 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
               </div>
 
               {(() => {
+                const isUnlocked = isAlreadyEnrolled || enrolledSuccess;
+
+                if (isUnlocked) {
+                  return (
+                    <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-sm text-white font-headline">Acesso Ativo e Liberado</h4>
+                          <p className="text-xs text-emerald-400/90 font-medium">Você já possui matrícula confirmada neste treinamento.</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 let discountAmount = 0;
                 if (detectedCoupon && course && course.price > 0) {
                   if (detectedCoupon.type === 'percentage') {
@@ -351,7 +369,7 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
                 return (
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
-                      <span className="text-xs uppercase text-gray-400 font-bold tracking-wider">Investimento Total</span>
+                      <span className="text-xs uppercase text-gray-400 font-bold tracking-wider font-headline">Investimento Total</span>
                       {detectedCoupon && course.price > 0 && (
                         <span className="bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/40 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 font-mono shadow-sm">
                           <Sparkles className="w-3 h-3 text-[#e9c349]" />
@@ -382,18 +400,14 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
                 );
               })()}
               
-              {isAlreadyEnrolled ? (
+              {isAlreadyEnrolled || enrolledSuccess ? (
                 <button 
                   id="btn-watch-course-preview"
                   onClick={() => navigate(`/classroom?courseId=${courseId}`)}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-4 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base flex items-center justify-center gap-2"
                 >
-                  <PlayCircle className="w-5 h-5" /> Assistir Curso
+                  <PlayCircle className="w-5 h-5" /> Assistir Aulas Agora
                 </button>
-              ) : enrolledSuccess ? (
-                <div className="w-full bg-emerald-500 text-black font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg text-base">
-                  <Check className="w-5 h-5" /> Acesso Liberado com Sucesso!
-                </div>
               ) : !course.price || course.price === 0 ? (
                 <button 
                   id="btn-access-free-course"
@@ -431,7 +445,11 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
               )}
               
               <p className="text-xs text-center text-gray-400 mt-4 leading-relaxed">
-                {!course.price || course.price === 0 ? 'Assista aos vídeos do YouTube e estude os módulos sem restrições.' : 'Acesso liberado imediatamente após validação do comprovativo pelo suporte.'}
+                {isAlreadyEnrolled || enrolledSuccess 
+                  ? 'Acesso total e vitalício às aulas e aos materiais de apoio.' 
+                  : (!course.price || course.price === 0 
+                      ? 'Assista aos vídeos do YouTube e estude os módulos sem restrições.' 
+                      : 'Acesso liberado imediatamente após validação do comprovativo pelo suporte.')}
               </p>
             </div>
           </div>
