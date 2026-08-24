@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { Coupon } from '../types';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
@@ -37,6 +38,37 @@ export default function SalesPage() {
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+
+  const getCourseDiscountInfo = (course: Course) => {
+    if (!course.price || course.price === 0) return { isFree: true, hasDiscount: false, discountedPrice: 0, couponCode: null };
+    
+    // 1. Procurar cupão específico para este curso
+    const specificCoupon = coupons.find(c => c.scope === 'course' && c.courseId === course.id);
+    // 2. Procurar cupão geral (todos os cursos)
+    const generalCoupon = coupons.find(c => c.scope === 'all' || c.scope === 'general' || !c.scope || !c.courseId);
+    
+    const activeCoupon = specificCoupon || generalCoupon;
+    if (!activeCoupon) return { isFree: false, hasDiscount: false, discountedPrice: course.price, couponCode: null };
+    
+    let discountAmount = 0;
+    if (activeCoupon.type === 'percentage') {
+      discountAmount = (course.price * Number(activeCoupon.discountValue)) / 100;
+    } else if (activeCoupon.type === 'fixed') {
+      discountAmount = Number(activeCoupon.discountValue);
+    }
+    if (discountAmount > course.price) discountAmount = course.price;
+    
+    const discountedPrice = Math.max(0, course.price - discountAmount);
+    return {
+      isFree: false,
+      hasDiscount: discountedPrice < course.price,
+      discountedPrice,
+      couponCode: activeCoupon.code,
+      discountValue: activeCoupon.discountValue,
+      discountType: activeCoupon.type
+    };
+  };
   
   // Modal State for authentication prompts
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -89,10 +121,29 @@ export default function SalesPage() {
     fetchLogo();
   }, []);
 
-  // Fetch published courses from database
+  // Fetch published courses and active coupons from database
   useEffect(() => {
-    const fetchCourses = async () => {
+    const fetchCoursesAndCoupons = async () => {
       try {
+        // Fetch active coupons first
+        try {
+          const couponsSnap = await getDoc(doc(db, 'settings', 'coupons')).catch(() => null);
+          let loadedCoupons: Coupon[] = [];
+          if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list)) {
+            loadedCoupons = couponsSnap.data().list;
+          } else {
+            const directCouponsSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
+            if (directCouponsSnap && !directCouponsSnap.empty) {
+              loadedCoupons = directCouponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+            }
+          }
+          const activeCoupons = loadedCoupons.filter(c => c && c.active !== false);
+          setCoupons(activeCoupons);
+        } catch (couponErr) {
+          console.error("Erro ao carregar cupões na Landing Page:", couponErr);
+        }
+
+        // Fetch courses
         const q = query(collection(db, 'courses'), where("isPublished", "==", true));
         const querySnapshot = await getDocs(q);
         const coursesList = querySnapshot.docs.map(doc => ({
@@ -101,12 +152,12 @@ export default function SalesPage() {
         })) as Course[];
         setCourses(coursesList);
       } catch (err) {
-        console.error("Erro ao carregar cursos na Landing Page:", err);
+        console.error("Erro ao carregar dados na Landing Page:", err);
       } finally {
         setIsLoadingCourses(false);
       }
     };
-    fetchCourses();
+    fetchCoursesAndCoupons();
   }, []);
 
   // Handler for course CTA button clicks
@@ -269,7 +320,7 @@ export default function SalesPage() {
                         <h3 className="font-headline font-bold text-lg md:text-xl text-white group-hover:text-[#e9c349] transition-colors line-clamp-2">
                           {course.title}
                         </h3>
-                        <p className="text-stone-400 text-xs md:text-sm font-body leading-relaxed line-clamp-5">
+                        <p className="text-stone-400 text-xs md:text-sm font-body leading-relaxed line-clamp-4">
                           {course.description || "Inicie os seus estudos práticos sobre esta competência essencial com o ecossistema e suporte integral da CFA."}
                         </p>
                       </div>
@@ -277,10 +328,39 @@ export default function SalesPage() {
                       <div className="space-y-4">
                         {/* Price Badge */}
                         <div className="flex items-center justify-between border-t border-white/5 pt-4">
-                          <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">Valor do Curso</span>
-                          <span className={`text-lg font-black ${isFree ? 'text-emerald-400' : 'text-white'}`}>
-                            {isFree ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                          </span>
+                          <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest font-headline">Valor do Curso</span>
+                          {(() => {
+                            const discountInfo = getCourseDiscountInfo(course);
+                            if (discountInfo.isFree) {
+                              return (
+                                <span className="text-lg font-black text-emerald-400 font-headline">
+                                  GRÁTIS
+                                </span>
+                              );
+                            }
+                            if (discountInfo.hasDiscount) {
+                              return (
+                                <div className="flex flex-col items-end leading-none">
+                                  <div className="flex items-center gap-1.5 mb-1 justify-end">
+                                    <span className="text-[10px] text-stone-500 line-through font-bold font-mono">
+                                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                                    </span>
+                                    <span className="text-[9px] font-extrabold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/20 px-1 py-0.2 rounded-md font-mono scale-90 origin-right">
+                                      -{discountInfo.discountType === 'percentage' ? `${discountInfo.discountValue}%` : 'Desconto'}
+                                    </span>
+                                  </div>
+                                  <span className="text-lg font-black text-[#e9c349] font-headline tracking-tight">
+                                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <span className="text-lg font-black text-[#e9c349] font-headline">
+                                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                              </span>
+                            );
+                          })()}
                         </div>
 
                         {/* Direct Call to Action buttons */}

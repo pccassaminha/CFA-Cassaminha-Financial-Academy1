@@ -539,9 +539,9 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 px-6 bg-gradient-to-r from-primary to-primary-container text-on-primary font-bold rounded-xl shadow-[0_10px_20px_-10px_rgba(233,195,73,0.3)] hover:brightness-110 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 mt-4 font-headline disabled:opacity-70"
+              className="w-full py-4 px-6 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold rounded-xl shadow-[0_10px_30px_rgba(233,195,73,0.35)] active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 mt-4 font-headline disabled:opacity-50 cursor-pointer"
             >
-              <span>{isLoading ? 'Processando...' : (isRegistering ? 'Criar Conta' : 'Entrar')}</span>
+              <span>{isLoading ? 'Processando...' : (isRegistering ? 'Criar Minha Conta de Aluno' : 'Entrar na Minha Conta')}</span>
               {!isLoading && <span className="material-symbols-outlined text-lg">arrow_forward</span>}
             </button>
           </form>

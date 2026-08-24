@@ -20,7 +20,6 @@ import {
   getDocs,
   arrayUnion,
   serverTimestamp,
-  getDocFromServer,
   getDoc
 } from 'firebase/firestore';
 
@@ -32,19 +31,8 @@ export const auth = getAuth(app);
 // Firestore initialization with force long polling for iframe/sandbox environment compatibility
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: false,
 }, firebaseConfig.firestoreDatabaseId);
-
-// Connection test helper for offline/network readiness
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn("Firestore running in offline/cached mode.");
-    }
-  }
-}
-testConnection();
 
 export const googleProvider = new GoogleAuthProvider();
 

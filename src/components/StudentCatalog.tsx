@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
-import { Play, SearchX, Plus, Check, BookmarkCheck } from 'lucide-react';
+import { Play, SearchX, Plus, Check, BookmarkCheck, Sparkles } from 'lucide-react';
 import ExpandableSearch from './ExpandableSearch';
+import { Coupon } from '../types';
 
 export interface Course {
   id: string;
@@ -28,6 +29,59 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
   const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+
+  useEffect(() => {
+    const fetchCoupons = async () => {
+      try {
+        const couponsSnap = await getDoc(doc(db, 'settings', 'coupons')).catch(() => null);
+        let loadedCoupons: Coupon[] = [];
+        if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list)) {
+          loadedCoupons = couponsSnap.data().list;
+        } else {
+          const directCouponsSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
+          if (directCouponsSnap && !directCouponsSnap.empty) {
+            loadedCoupons = directCouponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+          }
+        }
+        const activeCoupons = loadedCoupons.filter(c => c && c.active !== false);
+        setCoupons(activeCoupons);
+      } catch (err) {
+        console.error("Erro ao carregar cupões no catálogo:", err);
+      }
+    };
+    fetchCoupons();
+  }, []);
+
+  const getCourseDiscountInfo = (course: Course) => {
+    if (!course.price || course.price === 0) return { isFree: true, hasDiscount: false, discountedPrice: 0, couponCode: null };
+    
+    // 1. Procurar cupão específico para este curso
+    const specificCoupon = coupons.find(c => c.scope === 'course' && c.courseId === course.id);
+    // 2. Procurar cupão geral (todos os cursos)
+    const generalCoupon = coupons.find(c => c.scope === 'all' || c.scope === 'general' || !c.scope || !c.courseId);
+    
+    const activeCoupon = specificCoupon || generalCoupon;
+    if (!activeCoupon) return { isFree: false, hasDiscount: false, discountedPrice: course.price, couponCode: null };
+    
+    let discountAmount = 0;
+    if (activeCoupon.type === 'percentage') {
+      discountAmount = (course.price * Number(activeCoupon.discountValue)) / 100;
+    } else if (activeCoupon.type === 'fixed') {
+      discountAmount = Number(activeCoupon.discountValue);
+    }
+    if (discountAmount > course.price) discountAmount = course.price;
+    
+    const discountedPrice = Math.max(0, course.price - discountAmount);
+    return {
+      isFree: false,
+      hasDiscount: discountedPrice < course.price,
+      discountedPrice,
+      couponCode: activeCoupon.code,
+      discountValue: activeCoupon.discountValue,
+      discountType: activeCoupon.type
+    };
+  };
 
   useEffect(() => {
     const currentUser = auth.currentUser;
@@ -123,7 +177,7 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
             🌟 Em Destaque
           </span>
           <h1 className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-extrabold mb-1.5 sm:mb-2.5 max-w-2xl drop-shadow-lg leading-tight sm:leading-tight">{currentCourse.title}</h1>
-          <p className="text-gray-300 text-[11px] xs:text-xs sm:text-sm lg:text-base max-w-xl mb-3 sm:mb-5 line-clamp-2 sm:line-clamp-4 leading-relaxed opacity-90">{currentCourse.description}</p>
+          <p className="text-gray-300 text-[11px] xs:text-xs sm:text-sm lg:text-base max-w-xl mb-3 sm:mb-5 line-clamp-4 leading-relaxed opacity-90">{currentCourse.description}</p>
 
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
             <button 
@@ -132,9 +186,33 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
             >
               <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black" /> {enrolledCourseIds.includes(currentCourse.id) ? 'Acessar Treinamento' : 'Aprender Agora'}
             </button>
-            <span className={`text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto ${!currentCourse.price || currentCourse.price === 0 ? 'text-emerald-400' : 'text-[#e9c349]'}`}>
-              {!currentCourse.price || currentCourse.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(currentCourse.price)}
-            </span>
+            {(() => {
+              const discountInfo = getCourseDiscountInfo(currentCourse);
+              if (discountInfo.isFree) {
+                return (
+                  <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto text-emerald-400">
+                    GRÁTIS
+                  </span>
+                );
+              }
+              if (discountInfo.hasDiscount) {
+                return (
+                  <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto flex items-center justify-center gap-2.5">
+                    <span className="text-[#e9c349]">
+                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
+                    </span>
+                    <span className="text-xs line-through text-stone-500 font-bold font-mono">
+                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(currentCourse.price)}
+                    </span>
+                  </span>
+                );
+              }
+              return (
+                <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto text-[#e9c349]">
+                  {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(currentCourse.price)}
+                </span>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -179,12 +257,37 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
                         Por: <span className="text-[#e9c349] font-bold">{course.producerName || course.instructor || 'CFA Academy'}</span>
                       </div>
                       <h3 className="text-sm sm:text-base md:text-lg font-bold text-white mb-1.5 sm:mb-2 line-clamp-2">{course.title}</h3>
-                      <p className="text-gray-400 text-[11px] sm:text-xs md:text-sm line-clamp-2 sm:line-clamp-4 leading-relaxed mb-3 sm:mb-5">{course.description}</p>
+                      <p className="text-gray-400 text-[11px] sm:text-xs md:text-sm line-clamp-4 leading-relaxed mb-3 sm:mb-5">{course.description}</p>
                     </div>
                     <div className="flex items-center justify-between pt-3 border-t border-gray-800/60 mt-auto">
-                      <span className={`font-bold text-sm sm:text-base md:text-lg ${isFree ? 'text-emerald-400 font-extrabold' : 'text-[#e9c349]'}`}>
-                        {isFree ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                      </span>
+                      {(() => {
+                        const discountInfo = getCourseDiscountInfo(course);
+                        if (discountInfo.isFree) {
+                          return <span className="font-extrabold text-sm sm:text-base md:text-lg text-emerald-400">GRÁTIS</span>;
+                        }
+                        if (discountInfo.hasDiscount) {
+                          return (
+                            <div className="flex flex-col items-start leading-none py-1">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="text-[10px] sm:text-xs text-stone-500 line-through font-bold font-mono">
+                                  {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                                </span>
+                                <span className="text-[9px] font-extrabold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/20 px-1 py-0.2 rounded-md font-mono scale-90 origin-left">
+                                  -{discountInfo.discountType === 'percentage' ? `${discountInfo.discountValue}%` : 'Desconto'}
+                                </span>
+                              </div>
+                              <span className="font-black text-sm sm:text-base md:text-lg text-[#e9c349] tracking-tight">
+                                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <span className="font-bold text-sm sm:text-base md:text-lg text-[#e9c349]">
+                            {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                          </span>
+                        );
+                      })()}
                       {isEnrolled ? (
                         <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1">
                           <BookmarkCheck className="w-3.5 h-3.5" /> Acessar Curso
