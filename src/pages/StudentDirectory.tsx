@@ -30,7 +30,8 @@ import {
   X,
   Plus,
   MoreVertical,
-  Trash2
+  Trash2,
+  UserCheck
 } from 'lucide-react';
 
 interface CourseOption {
@@ -1051,128 +1052,89 @@ export default function StudentDirectory() {
 
                           {/* Ações */}
                           <td className="px-6 py-4 text-right">
-                            {isPendingApproval ? (
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  onClick={() => handleApproveProducer(userItem.id, userItem.email)}
-                                  className="px-3 py-1.5 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1 cursor-pointer"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  Aprovar Produtor
-                                </button>
-                                <button
-                                  onClick={() => handleMakeStudent(userItem.id)}
-                                  className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold text-xs rounded-xl transition-all cursor-pointer"
-                                  title="Liberar apenas como aluno"
-                                >
-                                  Tornar Aluno
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-end gap-2">
-                                {isProducerRole && (
-                                  <>
-                                    <button
-                                      onClick={() => setViewProducerCoursesUser(userItem)}
-                                      className="px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded-xl text-xs font-semibold border border-purple-500/30 transition-all cursor-pointer flex items-center gap-1"
-                                      title="Ver Cursos Criados por este Produtor"
-                                    >
-                                      <BookOpen className="w-3.5 h-3.5" />
-                                      <span>Ver Cursos</span>
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenProducerPlan(userItem)}
-                                      className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-semibold border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1"
-                                      title="Gerenciar Plano do Produtor"
-                                    >
-                                      <Layers className="w-3.5 h-3.5" />
-                                      <span>Plano / Status</span>
-                                    </button>
-                                  </>
-                                )}
-                                {!isProducerRole && !isMaster && (
-                                  <button
-                                    onClick={() => handleApproveProducer(userItem.id, userItem.email)}
-                                    className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-semibold border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1"
-                                    title="Tornar este usuário um Produtor com acesso ao Painel Administrativo"
-                                  >
-                                    <ShieldCheck className="w-3.5 h-3.5" />
-                                    <span>Tornar Produtor</span>
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleOpenCourseManager(userItem)}
-                                  className="px-3 py-1.5 bg-white/5 hover:bg-[#e9c349] hover:text-black text-gray-300 rounded-xl text-xs font-semibold border border-white/5 hover:border-[#e9c349] transition-all cursor-pointer flex items-center gap-1.5"
-                                  title="Liberar ou remover acesso a cursos da plataforma"
-                                >
-                                  <ShieldCheck className="w-3.5 h-3.5" />
-                                  <span>{isProducerRole ? 'Acesso a Cursos' : 'Gerenciar Cursos'}</span>
-                                </button>
+                            <div className="flex items-center justify-end relative">
+                              <button
+                                onClick={() => setActiveMenuUserId(activeMenuUserId === userItem.id ? null : userItem.id)}
+                                className="p-2 text-stone-400 hover:text-white hover:bg-stone-800 rounded-xl transition-colors cursor-pointer border border-stone-800"
+                                title="Mais opções / Ações"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
 
-                                {/* Botão de 3 Pontinhos no Desktop */}
-                                <div className="relative">
-                                  <button
-                                    onClick={() => setActiveMenuUserId(activeMenuUserId === userItem.id ? null : userItem.id)}
-                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
-                                    title="Mais opções"
-                                  >
-                                    <MoreVertical className="w-4 h-4" />
-                                  </button>
-
-                                  {activeMenuUserId === userItem.id && (
-                                    <>
-                                      <div className="fixed inset-0 z-40" onClick={() => setActiveMenuUserId(null)} />
-                                      <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-[#353534] rounded-xl shadow-2xl py-1.5 z-50 text-left animate-in fade-in zoom-in-95">
+                              {activeMenuUserId === userItem.id && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setActiveMenuUserId(null)} />
+                                  <div className="absolute right-0 mt-2 w-52 bg-[#141414] border border-stone-800 rounded-2xl shadow-2xl py-2 z-50 text-left animate-in fade-in zoom-in-95">
+                                    {isPendingApproval ? (
+                                      <>
+                                        <button
+                                          onClick={() => { handleApproveProducer(userItem.id, userItem.email); setActiveMenuUserId(null); }}
+                                          className="w-full px-4 py-2.5 text-xs text-[#e9c349] hover:bg-white/5 flex items-center gap-2.5 cursor-pointer font-bold"
+                                        >
+                                          <CheckCircle className="w-4 h-4" />
+                                          <span>Aprovar Produtor</span>
+                                        </button>
+                                        <button
+                                          onClick={() => { handleMakeStudent(userItem.id); setActiveMenuUserId(null); }}
+                                          className="w-full px-4 py-2.5 text-xs text-stone-200 hover:bg-white/5 flex items-center gap-2.5 cursor-pointer"
+                                        >
+                                          <UserCheck className="w-4 h-4 text-stone-400" />
+                                          <span>Tornar Aluno</span>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
                                         <button
                                           onClick={() => { handleOpenCourseManager(userItem); setActiveMenuUserId(null); }}
-                                          className="w-full px-3.5 py-2 text-xs text-gray-200 hover:bg-white/10 flex items-center gap-2 cursor-pointer"
+                                          className="w-full px-4 py-2.5 text-xs text-stone-200 hover:bg-white/5 flex items-center gap-2.5 cursor-pointer"
                                         >
-                                          <BookOpen className="w-3.5 h-3.5 text-[#e9c349]" />
-                                          <span>Gerenciar Cursos</span>
+                                          <ShieldCheck className="w-4 h-4 text-[#e9c349]" />
+                                          <span>{isProducerRole ? 'Acesso a Cursos' : 'Gerenciar Cursos'}</span>
                                         </button>
                                         {isProducerRole ? (
                                           <>
                                             <button
                                               onClick={() => { setViewProducerCoursesUser(userItem); setActiveMenuUserId(null); }}
-                                              className="w-full px-3.5 py-2 text-xs text-purple-300 hover:bg-white/10 flex items-center gap-2 cursor-pointer"
+                                              className="w-full px-4 py-2.5 text-xs text-purple-300 hover:bg-white/5 flex items-center gap-2.5 cursor-pointer"
                                             >
-                                              <BookOpen className="w-3.5 h-3.5" />
+                                              <BookOpen className="w-4 h-4" />
                                               <span>Ver Cursos Criados</span>
                                             </button>
                                             <button
                                               onClick={() => { handleOpenProducerPlan(userItem); setActiveMenuUserId(null); }}
-                                              className="w-full px-3.5 py-2 text-xs text-amber-300 hover:bg-white/10 flex items-center gap-2 cursor-pointer"
+                                              className="w-full px-4 py-2.5 text-xs text-amber-300 hover:bg-white/5 flex items-center gap-2.5 cursor-pointer"
                                             >
-                                              <Layers className="w-3.5 h-3.5" />
-                                              <span>Plano do Produtor</span>
+                                              <Layers className="w-4 h-4" />
+                                              <span>Plano / Status</span>
                                             </button>
                                           </>
                                         ) : !isMaster && (
                                           <button
                                             onClick={() => { handleApproveProducer(userItem.id, userItem.email); setActiveMenuUserId(null); }}
-                                            className="w-full px-3.5 py-2 text-xs text-amber-300 hover:bg-white/10 flex items-center gap-2 cursor-pointer"
+                                            className="w-full px-4 py-2.5 text-xs text-amber-300 hover:bg-white/5 flex items-center gap-2.5 cursor-pointer"
                                           >
-                                            <ShieldCheck className="w-3.5 h-3.5" />
+                                            <ShieldCheck className="w-4 h-4" />
                                             <span>Tornar Produtor</span>
                                           </button>
                                         )}
-                                        {!isMaster && (
-                                          <div className="pt-1 mt-1 border-t border-gray-800">
-                                            <button
-                                              onClick={() => { setConfirmDeleteUser(userItem); setActiveMenuUserId(null); }}
-                                              className="w-full px-3.5 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer font-bold"
-                                            >
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                              <span>Eliminar Conta</span>
-                                            </button>
-                                          </div>
-                                        )}
+                                      </>
+                                    )}
+
+                                    {!isMaster && (
+                                      <div className="pt-1 mt-1 border-t border-stone-800">
+                                        <button
+                                          onClick={() => { setConfirmDeleteUser(userItem); setActiveMenuUserId(null); }}
+                                          className="w-full px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2.5 cursor-pointer font-bold"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                          <span>Eliminar Conta</span>
+                                        </button>
                                       </div>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            )}
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
