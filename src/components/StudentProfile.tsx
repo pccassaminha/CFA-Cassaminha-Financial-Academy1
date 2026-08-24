@@ -20,6 +20,7 @@ export default function StudentProfile() {
 
   const [isActivatingProducer, setIsActivatingProducer] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly'>('quarterly');
+  const [isProducerModalOpen, setIsProducerModalOpen] = useState(false);
 
   const handlePasswordReset = async () => {
     const email = profile?.email || auth.currentUser?.email;
@@ -321,71 +322,117 @@ export default function StudentProfile() {
                 </button>
               </div>
             ) : (
-              <div className="p-6 bg-[#0e0e0e] border border-stone-800 rounded-2xl space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 bg-[#e9c349]/15 text-[#e9c349] rounded-xl shrink-0 mt-0.5">
-                    <Shield className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-base font-bold text-white font-headline">Deseja criar e vender cursos na plataforma CFA?</h4>
-                    <p className="text-xs text-stone-400 mt-1 leading-relaxed">
-                      Ative a sua Conta de Produtor para ter acesso à área administrativa, cadastrar vídeo-aulas, gerenciar alunos e receber pagamentos diretos na sua conta bancária / Multicaixa Express.
-                    </p>
-                    <p className="text-[11px] text-emerald-400 font-bold mt-1.5 flex items-center gap-1">
-                      <span>🎁 Cadastro Inicial 100% Gratuito!</span>
-                      <span className="text-stone-400 font-normal">O pagamento da taxa ocorre somente no fim do período de utilização.</span>
-                    </p>
-                  </div>
+              <div className="p-6 bg-[#0e0e0e] border border-stone-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="space-y-1 text-center sm:text-left">
+                  <h4 className="text-base font-bold text-white font-headline">Deseja criar e vender cursos na plataforma CFA?</h4>
+                  <p className="text-xs text-stone-400">Torne-se um produtor, cadastre seus próprios cursos, gerencie alunos e receba pagamentos diretos.</p>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div
-                    onClick={() => setSelectedPlan('monthly')}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                      selectedPlan === 'monthly' ? 'bg-[#e9c349]/15 border-[#e9c349]' : 'bg-black/50 border-stone-800 hover:border-stone-700'
-                    }`}
-                  >
-                    <div>
-                      <span className="text-xs font-bold text-white block">Plano Mensal</span>
-                      <span className="text-[11px] text-stone-400 font-mono">3.500 Kz / mês</span>
-                    </div>
-                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedPlan === 'monthly' ? 'border-[#e9c349] bg-[#e9c349]' : 'border-stone-600'}`}>
-                      {selectedPlan === 'monthly' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setSelectedPlan('quarterly')}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                      selectedPlan === 'quarterly' ? 'bg-[#e9c349]/15 border-[#e9c349]' : 'bg-black/50 border-stone-800 hover:border-stone-700'
-                    }`}
-                  >
-                    <div>
-                      <span className="text-xs font-bold text-[#e9c349] flex items-center gap-1">
-                        Plano Trimestral
-                        <span className="text-[9px] bg-[#e9c349] text-black px-1.5 py-0.2 font-bold rounded">Recomendado</span>
-                      </span>
-                      <span className="text-[11px] text-stone-400 font-mono">7.000 Kz / 3 meses</span>
-                    </div>
-                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedPlan === 'quarterly' ? 'border-[#e9c349] bg-[#e9c349]' : 'border-stone-600'}`}>
-                      {selectedPlan === 'quarterly' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex justify-end">
-                  <button
-                    onClick={handleActivateProducerRole}
-                    disabled={isActivatingProducer}
-                    className="w-full sm:w-auto px-6 py-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-                  >
-                    <Shield className="w-4 h-4" />
-                    <span>{isActivatingProducer ? 'Ativando Conta de Produtor...' : 'Ativar Minha Conta de Produtor Agora'}</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => setIsProducerModalOpen(true)}
+                  className="px-6 py-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold text-xs rounded-xl transition-all shadow-lg cursor-pointer shrink-0 active:scale-95 flex items-center gap-2"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Registar / Tornar-me Produtor</span>
+                </button>
               </div>
             )}
           </div>
+
+          {/* Modal de Registo / Ativação de Conta de Produtor */}
+          {isProducerModalOpen && (
+            <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-[#141414] border border-stone-800 rounded-3xl w-full max-w-xl p-6 sm:p-8 space-y-6 relative shadow-2xl animate-in fade-in zoom-in-95">
+                <button
+                  onClick={() => setIsProducerModalOpen(false)}
+                  className="absolute top-6 right-6 p-2 rounded-xl bg-stone-800 text-stone-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-[#e9c349]/15 text-[#e9c349] rounded-2xl">
+                    <Shield className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="px-2.5 py-0.5 bg-[#e9c349]/20 text-[#e9c349] font-extrabold text-[10px] uppercase rounded-full tracking-wider">
+                      Registo Oficial de Produtor
+                    </span>
+                    <h3 className="text-xl font-extrabold text-white font-headline mt-1">Deseja criar e vender cursos na plataforma CFA?</h3>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs text-stone-300 leading-relaxed">
+                    Você está a iniciar o processo de <strong>registo como Produtor de Cursos</strong> na CFA. Ao ativar sua conta, você terá acesso à área administrativa completa, ferramenta de cadastro de vídeo-aulas, gestão de alunos e recebimentos diretos.
+                  </p>
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                    <p className="text-xs text-emerald-400 font-bold flex items-center gap-2">
+                      <span>🎁 Cadastro Inicial 100% Gratuito!</span>
+                    </p>
+                    <p className="text-[11px] text-stone-300 mt-0.5">O pagamento da taxa ocorre somente no fim do período de utilização escolhido abaixo.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-stone-300 uppercase tracking-wider block">Escolha o seu Plano de Produtor:</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div
+                      onClick={() => setSelectedPlan('monthly')}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                        selectedPlan === 'monthly' ? 'bg-[#e9c349]/15 border-[#e9c349]' : 'bg-black/50 border-stone-800 hover:border-stone-700'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-xs font-bold text-white block">Plano Mensal</span>
+                        <span className="text-xs text-stone-400 font-mono">3.500 Kz / mês</span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedPlan === 'monthly' ? 'border-[#e9c349] bg-[#e9c349]' : 'border-stone-600'}`}>
+                        {selectedPlan === 'monthly' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setSelectedPlan('quarterly')}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                        selectedPlan === 'quarterly' ? 'bg-[#e9c349]/15 border-[#e9c349]' : 'bg-black/50 border-stone-800 hover:border-stone-700'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-xs font-bold text-[#e9c349] flex items-center gap-1">
+                          Plano Trimestral
+                          <span className="text-[9px] bg-[#e9c349] text-black px-1.5 py-0.2 font-bold rounded">Recomendado</span>
+                        </span>
+                        <span className="text-xs text-stone-400 font-mono">7.000 Kz / 3 meses</span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedPlan === 'quarterly' ? 'border-[#e9c349] bg-[#e9c349]' : 'border-stone-600'}`}>
+                        {selectedPlan === 'quarterly' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setIsProducerModalOpen(false)}
+                    className="px-5 py-3 rounded-xl bg-stone-800 text-stone-300 hover:bg-stone-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsProducerModalOpen(false);
+                      handleActivateProducerRole();
+                    }}
+                    disabled={isActivatingProducer}
+                    className="px-6 py-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{isActivatingProducer ? 'Ativando...' : 'Confirmar e Ativar Conta de Produtor'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Botão de Recuperação / Redefinição de Senha */}
           <div className="mt-8 pt-6 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-4">

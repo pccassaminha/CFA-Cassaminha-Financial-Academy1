@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 import { 
   BarChart3, 
   Layers, 
@@ -63,6 +63,7 @@ export default function Analytics() {
   // Real-time Firestore states
   const [courses, setCourses] = useState<CourseData[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
   const [selectedModuleId, setSelectedModuleId] = useState<string>('all');
@@ -84,6 +85,15 @@ export default function Analytics() {
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
   };
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      getDoc(doc(db, 'users', user.uid)).then(snap => {
+        if (snap.exists()) setCurrentUserProfile(snap.data());
+      }).catch(err => console.warn("Could not fetch user profile for analytics:", err));
+    }
+  }, []);
 
   // 1. Listen to Real Courses Collection
   useEffect(() => {
@@ -125,23 +135,53 @@ export default function Analytics() {
     return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
   };
 
+  const currentAuthUser = auth.currentUser;
+  const cleanCurrentEmail = currentAuthUser?.email?.trim().toLowerCase() || '';
+  const isMasterUser = cleanCurrentEmail === 'grupocassaminha@gmail.com' || cleanCurrentEmail === 'exportacoes.extras@gmail.com';
+  const isProducerRole = currentUserProfile?.role === 'producer' || currentUserProfile?.roleType === 'producer';
+  const isProducerMode = !isMasterUser && (isProducerRole || currentUserProfile?.role === 'admin');
+
+  // Isolated Courses for Producer vs Master Admin
+  const isolatedCourses = useMemo(() => {
+    if (!isProducerMode) return courses;
+    const pName = (currentUserProfile?.producerName || `${currentUserProfile?.firstName || ''} ${currentUserProfile?.lastName || ''}`).trim().toLowerCase();
+    return courses.filter(c => {
+      const authorMatch = c.authorId && (c.authorId === currentAuthUser?.uid || c.authorId === currentAuthUser?.email);
+      const nameMatch = c.producerName && pName && c.producerName.trim().toLowerCase() === pName;
+      return authorMatch || nameMatch;
+    });
+  }, [courses, isProducerMode, currentAuthUser, currentUserProfile]);
+
+  const isolatedCourseIds = useMemo(() => new Set(isolatedCourses.map(c => c.id)), [isolatedCourses]);
+
+  // Isolated Users/Students for Producer vs Master Admin
+  const effectiveUsers = useMemo(() => {
+    if (!isProducerMode) return users;
+    return users.filter(u => {
+      const isMaster = isMasterEmail(u.email);
+      const isProducer = u.role === 'producer' || u.role === 'admin' || u.roleType === 'producer';
+      if (isMaster || isProducer) return false;
+      return Array.isArray(u.enrolledCourses) && u.enrolledCourses.some(cid => isolatedCourseIds.has(cid));
+    });
+  }, [users, isProducerMode, isolatedCourseIds]);
+
   // Real Registered Students
   const realStudents = useMemo(() => {
-    return users.filter(u => {
+    return effectiveUsers.filter(u => {
       const cleanEmail = (u.email || '').trim().toLowerCase();
       const isMaster = isMasterEmail(cleanEmail);
       const isProducer = u.role === 'producer' || u.role === 'admin' || u.roleType === 'producer';
       return !isMaster && !isProducer;
     });
-  }, [users]);
+  }, [effectiveUsers]);
 
   // Filtered Courses based on selection
   const activeCourses = useMemo(() => {
     if (selectedCourseId === 'all') {
-      return courses;
+      return isolatedCourses;
     }
-    return courses.filter(c => c.id === selectedCourseId);
-  }, [courses, selectedCourseId]);
+    return isolatedCourses.filter(c => c.id === selectedCourseId);
+  }, [isolatedCourses, selectedCourseId]);
 
   // Available Modules list for selection options
   const availableModules = useMemo(() => {
