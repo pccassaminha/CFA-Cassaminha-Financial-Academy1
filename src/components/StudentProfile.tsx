@@ -174,6 +174,27 @@ export default function StudentProfile() {
       </div>
 
       <div className="space-y-6">
+        {/* Estatísticas de Aprendizado (Acima de tudo) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 text-center">
+            <BookOpen className="w-8 h-8 text-[#e9c349] mx-auto mb-2 opacity-80" />
+            <span className="text-3xl font-extrabold text-white font-mono">{enrolledCount}</span>
+            <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Cursos Adquiridos</p>
+          </div>
+
+          <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 text-center">
+            <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2 opacity-80" />
+            <span className="text-3xl font-extrabold text-white font-mono">{completedCount}</span>
+            <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Aulas Concluídas</p>
+          </div>
+
+          <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 text-center">
+            <User className="w-8 h-8 text-blue-400 mx-auto mb-2 opacity-80" />
+            <span className="text-3xl font-extrabold text-white font-mono">100%</span>
+            <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Segurança SSL</p>
+          </div>
+        </div>
+
         {/* Cartão de Credenciais de Acesso */}
         <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 shadow-xl">
           <div className="flex items-center gap-3 pb-6 border-b border-gray-800 mb-6">
@@ -296,32 +317,9 @@ export default function StudentProfile() {
             </div>
           </div>
 
-          {/* Seção de Área de Produtor / Ativação de Produtor */}
-          <div className="mt-8 pt-6 border-t border-gray-800">
-            {profile?.role === 'producer' || profile?.role === 'admin' || profile?.roleType === 'producer' ? (
-              <div className="p-5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-[#e9c349]/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="space-y-1 text-center sm:text-left">
-                  <span className="px-2.5 py-0.5 bg-[#e9c349] text-black font-extrabold text-[10px] uppercase rounded-full tracking-wider">
-                    Conta de Produtor Ativa
-                  </span>
-                  <h4 className="text-base font-extrabold text-white font-headline">Painel Administrativo do Produtor</h4>
-                  <p className="text-xs text-gray-300">
-                    Sua conta tem permissão total para criar cursos, gerenciar módulos, visualizar métricas e registrar dados de recebimento.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    localStorage.setItem('viewAsStudent', 'false');
-                    window.dispatchEvent(new Event('student-view-changed'));
-                    window.location.href = '/dashboard';
-                  }}
-                  className="px-6 py-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-black text-xs rounded-xl transition-all shadow-lg cursor-pointer shrink-0 active:scale-95 flex items-center gap-2"
-                >
-                  <Shield className="w-4 h-4" />
-                  <span>Acessar Painel do Produtor</span>
-                </button>
-              </div>
-            ) : (
+          {/* Seção de Registo de Produtor (Apenas se NÃO for produtor) */}
+          {!(profile?.role === 'producer' || profile?.role === 'admin' || profile?.roleType === 'producer') && (
+            <div className="mt-6 pt-6 border-t border-gray-800">
               <div className="p-6 bg-[#0e0e0e] border border-stone-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-center sm:text-left">
                   <h4 className="text-base font-bold text-white font-headline">Deseja criar e vender cursos na plataforma CFA?</h4>
@@ -335,8 +333,8 @@ export default function StudentProfile() {
                   <span>Registar / Tornar-me Produtor</span>
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Modal de Registo / Ativação de Conta de Produtor */}
           {isProducerModalOpen && (
@@ -480,28 +478,7 @@ export default function StudentProfile() {
           )}
         </div>
 
-        {/* Estatísticas de Aprendizado */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 text-center">
-            <BookOpen className="w-8 h-8 text-[#e9c349] mx-auto mb-2 opacity-80" />
-            <span className="text-3xl font-extrabold text-white font-mono">{enrolledCount}</span>
-            <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Cursos Adquiridos</p>
-          </div>
-
-          <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 text-center">
-            <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2 opacity-80" />
-            <span className="text-3xl font-extrabold text-white font-mono">{completedCount}</span>
-            <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Aulas Concluídas</p>
-          </div>
-
-          <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 text-center">
-            <User className="w-8 h-8 text-blue-400 mx-auto mb-2 opacity-80" />
-            <span className="text-3xl font-extrabold text-white font-mono">100%</span>
-            <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Segurança SSL</p>
-          </div>
-        </div>
-
-        {/* Suporte e Ajuda */}
+        {/* Suporte e Ajuda (No final da página, onde estava) */}
         {(() => {
           const cleanPhone = (supportWhatsApp || '244923456789').replace(/[^0-9]/g, '');
           const studentEmail = profile?.email || auth.currentUser?.email || '';
@@ -509,7 +486,7 @@ export default function StudentProfile() {
           const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textMessage)}`;
 
           return (
-            <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="bg-[#131313] border border-gray-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-green-500/15 text-green-400 flex items-center justify-center font-bold shrink-0">
                   <MessageCircle className="w-6 h-6" />
