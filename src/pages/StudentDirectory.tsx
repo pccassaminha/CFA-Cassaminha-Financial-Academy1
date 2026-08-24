@@ -813,32 +813,21 @@ export default function StudentDirectory() {
                             <div className="flex flex-wrap items-center gap-1.5 max-w-xs">
                               {isMaster ? (
                                 <span className="text-xs font-semibold text-[#e9c349]">Acesso Total aos Cursos</span>
+                              ) : enrolledList.length === 0 ? (
+                                <span className="text-[11px] text-gray-500 italic">Nenhum curso matriculado</span>
                               ) : (
-                                <>
-                                  {enrolledList.length === 0 ? (
-                                    <span className="text-[11px] text-gray-500 italic mr-1">Nenhum curso matriculado</span>
-                                  ) : (
-                                    enrolledList.map(cId => {
-                                      const courseInfo = availableCourses.find(c => c.id === cId);
-                                      return (
-                                        <span 
-                                          key={cId}
-                                          className="px-2 py-0.5 bg-[#0e0e0e] border border-gray-800 text-gray-300 text-[10px] font-medium rounded-md truncate max-w-[140px]"
-                                          title={courseInfo?.title || cId}
-                                        >
-                                          {courseInfo?.title || cId}
-                                        </span>
-                                      );
-                                    })
-                                  )}
-                                  <button
-                                    onClick={() => handleOpenCourseManager(userItem)}
-                                    className="px-2 py-0.5 bg-[#e9c349]/10 hover:bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/30 text-[10px] font-bold rounded-md transition-colors cursor-pointer"
-                                    title="Adicionar ou remover cursos deste aluno"
-                                  >
-                                    {enrolledList.length === 0 ? '+ Matricular' : '+ Editar'}
-                                  </button>
-                                </>
+                                enrolledList.map(cId => {
+                                  const courseInfo = availableCourses.find(c => c.id === cId);
+                                  return (
+                                    <span 
+                                      key={cId}
+                                      className="px-2.5 py-1 bg-[#1a1a1a] border border-gray-800 text-gray-300 text-[11px] font-medium rounded-lg truncate max-w-[160px]"
+                                      title={courseInfo?.title || cId}
+                                    >
+                                      {courseInfo?.title || cId}
+                                    </span>
+                                  );
+                                })
                               )}
                             </div>
                           </td>
