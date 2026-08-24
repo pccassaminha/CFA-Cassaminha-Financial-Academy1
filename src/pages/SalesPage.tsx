@@ -249,6 +249,23 @@ export default function SalesPage() {
                     {/* Course Body */}
                     <div className="p-6 flex-1 flex flex-col justify-between space-y-6">
                       <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[11px] text-stone-400 font-medium">
+                          <span className="truncate max-w-[180px]">
+                            Por: <strong className="text-stone-300 font-semibold">{course.producerName || course.instructor || "CFA Academy"}</strong>
+                          </span>
+                          {(course.producerPhone || course.producerWhatsApp) && (
+                            <a
+                              href={`https://wa.me/${(course.producerPhone || course.producerWhatsApp).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Olá, gostaria de tirar dúvidas sobre o curso "${course.title}".`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded-md transition-all shrink-0"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              <span>Contactar Produtor</span>
+                            </a>
+                          )}
+                        </div>
                         <h3 className="font-headline font-bold text-lg md:text-xl text-white group-hover:text-[#e9c349] transition-colors line-clamp-2">
                           {course.title}
                         </h3>

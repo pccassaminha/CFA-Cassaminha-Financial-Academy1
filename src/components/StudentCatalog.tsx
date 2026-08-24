@@ -12,6 +12,8 @@ export interface Course {
   price: number;
   coverImage: string;
   isPublished: boolean;
+  producerName?: string;
+  instructor?: string;
 }
 
 export interface StudentCatalogProps {
@@ -173,6 +175,9 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
                   </div>
                   <div className="p-3.5 sm:p-5 md:p-6 flex-1 flex flex-col justify-between">
                     <div>
+                      <div className="text-[10px] sm:text-xs text-gray-400 font-semibold mb-1">
+                        Por: <span className="text-[#e9c349] font-bold">{course.producerName || course.instructor || 'CFA Academy'}</span>
+                      </div>
                       <h3 className="text-sm sm:text-base md:text-lg font-bold text-white mb-1.5 sm:mb-2 line-clamp-2">{course.title}</h3>
                       <p className="text-gray-400 text-[11px] sm:text-xs md:text-sm line-clamp-2 sm:line-clamp-4 leading-relaxed mb-3 sm:mb-5">{course.description}</p>
                     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 import { PlatformSettings, Coupon } from '../types';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { 
@@ -155,6 +155,20 @@ export default function Settings() {
     { id: 'community_mod', name: 'Moderador da Comunidade', description: 'Gestão de Fóruns, Dúvidas e Alunos', modulesCount: '4/12' }
   ]);
 
+  // 4. Multi-Produtor / User Context
+  const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'producer' | 'student'>('admin');
+  const [producerData, setProducerData] = useState({
+    producerName: '',
+    producerWhatsApp: '',
+    producerBankName: 'BFA',
+    producerHolderName: '',
+    producerIban: '',
+    producerExpressPhone: '',
+    producerPlan: 'monthly' as 'monthly' | 'quarterly',
+    producerPlanStatus: 'pending'
+  });
+  const [isSavingProducerData, setIsSavingProducerData] = useState(false);
+
   const showNotification = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToastMessage(msg);
     setToastType(type);
@@ -165,6 +179,29 @@ export default function Settings() {
   // Load settings from Firestore
   const fetchSettings = async () => {
     try {
+      // 0. Detect Current User Role & Producer Profile
+      const user = auth.currentUser;
+      if (user) {
+        const uSnap = await getDoc(doc(db, 'users', user.uid));
+        if (uSnap.exists()) {
+          const uData = uSnap.data();
+          if (uData.role === 'producer' || uData.roleType === 'producer') {
+            setCurrentUserRole('producer');
+          } else if (uData.role === 'admin' || uData.role === 'super_admin' || uData.roleType === 'admin' || uData.email === 'grupocassaminha@gmail.com') {
+            setCurrentUserRole('admin');
+          }
+          setProducerData({
+            producerName: uData.producerName || `${uData.firstName || ''} ${uData.lastName || ''}`.trim() || user.displayName || '',
+            producerWhatsApp: uData.producerWhatsApp || uData.phone || '',
+            producerBankName: uData.producerBankName || 'BFA',
+            producerHolderName: uData.producerHolderName || '',
+            producerIban: uData.producerIban || '',
+            producerExpressPhone: uData.producerExpressPhone || '',
+            producerPlan: uData.producerPlan || 'monthly',
+            producerPlanStatus: uData.producerPlanStatus || 'pending'
+          });
+        }
+      }
       // 1. Payment Settings
       const paymentDoc = await getDoc(doc(db, 'settings', 'payment'));
       if (paymentDoc.exists()) {
@@ -287,6 +324,50 @@ export default function Settings() {
       showNotification('Erro ao salvar pagamentos.', 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Salvar Dados do Produtor
+  const handleSaveProducerData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const user = auth.currentUser;
+    if (!user) return;
+    setIsSavingProducerData(true);
+    try {
+      const payload = {
+        producerName: producerData.producerName.trim(),
+        producerWhatsApp: producerData.producerWhatsApp.trim(),
+        producerBankName: producerData.producerBankName.trim(),
+        producerHolderName: producerData.producerHolderName.trim(),
+        producerIban: producerData.producerIban.trim(),
+        producerExpressPhone: producerData.producerExpressPhone.trim(),
+        producerPlan: producerData.producerPlan,
+        updatedAt: new Date().toISOString()
+      };
+
+      await updateDoc(doc(db, 'users', user.uid), payload);
+
+      const coursesSnap = await getDocs(collection(db, 'courses'));
+      coursesSnap.forEach(async (cDoc) => {
+        const cData = cDoc.data();
+        if (cData.authorId === user.uid) {
+          await updateDoc(doc(db, 'courses', cDoc.id), {
+            producerName: producerData.producerName.trim(),
+            producerPhone: producerData.producerWhatsApp.trim(),
+            producerBankName: producerData.producerBankName.trim(),
+            producerHolderName: producerData.producerHolderName.trim(),
+            producerIban: producerData.producerIban.trim(),
+            producerExpressPhone: producerData.producerExpressPhone.trim()
+          }).catch(() => {});
+        }
+      });
+
+      showNotification('Seus dados de recebimento das vendas foram salvos com sucesso!', 'success');
+    } catch (err) {
+      console.error("Erro ao salvar dados do produtor:", err);
+      showNotification('Erro ao salvar seus dados bancários.', 'error');
+    } finally {
+      setIsSavingProducerData(false);
     }
   };
 
@@ -548,9 +629,17 @@ export default function Settings() {
         {/* Header */}
         <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-outline-variant/10">
           <div>
-            <p className="font-label text-xs text-[#e9c349] tracking-[0.3em] uppercase mb-1 font-bold">Gestão & Sistema</p>
-            <h2 className="font-headline text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">Painel de Configurações</h2>
-            <p className="text-xs text-stone-400 mt-1">Clique em qualquer bloco abaixo para abrir o pop-up e configurar seus dados.</p>
+            <p className="font-label text-xs text-[#e9c349] tracking-[0.3em] uppercase mb-1 font-bold">
+              {currentUserRole === 'producer' ? 'Área do Produtor' : 'Gestão & Sistema'}
+            </p>
+            <h2 className="font-headline text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+              {currentUserRole === 'producer' ? 'Configurações de Produtor' : 'Painel de Configurações'}
+            </h2>
+            <p className="text-xs text-stone-400 mt-1">
+              {currentUserRole === 'producer' 
+                ? 'Configure seus dados bancários para recebimento direto e gerencie seu plano de produtor CFA.' 
+                : 'Clique em qualquer bloco abaixo para abrir o pop-up e configurar seus dados.'}
+            </p>
           </div>
           <div className="flex gap-3">
             <button 
@@ -568,7 +657,229 @@ export default function Settings() {
         </header>
 
         {/* 3 Main Interactive Buttons / Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        {currentUserRole === 'producer' ? (
+          /* PAINEL DE CONFIGURAÇÕES DO PRODUTOR */
+          <div className="space-y-8 max-w-4xl mb-12">
+            {/* 1. DADOS DE RECEBIMENTO DAS VENDAS */}
+            <form onSubmit={handleSaveProducerData} className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-6 md:p-8 shadow-xl space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-outline-variant/10">
+                <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center font-bold">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-headline text-lg font-bold text-white">Seus Dados Bancários para Recebimento</h3>
+                  <p className="text-xs text-stone-400">Quando um aluno comprar seu curso, o dinheiro vai direto para a sua conta.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                    Nome / Marca do Produtor
+                  </label>
+                  <input
+                    type="text"
+                    value={producerData.producerName}
+                    onChange={(e) => setProducerData(p => ({ ...p, producerName: e.target.value }))}
+                    placeholder="Ex: Prof. António Cassaminha"
+                    className="w-full bg-[#0e0e0e] border border-stone-800 text-white rounded-xl px-4 py-3 text-xs focus:border-[#e9c349] focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                    WhatsApp para Contacto
+                  </label>
+                  <input
+                    type="text"
+                    value={producerData.producerWhatsApp}
+                    onChange={(e) => setProducerData(p => ({ ...p, producerWhatsApp: e.target.value }))}
+                    placeholder="Ex: 923456789"
+                    className="w-full bg-[#0e0e0e] border border-stone-800 text-white rounded-xl px-4 py-3 text-xs focus:border-[#e9c349] focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                    Titular da Conta Bancária
+                  </label>
+                  <input
+                    type="text"
+                    value={producerData.producerHolderName}
+                    onChange={(e) => setProducerData(p => ({ ...p, producerHolderName: e.target.value }))}
+                    placeholder="Ex: Nome Completo do Titular"
+                    className="w-full bg-[#0e0e0e] border border-stone-800 text-white rounded-xl px-4 py-3 text-xs focus:border-[#e9c349] focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                    Banco
+                  </label>
+                  <input
+                    type="text"
+                    value={producerData.producerBankName}
+                    onChange={(e) => setProducerData(p => ({ ...p, producerBankName: e.target.value }))}
+                    placeholder="Ex: BFA, BAI, BIC, Atlântico"
+                    className="w-full bg-[#0e0e0e] border border-stone-800 text-white rounded-xl px-4 py-3 text-xs focus:border-[#e9c349] focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                    IBAN (Angola)
+                  </label>
+                  <input
+                    type="text"
+                    value={producerData.producerIban}
+                    onChange={(e) => setProducerData(p => ({ ...p, producerIban: e.target.value }))}
+                    placeholder="Ex: AO06 0040 0000 0000 0000 0000 0"
+                    className="w-full bg-[#0e0e0e] border border-stone-800 text-white rounded-xl px-4 py-3 text-xs font-mono focus:border-[#e9c349] focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                    Multicaixa Express (Telefone)
+                  </label>
+                  <input
+                    type="text"
+                    value={producerData.producerExpressPhone}
+                    onChange={(e) => setProducerData(p => ({ ...p, producerExpressPhone: e.target.value }))}
+                    placeholder="Ex: 923456789"
+                    className="w-full bg-[#0e0e0e] border border-stone-800 text-white rounded-xl px-4 py-3 text-xs font-mono focus:border-[#e9c349] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-between items-center border-t border-outline-variant/10">
+                <p className="text-[11px] text-stone-400 italic">
+                  🔒 Seus dados serão exibidos no checkout dos seus cursos.
+                </p>
+                <button
+                  type="submit"
+                  disabled={isSavingProducerData}
+                  className="px-6 py-3 bg-[#e9c349] hover:bg-[#d8b33c] text-stone-900 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingProducerData ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Guardar Dados Bancários</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* 2. PLANO DE ASSINATURA DO PRODUTOR */}
+            <div className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-6 md:p-8 shadow-xl space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-outline-variant/10">
+                <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center font-bold">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-headline text-lg font-bold text-white">Seu Plano de Assinatura CFA</h3>
+                  <p className="text-xs text-stone-400">Escolha o seu plano para publicar cursos e gerir seus alunos.</p>
+                </div>
+              </div>
+
+              {/* Notice regarding free account and end of period payment */}
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-start gap-3">
+                <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl shrink-0 mt-0.5">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="text-xs space-y-1">
+                  <span className="font-bold text-emerald-300 block text-sm">
+                    🎁 Cadastro Inicial 100% Gratuito! Pagamento Apenas no Fim do Período
+                  </span>
+                  <p className="text-stone-300 leading-relaxed">
+                    A sua conta de produtor permite criar, organizar e publicar os seus cursos gratuitamente. O pagamento da taxa do plano escolhido (Mensal ou Trimestral) só é realizado no final do mês ou trimestre de utilização.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div 
+                  onClick={() => setProducerData(p => ({ ...p, producerPlan: 'monthly' }))}
+                  className={`p-5 rounded-2xl border cursor-pointer transition-all ${
+                    producerData.producerPlan === 'monthly'
+                      ? 'bg-[#e9c349]/10 border-[#e9c349] text-white shadow-lg'
+                      : 'bg-[#0e0e0e] border-stone-800 text-stone-400 hover:border-stone-700'
+                  }`}
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-base text-[#e9c349]">Plano Mensal</span>
+                    {producerData.producerPlan === 'monthly' && (
+                      <span className="text-[10px] bg-[#e9c349] text-black font-bold px-2 py-0.5 rounded-full">Ativo</span>
+                    )}
+                  </div>
+                  <div className="text-xl font-black text-white font-mono mb-2">3.500 Kz <span className="text-xs text-stone-400 font-normal">/ mês</span></div>
+                  <p className="text-xs text-stone-400 leading-relaxed">Publicação de cursos, monitoramento de alunos e recebimento direto.</p>
+                </div>
+
+                <div 
+                  onClick={() => setProducerData(p => ({ ...p, producerPlan: 'quarterly' }))}
+                  className={`p-5 rounded-2xl border cursor-pointer transition-all ${
+                    producerData.producerPlan === 'quarterly'
+                      ? 'bg-[#e9c349]/10 border-[#e9c349] text-white shadow-lg'
+                      : 'bg-[#0e0e0e] border-stone-800 text-stone-400 hover:border-stone-700'
+                  }`}
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-base text-[#e9c349]">Plano Trimestral</span>
+                    {producerData.producerPlan === 'quarterly' && (
+                      <span className="text-[10px] bg-[#e9c349] text-black font-bold px-2 py-0.5 rounded-full">Ativo</span>
+                    )}
+                  </div>
+                  <div className="text-xl font-black text-white font-mono mb-2">7.000 Kz <span className="text-xs text-stone-400 font-normal">/ 3 meses</span></div>
+                  <p className="text-xs text-stone-400 leading-relaxed">Economia e estabilidade de 3 meses de subscrição na plataforma CFA.</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#0e0e0e] border border-stone-800 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs font-bold text-white block">Suporte e Pagamento do Plano (Grupo Cassaminha)</span>
+                  <span className="text-[11px] text-stone-400">Envie o comprovativo do pagamento da taxa do plano ao Maestro pelo WhatsApp.</span>
+                </div>
+                <a
+                  href={`https://wa.me/${supportWhatsApp}?text=${encodeURIComponent(`Olá Maestro, acabei de efetuar o pagamento do meu plano de produtor (${producerData.producerPlan === 'monthly' ? 'Mensal - 3.500 Kz' : 'Trimestral - 7.000 Kz'}). Segue o comprovativo.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span>Enviar Comprovativo</span>
+                </a>
+              </div>
+            </div>
+
+            {/* 3. GERENCIAR CUPÕES DOS SEUS CURSOS */}
+            <div className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-6 md:p-8 shadow-xl flex items-center justify-between">
+              <div>
+                <h3 className="font-headline text-lg font-bold text-white">Cupões dos Seus Cursos</h3>
+                <p className="text-xs text-stone-400 mt-0.5">Crie códigos de desconto exclusivos para os alunos dos seus cursos.</p>
+              </div>
+              <button
+                onClick={() => setIsPaymentModalOpen(true)}
+                className="px-5 py-2.5 bg-white/5 hover:bg-[#e9c349] hover:text-black text-white font-bold text-xs rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Gerenciar Cupões</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           
           {/* BUTTON 1: Identidade Global da Plataforma */}
           <section 
@@ -723,8 +1034,8 @@ export default function Settings() {
               </div>
             </div>
           </section>
-
         </div>
+        )}
 
         {/* System Status Footer */}
         <footer className="mt-12 flex flex-col sm:flex-row items-center justify-between px-6 py-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/5 gap-3">

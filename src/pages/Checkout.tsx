@@ -53,6 +53,38 @@ export default function Checkout() {
           const cSnap = await getDoc(doc(db, 'courses', courseIdParam));
           if (cSnap.exists()) {
             const data = cSnap.data();
+
+            let pIban = data.producerIban;
+            let pHolder = data.producerHolderName;
+            let pBank = data.producerBankName;
+            let pExpress = data.producerExpressPhone || data.producerPhone;
+            let pName = data.producerName || data.instructor || 'Produtor do Curso';
+
+            if ((!pIban || !pHolder) && data.authorId) {
+              const authorSnap = await getDoc(doc(db, 'users', data.authorId)).catch(() => null);
+              if (authorSnap && authorSnap.exists()) {
+                const uData = authorSnap.data();
+                if (uData.producerIban) pIban = uData.producerIban;
+                if (uData.producerHolderName) pHolder = uData.producerHolderName;
+                if (uData.producerBankName) pBank = uData.producerBankName;
+                if (uData.producerExpressPhone) pExpress = uData.producerExpressPhone;
+                if (uData.producerName) pName = uData.producerName;
+              }
+            }
+
+            if (pIban) {
+              setPaymentSettings(prev => ({
+                ...prev,
+                iban: pIban,
+                bankName: pBank || 'Banco do Produtor',
+                expressIban: pIban,
+                expressPhone: pExpress || prev.expressPhone,
+                expressName: pHolder || pName,
+                multicaixaName: pHolder || pName
+              }));
+              setSelectedMethod('transfer');
+            }
+
             setSelectedCourse({
               id: cSnap.id,
               title: data.title || 'Formação CFA',

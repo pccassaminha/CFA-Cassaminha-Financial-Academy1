@@ -177,7 +177,62 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           });
         }
 
-        if (activeMethods.length > 0) {
+        // Check if Course belongs to a Producer with Custom Payment Details
+        let producerPaymentMethods: any[] = [];
+        if (courseId) {
+          try {
+            const courseSnap = await getDoc(doc(db, 'courses', courseId));
+            if (courseSnap.exists()) {
+              const cData = courseSnap.data();
+              let pIban = cData.producerIban;
+              let pHolder = cData.producerHolderName;
+              let pBank = cData.producerBankName;
+              let pExpress = cData.producerExpressPhone || cData.producerPhone;
+              let pName = cData.producerName || cData.instructor || 'Produtor do Curso';
+
+              // Se não estiver salvo diretamente no curso, busca no perfil do autor
+              if ((!pIban || !pHolder) && cData.authorId) {
+                const authorSnap = await getDoc(doc(db, 'users', cData.authorId));
+                if (authorSnap.exists()) {
+                  const uData = authorSnap.data();
+                  if (uData.producerIban) pIban = uData.producerIban;
+                  if (uData.producerHolderName) pHolder = uData.producerHolderName;
+                  if (uData.producerBankName) pBank = uData.producerBankName;
+                  if (uData.producerExpressPhone) pExpress = uData.producerExpressPhone;
+                  if (uData.producerName) pName = uData.producerName;
+                }
+              }
+
+              if (pIban) {
+                producerPaymentMethods.push({
+                  id: 'prod_iban',
+                  type: 'iban',
+                  shortName: `Transferência IBAN (${pName})`,
+                  bankName: pBank || 'Banco do Produtor',
+                  accountNumber: pIban,
+                  holderName: pHolder || pName
+                });
+              }
+              if (pExpress) {
+                producerPaymentMethods.push({
+                  id: 'prod_express',
+                  type: 'express',
+                  shortName: `Multicaixa Express (${pName})`,
+                  bankName: 'Multicaixa Express (Produtor)',
+                  accountNumber: pExpress,
+                  holderName: pHolder || pName
+                });
+              }
+            }
+          } catch (e) {
+            console.warn("Erro ao buscar dados do produtor para o checkout:", e);
+          }
+        }
+
+        if (producerPaymentMethods.length > 0) {
+          setPaymentMethods(producerPaymentMethods);
+          setActiveMethodIndex(0);
+        } else if (activeMethods.length > 0) {
           setPaymentMethods(activeMethods);
         }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign } from 'lucide-react';
-import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 
 interface CourseItem {
   id: string;
@@ -11,6 +11,8 @@ interface CourseItem {
   modulesCount: number;
   description?: string;
   coverImage?: string;
+  producerName?: string;
+  instructor?: string;
 }
 
 interface CoursesListProps {
@@ -31,7 +33,8 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
     price: 0,
     description: '',
     coverImage: '',
-    isPublished: false
+    isPublished: false,
+    producerName: ''
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -41,7 +44,8 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
     price: 50000,
     description: '',
     coverImage: '',
-    isPublished: false
+    isPublished: false,
+    producerName: ''
   });
   const [isCreating, setIsCreating] = useState(false);
 
@@ -67,7 +71,9 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
           status: (data.isPublished ?? data.status === 'published') ? 'published' : 'draft',
           modulesCount: Array.isArray(data.modules) ? data.modules.length : (data.modulesCount || 0),
           description: data.description || '',
-          coverImage: data.coverImage || data.imageUrl || data.image || ''
+          coverImage: data.coverImage || data.imageUrl || data.image || '',
+          producerName: data.producerName || data.instructor || '',
+          instructor: data.instructor || data.producerName || ''
         });
       });
       setCourses(list);
@@ -111,7 +117,8 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
       price: course.price,
       description: course.description || '',
       coverImage: course.coverImage || '',
-      isPublished: course.status === 'published'
+      isPublished: course.status === 'published',
+      producerName: course.producerName || course.instructor || ''
     });
   };
 
@@ -123,6 +130,7 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
 
     try {
       const courseRef = doc(db, 'courses', editingCourse.id);
+      const finalSignature = editForm.producerName.trim() || 'Instrutor CFA';
       await updateDoc(courseRef, {
         title: editForm.title.trim(),
         price: Number(editForm.price) || 0,
@@ -132,6 +140,8 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
         imageUrl: editForm.coverImage.trim(),
         isPublished: editForm.isPublished,
         status: editForm.isPublished ? 'published' : 'draft',
+        producerName: finalSignature,
+        instructor: finalSignature,
         updatedAt: serverTimestamp()
       });
 
@@ -151,6 +161,35 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
     if (!newCourseForm.title.trim()) return;
     setIsCreating(true);
 
+    const currentUser = auth.currentUser;
+    let authorId = currentUser ? currentUser.uid : '';
+    let producerName = currentUser?.displayName || 'Instrutor CFA';
+    let producerPhone = '';
+    let producerIban = '';
+    let producerHolderName = '';
+    let producerBankName = '';
+    let producerExpressPhone = '';
+
+    if (currentUser) {
+      try {
+        const uSnap = await getDoc(doc(db, 'users', currentUser.uid));
+        if (uSnap.exists()) {
+          const uData = uSnap.data();
+          if (uData.producerName) producerName = uData.producerName;
+          else if (uData.firstName) producerName = `${uData.firstName} ${uData.lastName || ''}`.trim();
+          producerPhone = uData.producerWhatsApp || uData.phone || '';
+          producerIban = uData.producerIban || '';
+          producerHolderName = uData.producerHolderName || '';
+          producerBankName = uData.producerBankName || '';
+          producerExpressPhone = uData.producerExpressPhone || '';
+        }
+      } catch (err) {
+        console.warn("Could not fetch creator details:", err);
+      }
+    }
+
+    const finalSignature = newCourseForm.producerName.trim() || producerName;
+
     const newId = `c_${Date.now()}`;
     const newCourseData = {
       title: newCourseForm.title.trim(),
@@ -161,6 +200,14 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
       imageUrl: newCourseForm.coverImage.trim(),
       isPublished: newCourseForm.isPublished,
       status: newCourseForm.isPublished ? 'published' : 'draft',
+      instructor: finalSignature,
+      authorId,
+      producerName: finalSignature,
+      producerPhone,
+      producerIban,
+      producerHolderName,
+      producerBankName,
+      producerExpressPhone,
       modules: [
         {
           id: `m_${Date.now()}`,
@@ -438,6 +485,18 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-0.5">Assinatura / Nome do Produtor no Curso</label>
+                <p className="text-[11px] text-gray-400 mb-1.5">Assinatura visível aos alunos. Por padrão assume o seu nome de registro, mas pode alterar para este curso se desejar.</p>
+                <input
+                  type="text"
+                  value={editForm.producerName}
+                  onChange={(e) => setEditForm({ ...editForm, producerName: e.target.value })}
+                  placeholder="Ex: Prof. António Cassaminha"
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none font-medium"
+                />
+              </div>
+
+              <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">Preço da Matrícula</label>
                   <div className="flex items-center gap-1.5">
@@ -594,6 +653,18 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                   onChange={(e) => setNewCourseForm({ ...newCourseForm, title: e.target.value })}
                   placeholder="Ex: Formação de Traders Profissionais"
                   className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-0.5">Assinatura / Nome do Produtor no Curso</label>
+                <p className="text-[11px] text-gray-400 mb-1.5">Assinatura visível aos alunos. Por padrão assume o seu nome de registro, mas pode personalizar para este curso.</p>
+                <input
+                  type="text"
+                  value={newCourseForm.producerName}
+                  onChange={(e) => setNewCourseForm({ ...newCourseForm, producerName: e.target.value })}
+                  placeholder="Ex: Prof. António Cassaminha (deixe em branco para usar seu nome padrão)"
+                  className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white text-sm focus:border-[#e9c349] outline-none font-medium"
                 />
               </div>
 

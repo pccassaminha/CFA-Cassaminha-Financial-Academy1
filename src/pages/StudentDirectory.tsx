@@ -19,13 +19,26 @@ import {
   Phone, 
   Mail, 
   User,
-  AlertCircle
+  AlertCircle,
+  CreditCard,
+  Building2,
+  Smartphone,
+  Sparkles,
+  ExternalLink,
+  DollarSign,
+  Calendar,
+  X,
+  Plus
 } from 'lucide-react';
 
 interface CourseOption {
   id: string;
   title: string;
   price?: number;
+  authorId?: string;
+  producerName?: string;
+  producerPhone?: string;
+  isPublished?: boolean;
 }
 
 export default function StudentDirectory() {
@@ -55,6 +68,15 @@ export default function StudentDirectory() {
   const [studentEnrolledCourses, setStudentEnrolledCourses] = useState<string[]>([]);
   const [isUpdatingCourses, setIsUpdatingCourses] = useState(false);
 
+  // Modal de Plano de Produtor
+  const [selectedProducerForPlan, setSelectedProducerForPlan] = useState<any | null>(null);
+  const [producerPlanForm, setProducerPlanForm] = useState<'monthly' | 'quarterly'>('monthly');
+  const [producerStatusForm, setProducerStatusForm] = useState<'active' | 'pending' | 'expired'>('active');
+  const [isSavingProducerPlan, setIsSavingProducerPlan] = useState(false);
+
+  // Modal de Exibição dos Cursos do Produtor
+  const [viewProducerCoursesUser, setViewProducerCoursesUser] = useState<any | null>(null);
+
   // Toast Feedback
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -72,10 +94,15 @@ export default function StudentDirectory() {
     const unsubCourses = onSnapshot(collection(db, 'courses'), (snap) => {
       const list: CourseOption[] = [];
       snap.forEach(d => {
+        const cData = d.data();
         list.push({
           id: d.id,
-          title: d.data().title || 'Curso Sem Título',
-          price: d.data().price
+          title: cData.title || 'Curso Sem Título',
+          price: Number(cData.price) || 0,
+          authorId: cData.authorId || '',
+          producerName: cData.producerName || cData.instructor || '',
+          producerPhone: cData.producerPhone || cData.producerWhatsApp || '',
+          isPublished: (cData.isPublished ?? cData.status === 'published')
         });
       });
       setAvailableCourses(list);
@@ -241,6 +268,37 @@ export default function StudentDirectory() {
       showNotification('Erro ao salvar cursos.', 'error');
     } finally {
       setIsUpdatingCourses(false);
+    }
+  };
+
+  // Abrir Modal de Plano do Produtor
+  const handleOpenProducerPlan = (prodUser: any) => {
+    setSelectedProducerForPlan(prodUser);
+    setProducerPlanForm(prodUser.producerPlan || 'monthly');
+    setProducerStatusForm(prodUser.producerPlanStatus || (prodUser.subscriptionStatus === 'active' ? 'active' : 'pending'));
+  };
+
+  // Salvar Alterações no Plano do Produtor
+  const handleSaveProducerPlan = async () => {
+    if (!selectedProducerForPlan) return;
+    setIsSavingProducerPlan(true);
+    try {
+      await updateDoc(doc(db, 'users', selectedProducerForPlan.id), {
+        role: 'producer',
+        roleType: 'producer',
+        producerPlan: producerPlanForm,
+        producerPlanStatus: producerStatusForm,
+        subscriptionStatus: producerStatusForm === 'active' ? 'active' : 'pending',
+        isApproved: producerStatusForm === 'active',
+        updatedAt: new Date().toISOString()
+      });
+      showNotification(`Plano do produtor ${selectedProducerForPlan.email} atualizado com sucesso!`, 'success');
+      setSelectedProducerForPlan(null);
+    } catch (err) {
+      console.error("Erro ao salvar plano do produtor:", err);
+      showNotification('Erro ao salvar plano do produtor.', 'error');
+    } finally {
+      setIsSavingProducerPlan(false);
     }
   };
 
@@ -593,19 +651,26 @@ export default function StudentDirectory() {
                     <div className="grid grid-cols-2 gap-2 text-xs bg-[#0e0e0e] p-2.5 rounded-xl border border-gray-800/80">
                       <div>
                         <span className="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Contato</span>
-                        {userItem.phoneNumber ? (
-                          <span className="text-gray-300 font-mono text-xs">{userItem.phoneCountryCode || '+244'} {userItem.phoneNumber}</span>
+                        {userItem.phoneNumber || userItem.producerWhatsApp ? (
+                          <span className="text-gray-300 font-mono text-xs">{userItem.phoneCountryCode || '+244'} {userItem.phoneNumber || userItem.producerWhatsApp}</span>
                         ) : (
                           <span className="text-gray-600 italic">Não informado</span>
                         )}
                       </div>
                       <div>
-                        <span className="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Papel</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          isProducerRole ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30' : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
-                        }`}>
-                          {isProducerRole ? 'Produtor' : 'Aluno'}
-                        </span>
+                        <span className="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Papel & Plano</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            isProducerRole ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30' : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                          }`}>
+                            {isProducerRole ? 'Produtor' : 'Aluno'}
+                          </span>
+                          {isProducerRole && (
+                            <span className="text-[10px] font-mono text-[#e9c349]">
+                              {userItem.producerPlan === 'quarterly' ? 'Trimestral' : 'Mensal'}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -726,8 +791,19 @@ export default function StudentDirectory() {
 
                           {/* Telefone / WhatsApp */}
                           <td className="px-6 py-4 text-xs text-gray-300">
-                            {userItem.phoneNumber ? (
-                              <span className="font-mono">{userItem.phoneCountryCode || '+244'} {userItem.phoneNumber}</span>
+                            {userItem.phoneNumber || userItem.producerWhatsApp ? (
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono">{userItem.phoneCountryCode || '+244'} {userItem.phoneNumber || userItem.producerWhatsApp}</span>
+                                <a
+                                  href={`https://wa.me/${(userItem.phoneCountryCode || '+244').replace(/[^0-9]/g, '')}${(userItem.phoneNumber || userItem.producerWhatsApp).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Olá ${fullName}, suporte do Administrador Master CFA.`)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30 transition-all"
+                                  title="Abrir WhatsApp Directo"
+                                >
+                                  <Phone className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
                             ) : (
                               <span className="text-gray-600 italic">Não informado</span>
                             )}
@@ -833,13 +909,36 @@ export default function StudentDirectory() {
                                 </button>
                               </div>
                             ) : (
-                              <button
-                                onClick={() => handleOpenCourseManager(userItem)}
-                                className="px-3 py-1.5 bg-white/5 hover:bg-[#e9c349] hover:text-black text-gray-300 rounded-xl text-xs font-semibold border border-white/5 hover:border-[#e9c349] transition-all cursor-pointer flex items-center gap-1.5 ml-auto"
-                              >
-                                <BookOpen className="w-3.5 h-3.5" />
-                                <span>Gerenciar Cursos</span>
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                {isProducerRole && (
+                                  <>
+                                    <button
+                                      onClick={() => setViewProducerCoursesUser(userItem)}
+                                      className="px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded-xl text-xs font-semibold border border-purple-500/30 transition-all cursor-pointer flex items-center gap-1"
+                                      title="Ver Cursos Criados por este Produtor"
+                                    >
+                                      <BookOpen className="w-3.5 h-3.5" />
+                                      <span>Ver Cursos</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenProducerPlan(userItem)}
+                                      className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-semibold border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1"
+                                      title="Gerenciar Plano do Produtor"
+                                    >
+                                      <Layers className="w-3.5 h-3.5" />
+                                      <span>Plano / Status</span>
+                                    </button>
+                                  </>
+                                )}
+                                <button
+                                  onClick={() => handleOpenCourseManager(userItem)}
+                                  className="px-3 py-1.5 bg-white/5 hover:bg-[#e9c349] hover:text-black text-gray-300 rounded-xl text-xs font-semibold border border-white/5 hover:border-[#e9c349] transition-all cursor-pointer flex items-center gap-1.5"
+                                  title="Liberar ou remover acesso a cursos da plataforma"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <span>{isProducerRole ? 'Acesso a Cursos' : 'Gerenciar Cursos'}</span>
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -1120,6 +1219,212 @@ export default function StudentDirectory() {
                     <span>Salvar e Liberar Acesso</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: GERENCIAR PLANO DO PRODUTOR */}
+      {selectedProducerForPlan && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#131313] border border-[#353534]/50 rounded-2xl p-6 md:p-8 w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-800">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-[#e9c349]" />
+                  <span>Plano e Status do Produtor</span>
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">{selectedProducerForPlan.email}</p>
+              </div>
+              <button
+                onClick={() => setSelectedProducerForPlan(null)}
+                className="text-gray-500 hover:text-white"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-5 mb-6">
+              {/* Seleção do Plano */}
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                  Plano do Produtor
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setProducerPlanForm('monthly')}
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      producerPlanForm === 'monthly'
+                        ? 'bg-[#e9c349]/15 border-[#e9c349] text-white shadow-md'
+                        : 'bg-[#0e0e0e] border-gray-800 text-gray-400 hover:border-gray-700'
+                    }`}
+                  >
+                    <span className="block font-bold text-sm text-[#e9c349]">Mensal</span>
+                    <span className="text-xs font-mono text-gray-300">3.500 Kz / mês</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProducerPlanForm('quarterly')}
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      producerPlanForm === 'quarterly'
+                        ? 'bg-[#e9c349]/15 border-[#e9c349] text-white shadow-md'
+                        : 'bg-[#0e0e0e] border-gray-800 text-gray-400 hover:border-gray-700'
+                    }`}
+                  >
+                    <span className="block font-bold text-sm text-[#e9c349]">Trimestral</span>
+                    <span className="text-xs font-mono text-gray-300">7.000 Kz / 3 meses</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status da Conta do Produtor */}
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                  Status de Aprovação
+                </label>
+                <select
+                  value={producerStatusForm}
+                  onChange={(e) => setProducerStatusForm(e.target.value as any)}
+                  className="w-full bg-[#0e0e0e] border border-gray-800 text-white rounded-xl px-4 py-3 text-xs focus:border-[#e9c349] focus:outline-none"
+                >
+                  <option value="active">🟢 Ativo (Aprovado - Pode publicar e vender cursos)</option>
+                  <option value="pending">🟡 Pendente (Aguardando confirmação do pagamento do plano)</option>
+                  <option value="expired">🔴 Expirado / Suspenso (Acesso bloqueado)</option>
+                </select>
+              </div>
+
+              {/* Informações adicionais do Produtor */}
+              <div className="p-3.5 bg-[#0e0e0e] border border-gray-800/80 rounded-xl space-y-1.5 text-xs text-gray-400 font-mono">
+                <div><strong>Nome:</strong> {selectedProducerForPlan.producerName || selectedProducerForPlan.firstName || 'Não configurado'}</div>
+                <div><strong>WhatsApp:</strong> {selectedProducerForPlan.phoneCountryCode || '+244'} {selectedProducerForPlan.phoneNumber || selectedProducerForPlan.producerWhatsApp || 'Não informado'}</div>
+                <div><strong>IBAN Registrado:</strong> {selectedProducerForPlan.producerIban || 'Ainda não preenchido'}</div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-gray-800">
+              <button
+                type="button"
+                onClick={() => setSelectedProducerForPlan(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isSavingProducerPlan}
+                onClick={handleSaveProducerPlan}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-[#e9c349] text-black hover:bg-[#d4b03f] active:scale-95 transition-all cursor-pointer flex items-center gap-2 shadow-lg disabled:opacity-50"
+              >
+                {isSavingProducerPlan ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>Salvar Plano e Status</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: VER CURSOS DO PRODUTOR */}
+      {viewProducerCoursesUser && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#131313] border border-[#353534]/50 rounded-2xl p-6 md:p-8 w-full max-w-2xl shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <span>Cursos do Produtor:</span>
+                    <span className="text-[#e9c349] font-headline">{viewProducerCoursesUser.producerName || viewProducerCoursesUser.firstName || viewProducerCoursesUser.email}</span>
+                  </h3>
+                  <p className="text-xs text-stone-400">{viewProducerCoursesUser.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewProducerCoursesUser(null)}
+                className="text-stone-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {(() => {
+              const pCourses = availableCourses.filter(c =>
+                (c.authorId && (c.authorId === viewProducerCoursesUser.id || c.authorId === viewProducerCoursesUser.email)) ||
+                (c.producerName && viewProducerCoursesUser.producerName && c.producerName.toLowerCase() === viewProducerCoursesUser.producerName.toLowerCase())
+              );
+
+              return (
+                <div className="space-y-4">
+                  <div className="p-3.5 bg-[#0e0e0e] border border-stone-800 rounded-xl flex items-center justify-between text-xs">
+                    <span className="text-stone-400">Total de cursos cadastrados por este produtor:</span>
+                    <span className="font-bold text-[#e9c349] font-mono text-sm">{pCourses.length} {pCourses.length === 1 ? 'Curso' : 'Cursos'}</span>
+                  </div>
+
+                  {pCourses.length === 0 ? (
+                    <div className="p-8 text-center bg-[#0e0e0e] border border-stone-800/80 rounded-2xl text-stone-500 space-y-2">
+                      <BookOpen className="w-8 h-8 mx-auto text-stone-600" />
+                      <p className="text-xs">Este produtor ainda não possui cursos cadastrados na plataforma.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {pCourses.map(course => {
+                        const enrolledCount = users.filter(u => Array.isArray(u.enrolledCourses) && u.enrolledCourses.includes(course.id)).length;
+
+                        return (
+                          <div key={course.id} className="p-4 bg-[#0e0e0e] border border-stone-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-stone-700 transition-all">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-white text-sm">{course.title}</h4>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  course.isPublished ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                }`}>
+                                  {course.isPublished ? 'Publicado' : 'Rascunho'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-stone-400 font-mono">ID do Curso: {course.id}</p>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-xs shrink-0 self-end sm:self-auto">
+                              <div className="text-right">
+                                <span className="text-[10px] text-stone-500 uppercase font-bold block">Preço</span>
+                                <span className="font-bold text-[#e9c349] font-mono">
+                                  {course.price === 0 ? 'GRÁTIS' : new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(course.price || 0)}
+                                </span>
+                              </div>
+
+                              <div className="text-right pl-3 border-l border-stone-800">
+                                <span className="text-[10px] text-stone-500 uppercase font-bold block">Alunos Matriculados</span>
+                                <span className="font-bold text-emerald-400 font-mono">{enrolledCount} Alunos</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end pt-5 mt-5 border-t border-stone-800">
+              <button
+                type="button"
+                onClick={() => setViewProducerCoursesUser(null)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#e9c349] text-black hover:bg-[#d4b03f] transition-all cursor-pointer"
+              >
+                Fechar
               </button>
             </div>
           </div>

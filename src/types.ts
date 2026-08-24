@@ -9,6 +9,7 @@ export interface Coupon {
   active: boolean; // Ativo / Inativo
   createdAt?: string;
   usageCount?: number;
+  authorId?: string; // ID do produtor que criou o cupão (se for de produtor)
 }
 
 export interface PlatformSettings {
@@ -34,6 +35,7 @@ export interface Transaction {
   status: 'pending' | 'approved' | 'rejected';
   createdAt: any;
   proofUrl?: string;
+  producerId?: string; // ID do produtor recebedor
 }
 
 export interface LessonLink {
@@ -79,6 +81,14 @@ export interface Course {
   singleLessonDescription?: string;
   singleLessonLinks?: LessonLink[];
   modules: Module[];
+  price?: number;
+  authorId?: string; // ID do produtor ou admin autor
+  producerName?: string; // Nome de exibição do produtor
+  producerPhone?: string; // WhatsApp de contacto do produtor
+  producerIban?: string; // IBAN específico do produtor
+  producerHolderName?: string; // Titular da conta do produtor
+  producerBankName?: string; // Nome do Banco do produtor
+  producerExpressPhone?: string; // Express do produtor
 }
 
 export interface UserProfile {
@@ -92,4 +102,14 @@ export interface UserProfile {
   completedLessons?: string[];
   plan?: string;
   phone?: string;
+  registeredAt?: string;
+  // Campos específicos de Produtor
+  producerPlan?: 'monthly' | 'quarterly' | 'none'; // 'monthly' (3.500 Kz/mês) ou 'quarterly' (10.000 Kz/trimestral)
+  producerPlanStatus?: 'active' | 'pending' | 'expired';
+  producerPlanExpiresAt?: string;
+  producerIban?: string;
+  producerHolderName?: string;
+  producerBankName?: string;
+  producerWhatsApp?: string;
+  producerExpressPhone?: string;
 }
