@@ -49,19 +49,19 @@ export default function SalesPage() {
       setCurrentUser(user);
       if (user) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
+          const email = user.email?.toLowerCase().trim();
+          if (email === 'exportacoes.extras@gmail.com' || email === 'grupocassaminha@gmail.com') {
+            setIsAdmin(true);
+          }
+          const userDoc = await getDoc(doc(db, 'users', user.uid)).catch(() => null);
+          if (userDoc && userDoc.exists()) {
             const data = userDoc.data();
             if (data.role === 'admin' || data.role === 'producer') {
               setIsAdmin(true);
             }
           }
-          const email = user.email?.toLowerCase().trim();
-          if (email === 'exportacoes.extras@gmail.com' || email === 'grupocassaminha@gmail.com') {
-            setIsAdmin(true);
-          }
         } catch (err) {
-          console.error("Error checking role:", err);
+          console.warn("Could not check user role from Firestore:", err);
         }
       } else {
         setIsAdmin(false);
@@ -74,16 +74,16 @@ export default function SalesPage() {
   useEffect(() => {
     const fetchLogo = async () => {
       try {
-        const generalDoc = await getDoc(doc(db, 'settings', 'general'));
-        if (generalDoc.exists() && generalDoc.data().logoUrl) {
+        const generalDoc = await getDoc(doc(db, 'settings', 'general')).catch(() => null);
+        if (generalDoc && generalDoc.exists() && generalDoc.data().logoUrl) {
           setLogoUrl(getValidLogoUrl(generalDoc.data().logoUrl));
         }
-        const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
-        if (platformDoc.exists() && platformDoc.data().logoUrl) {
+        const platformDoc = await getDoc(doc(db, 'settings', 'platform')).catch(() => null);
+        if (platformDoc && platformDoc.exists() && platformDoc.data().logoUrl) {
           setLogoUrl(getValidLogoUrl(platformDoc.data().logoUrl));
         }
       } catch (err) {
-        console.error("Error loading logo in Sales page:", err);
+        console.warn("Could not load logo in Sales page:", err);
       }
     };
     fetchLogo();

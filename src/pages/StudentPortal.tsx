@@ -84,22 +84,22 @@ export default function StudentPortal() {
   useEffect(() => {
     const fetchLogo = async () => {
       try {
-        const generalDoc = await getDoc(doc(db, 'settings', 'general'));
-        if (generalDoc.exists()) {
+        const generalDoc = await getDoc(doc(db, 'settings', 'general')).catch(() => null);
+        if (generalDoc && generalDoc.exists()) {
           const genData = generalDoc.data();
-          if (genData.logoUrl) {
+          if (genData?.logoUrl) {
             setLogoUrl(getValidLogoUrl(genData.logoUrl));
           }
         }
-        const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
-        if (platformDoc.exists()) {
+        const platformDoc = await getDoc(doc(db, 'settings', 'platform')).catch(() => null);
+        if (platformDoc && platformDoc.exists()) {
           const pData = platformDoc.data();
-          if (pData.logoUrl) {
+          if (pData?.logoUrl) {
             setLogoUrl(getValidLogoUrl(pData.logoUrl));
           }
         }
       } catch (err) {
-        console.error("Error loading logo in StudentPortal:", err);
+        console.warn("Could not load logo in StudentPortal:", err);
       }
     };
     fetchLogo();

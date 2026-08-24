@@ -29,16 +29,16 @@ export default function Login() {
   useEffect(() => {
     const fetchLogo = async () => {
       try {
-        const generalDoc = await getDoc(doc(db, 'settings', 'general'));
-        if (generalDoc.exists() && generalDoc.data().logoUrl) {
+        const generalDoc = await getDoc(doc(db, 'settings', 'general')).catch(() => null);
+        if (generalDoc && generalDoc.exists() && generalDoc.data()?.logoUrl) {
           setLogoUrl(getValidLogoUrl(generalDoc.data().logoUrl));
         }
-        const platformDoc = await getDoc(doc(db, 'settings', 'platform'));
-        if (platformDoc.exists() && platformDoc.data().logoUrl) {
+        const platformDoc = await getDoc(doc(db, 'settings', 'platform')).catch(() => null);
+        if (platformDoc && platformDoc.exists() && platformDoc.data()?.logoUrl) {
           setLogoUrl(getValidLogoUrl(platformDoc.data().logoUrl));
         }
       } catch (err) {
-        console.error("Error loading logo in Login page:", err);
+        console.warn("Could not load logo in Login page:", err);
       }
     };
     fetchLogo();
