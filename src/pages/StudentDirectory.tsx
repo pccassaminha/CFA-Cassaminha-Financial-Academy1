@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, updateDoc, doc, deleteDoc, getDocs, arrayUnion, arrayRemove, query, where } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { collection, onSnapshot, updateDoc, doc, deleteDoc, getDocs, getDoc, arrayUnion, arrayRemove, query, where } from 'firebase/firestore';
 import { db, adminCreateStudentAccount, auth } from '../firebase';
 import Sidebar from '../components/Sidebar';
 import { 
@@ -46,6 +46,7 @@ interface CourseOption {
 export default function StudentDirectory() {
   const [users, setUsers] = useState<any[]>([]);
   const [availableCourses, setAvailableCourses] = useState<CourseOption[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'students' | 'active_students' | 'registered_only' | 'producers' | 'pending'>('all');
@@ -134,6 +135,15 @@ export default function StudentDirectory() {
     });
 
     return () => unsubCourses();
+  }, []);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      getDoc(doc(db, 'users', user.uid)).then(snap => {
+        if (snap.exists()) setCurrentUserProfile(snap.data());
+      }).catch(err => console.warn("Could not fetch user profile:", err));
+    }
   }, []);
 
   // Escutar Usuários em Tempo Real
@@ -354,14 +364,42 @@ export default function StudentDirectory() {
     return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
   };
 
-  const pendingApprovals = users.filter(u => {
+  const currentAuthUser = auth.currentUser;
+  const cleanCurrentEmail = currentAuthUser?.email?.trim().toLowerCase() || '';
+  const isMasterUser = cleanCurrentEmail === 'grupocassaminha@gmail.com' || cleanCurrentEmail === 'exportacoes.extras@gmail.com';
+  const isProducerRole = currentUserProfile?.role === 'producer' || currentUserProfile?.roleType === 'producer';
+  const isProducerMode = !isMasterUser && (isProducerRole || currentUserProfile?.role === 'admin');
+
+  const isolatedCourses = useMemo(() => {
+    if (!isProducerMode) return availableCourses;
+    const pName = (currentUserProfile?.producerName || `${currentUserProfile?.firstName || ''} ${currentUserProfile?.lastName || ''}`).trim().toLowerCase();
+    return availableCourses.filter(c => {
+      const authorMatch = c.authorId && (c.authorId === currentAuthUser?.uid || c.authorId === currentAuthUser?.email);
+      const nameMatch = c.producerName && pName && c.producerName.trim().toLowerCase() === pName;
+      return authorMatch || nameMatch;
+    });
+  }, [availableCourses, isProducerMode, currentAuthUser, currentUserProfile]);
+
+  const isolatedCourseIds = useMemo(() => new Set(isolatedCourses.map(c => c.id)), [isolatedCourses]);
+
+  const effectiveUsers = useMemo(() => {
+    if (!isProducerMode) return users;
+    return users.filter(u => {
+      const isMaster = isMasterEmail(u.email);
+      const isProducer = u.role === 'producer' || u.role === 'admin' || u.roleType === 'producer';
+      if (isMaster || isProducer) return false;
+      return Array.isArray(u.enrolledCourses) && u.enrolledCourses.some(cid => isolatedCourseIds.has(cid));
+    });
+  }, [users, isProducerMode, isolatedCourseIds]);
+
+  const pendingApprovals = effectiveUsers.filter(u => {
     const isMaster = isMasterEmail(u.email);
     if (isMaster) return false;
     const isPendingStatus = u.subscriptionStatus === 'pending_approval' || ( (u.role === 'producer' || u.role === 'admin' || u.roleType === 'producer') && u.isApproved === false );
     return isPendingStatus;
   });
 
-  const filteredUsers = users.filter(u => {
+  const filteredUsers = effectiveUsers.filter(u => {
     const cleanEmail = (u.email || '').toLowerCase();
     const fullName = `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase();
     const matchesSearch = cleanEmail.includes(searchTerm.toLowerCase()) || fullName.includes(searchTerm.toLowerCase()) || (u.phoneNumber || '').includes(searchTerm);
@@ -393,7 +431,7 @@ export default function StudentDirectory() {
   });
 
   // Alunos reais da plataforma (exclui Master Admin e Produtores)
-  const studentUsers = users.filter(u => {
+  const studentUsers = effectiveUsers.filter(u => {
     const cleanEmail = (u.email || '').trim().toLowerCase();
     const isMaster = isMasterEmail(cleanEmail);
     const isProducer = u.role === 'producer' || u.role === 'admin' || u.roleType === 'producer';
@@ -1282,7 +1320,7 @@ export default function StudentDirectory() {
                   Cursos a Liberar Imediatamente para o Aluno
                 </label>
                 <div className="space-y-2 bg-[#0e0e0e] p-3.5 rounded-xl border border-gray-800">
-                  {availableCourses.map(course => {
+                  {isolatedCourses.map(course => {
                     const isSelected = formData.selectedCourses.includes(course.id);
                     return (
                       <label 
@@ -1365,7 +1403,7 @@ export default function StudentDirectory() {
             </p>
 
             <div className="space-y-2 mb-6 bg-[#0e0e0e] p-3.5 rounded-xl border border-gray-800 max-h-60 overflow-y-auto">
-              {availableCourses.map(course => {
+              {isolatedCourses.map(course => {
                 const isSelected = studentEnrolledCourses.includes(course.id);
                 return (
                   <label 

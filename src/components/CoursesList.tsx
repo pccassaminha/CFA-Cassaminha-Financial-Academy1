@@ -60,10 +60,39 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
   };
 
   useEffect(() => {
-    const unsubCourses = onSnapshot(collection(db, 'courses'), (querySnapshot) => {
+    const unsubCourses = onSnapshot(collection(db, 'courses'), async (querySnapshot) => {
+      const currentUser = auth.currentUser;
+      const cleanEmail = currentUser?.email?.trim().toLowerCase() || '';
+      const isMaster = cleanEmail === 'grupocassaminha@gmail.com' || cleanEmail === 'exportacoes.extras@gmail.com';
+
+      let userRole = 'student';
+      let userProducerName = '';
+      if (currentUser) {
+        try {
+          const uSnap = await getDoc(doc(db, 'users', currentUser.uid));
+          if (uSnap.exists()) {
+            const uData = uSnap.data();
+            userRole = uData.role || uData.roleType || 'student';
+            userProducerName = (uData.producerName || `${uData.firstName || ''} ${uData.lastName || ''}`).trim();
+          }
+        } catch (e) {
+          console.warn("Could not fetch user profile for courses isolation:", e);
+        }
+      }
+
       const list: CourseItem[] = [];
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        
+        // Se for produtor (e não Master Admin), deve ver APENAS os seus próprios cursos
+        if (!isMaster && (userRole === 'producer' || userRole === 'admin')) {
+          const isMyCourse = 
+            (data.authorId && (data.authorId === currentUser?.uid || data.authorId === currentUser?.email)) ||
+            (data.producerName && userProducerName && data.producerName.toLowerCase() === userProducerName.toLowerCase());
+          
+          if (!isMyCourse) return; // ignora cursos de outros produtores ou do admin master
+        }
+
         list.push({
           id: docSnap.id,
           title: data.title || 'Curso Sem Título',

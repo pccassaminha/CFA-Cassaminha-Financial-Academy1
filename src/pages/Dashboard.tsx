@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import { collection, onSnapshot, updateDoc, doc, arrayRemove, deleteDoc, query, where, getDocs, getDoc } from 'firebase/firestore';
-import { db, approveStudentTransaction } from '../firebase';
+import { db, auth, approveStudentTransaction } from '../firebase';
 import { Transaction } from '../types';
 import { 
   BarChart3, 
@@ -66,6 +66,8 @@ export default function Dashboard() {
   // Firestore Real-time States
   const [students, setStudents] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [coursesList, setCoursesList] = useState<any[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [coursesCount, setCoursesCount] = useState<number>(0);
 
@@ -98,6 +100,15 @@ export default function Dashboard() {
 
   // Listen to Users, Transactions and Courses in real-time
   useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      getDoc(doc(db, 'users', user.uid)).then((snap) => {
+        if (snap.exists()) {
+          setCurrentUserProfile(snap.data());
+        }
+      }).catch((err) => console.warn("Could not fetch user profile in dashboard:", err));
+    }
+
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
       const list: any[] = [];
       snap.forEach((docSnap) => {
@@ -127,6 +138,11 @@ export default function Dashboard() {
     });
 
     const unsubCourses = onSnapshot(collection(db, 'courses'), (snap) => {
+      const cList: any[] = [];
+      snap.forEach((docSnap) => {
+        cList.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setCoursesList(cList);
       setCoursesCount(snap.size);
     }, (err) => {
       console.error("Dashboard failed to subscribe to courses:", err);
@@ -268,6 +284,47 @@ export default function Dashboard() {
     });
   }, [students]);
 
+  // Detect current user role & producer status for data isolation
+  const currentAuthUser = auth.currentUser;
+  const cleanCurrentEmail = currentAuthUser?.email?.trim().toLowerCase() || '';
+  const isMasterUser = cleanCurrentEmail === 'grupocassaminha@gmail.com' || cleanCurrentEmail === 'exportacoes.extras@gmail.com';
+  const isProducerRole = currentUserProfile?.role === 'producer' || currentUserProfile?.roleType === 'producer';
+  const isProducerMode = !isMasterUser && (isProducerRole || currentUserProfile?.role === 'admin');
+
+  // Producer's isolated courses
+  const producerCourses = useMemo(() => {
+    if (!isProducerMode) return coursesList;
+    const pName = (currentUserProfile?.producerName || `${currentUserProfile?.firstName || ''} ${currentUserProfile?.lastName || ''}`).trim().toLowerCase();
+    return coursesList.filter(c => {
+      const authorMatch = c.authorId && (c.authorId === currentAuthUser?.uid || c.authorId === currentAuthUser?.email);
+      const nameMatch = c.producerName && pName && c.producerName.trim().toLowerCase() === pName;
+      return authorMatch || nameMatch;
+    });
+  }, [coursesList, isProducerMode, currentAuthUser, currentUserProfile]);
+
+  const producerCourseIds = useMemo(() => {
+    return new Set(producerCourses.map(c => c.id));
+  }, [producerCourses]);
+
+  // Isolated Transactions for Producer vs Master Admin
+  const effectiveTransactions = useMemo(() => {
+    if (!isProducerMode) return transactions;
+    return transactions.filter(t => 
+      (t.courseId && producerCourseIds.has(t.courseId)) ||
+      (t.courseAuthorId && (t.courseAuthorId === currentAuthUser?.uid || t.courseAuthorId === currentAuthUser?.email))
+    );
+  }, [transactions, isProducerMode, producerCourseIds, currentAuthUser]);
+
+  // Isolated Students for Producer vs Master Admin
+  const effectiveStudents = useMemo(() => {
+    if (!isProducerMode) return realStudents;
+    return realStudents.filter(s => 
+      Array.isArray(s.enrolledCourses) && s.enrolledCourses.some(cid => producerCourseIds.has(cid))
+    );
+  }, [realStudents, isProducerMode, producerCourseIds]);
+
+  const displayCoursesCount = isProducerMode ? producerCourses.length : coursesCount;
+
   // Filter items by selected time range for key metrics
   const now = new Date();
   const getFilterStartDate = (filter: TimeFilter): Date | null => {
@@ -294,20 +351,20 @@ export default function Dashboard() {
   const filterStartDate = getFilterStartDate(timeFilter);
 
   const filteredTransactions = useMemo(() => {
-    if (!filterStartDate) return transactions;
-    return transactions.filter(t => {
+    if (!filterStartDate) return effectiveTransactions;
+    return effectiveTransactions.filter(t => {
       const tDate = parseDate(t.createdAt) || new Date(0);
       return tDate >= filterStartDate;
     });
-  }, [transactions, filterStartDate]);
+  }, [effectiveTransactions, filterStartDate]);
 
   const filteredStudents = useMemo(() => {
-    if (!filterStartDate) return realStudents;
-    return realStudents.filter(s => {
+    if (!filterStartDate) return effectiveStudents;
+    return effectiveStudents.filter(s => {
       const sDate = parseDate(s.createdAt) || new Date(0);
       return sDate >= filterStartDate;
     });
-  }, [realStudents, filterStartDate]);
+  }, [effectiveStudents, filterStartDate]);
 
   const totalStudents = filteredStudents.length;
   const activeStudents = filteredStudents.filter(s => 
@@ -316,7 +373,7 @@ export default function Dashboard() {
     s.enrolledCourses.length > 0
   ).length;
   
-  const totalCompletions = students.reduce((sum, s) => {
+  const totalCompletions = effectiveStudents.reduce((sum, s) => {
     const completed = s.completedLessons || [];
     return sum + completed.length;
   }, 0);
@@ -342,13 +399,13 @@ export default function Dashboard() {
         const dayStr = d.toLocaleDateString('pt-AO', { day: '2-digit', month: '2-digit' });
         const ymd = d.toISOString().split('T')[0];
 
-        const dayTxs = transactions.filter(t => {
+        const dayTxs = effectiveTransactions.filter(t => {
           const tDate = parseDate(t.createdAt);
           if (!tDate) return false;
           return tDate.toISOString().split('T')[0] === ymd;
         });
 
-        const dayStudents = realStudents.filter(s => {
+        const dayStudents = effectiveStudents.filter(s => {
           const sDate = parseDate(s.createdAt);
           if (!sDate) return false;
           return sDate.toISOString().split('T')[0] === ymd;
@@ -378,13 +435,13 @@ export default function Dashboard() {
         const startD = new Date(endD);
         startD.setDate(startD.getDate() - 7);
 
-        const wTxs = transactions.filter(t => {
+        const wTxs = effectiveTransactions.filter(t => {
           const tDate = parseDate(t.createdAt);
           if (!tDate) return false;
           return tDate >= startD && tDate <= endD;
         });
 
-        const wStudents = realStudents.filter(s => {
+        const wStudents = effectiveStudents.filter(s => {
           const sDate = parseDate(s.createdAt);
           if (!sDate) return false;
           return sDate >= startD && sDate <= endD;
@@ -418,14 +475,14 @@ export default function Dashboard() {
       const label = `${monthNames[mIdx]} ${yr.toString().slice(2)}`;
       const ymStr = `${yr}-${String(mIdx + 1).padStart(2, '0')}`;
 
-      const mTxs = transactions.filter(t => {
+      const mTxs = effectiveTransactions.filter(t => {
         const tDate = parseDate(t.createdAt);
         if (!tDate) return false;
         const itemYm = `${tDate.getFullYear()}-${String(tDate.getMonth() + 1).padStart(2, '0')}`;
         return itemYm === ymStr;
       });
 
-      const mStudents = realStudents.filter(s => {
+      const mStudents = effectiveStudents.filter(s => {
         const sDate = parseDate(s.createdAt);
         if (!sDate) return false;
         const itemYm = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}`;
@@ -448,12 +505,12 @@ export default function Dashboard() {
     const totalRevInChart = months.reduce((sum, m) => sum + m.revenue, 0);
     if (totalRevInChart === 0 && realApprovedRevenue > 0) {
       months[months.length - 1].revenue = realApprovedRevenue;
-      months[months.length - 1].transactions = transactions.length;
-      months[months.length - 1].students = realStudents.length;
+      months[months.length - 1].transactions = effectiveTransactions.length;
+      months[months.length - 1].students = effectiveStudents.length;
     }
 
     return months;
-  }, [transactions, realStudents, timeFilter, realApprovedRevenue]);
+  }, [effectiveTransactions, effectiveStudents, timeFilter, realApprovedRevenue]);
 
   // Max value in chart for scale calculation
   const maxChartValue = useMemo(() => {
@@ -486,7 +543,7 @@ export default function Dashboard() {
     const logs: AuditLog[] = [];
 
     // 1. Transaction Logs
-    transactions.forEach(t => {
+    effectiveTransactions.forEach(t => {
       const txDate = parseDate(t.createdAt) || new Date();
       if (t.status === 'approved') {
         logs.push({
@@ -525,7 +582,7 @@ export default function Dashboard() {
     });
 
     // 2. Student Signups Logs
-    students.forEach(s => {
+    effectiveStudents.forEach(s => {
       const sDate = parseDate(s.createdAt) || new Date();
       logs.push({
         id: `usr-reg-${s.id}`,
@@ -631,7 +688,7 @@ export default function Dashboard() {
       csvRows.push('TRANSAÇÕES & HISTÓRICO DE PAGAMENTOS');
       csvRows.push('Referência,Aluno,E-mail,Curso,Valor (Kz),Status,Data');
       
-      transactions.forEach(t => {
+      effectiveTransactions.forEach(t => {
         const tDate = parseDate(t.createdAt);
         const dateFormatted = tDate ? tDate.toLocaleString('pt-AO') : '-';
         const cleanRef = (t.referenceNumber || 'N/A').replace(/,/g, ' ');
@@ -647,7 +704,7 @@ export default function Dashboard() {
       csvRows.push('LISTA DE ALUNOS');
       csvRows.push('Nome,E-mail,Status de Acesso,Cursos Matriculados,Aulas Concluídas');
       
-      realStudents.forEach(s => {
+      effectiveStudents.forEach(s => {
         const name = `${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Aluno';
         const email = s.email || '';
         const status = s.subscriptionStatus === 'active' ? 'Ativo' : 'Inativo / Pendente';
@@ -815,11 +872,11 @@ export default function Dashboard() {
                 <h3 className="text-xl font-extrabold font-headline text-on-surface">Aguardando Aprovação de Comprovativos</h3>
               </div>
               <span className="text-xs px-3 py-1 bg-surface-container-highest rounded-full text-[#e9c349] font-mono font-bold">
-                {transactions.filter(t => !t.status || t.status === 'pending').length} Pendentes
+                {effectiveTransactions.filter(t => !t.status || t.status === 'pending').length} Pendentes
               </span>
             </div>
 
-            {transactions.filter(t => !t.status || t.status === 'pending').length === 0 ? (
+            {effectiveTransactions.filter(t => !t.status || t.status === 'pending').length === 0 ? (
               <div className="text-center py-10 border border-dashed border-outline-variant/20 rounded-xl bg-surface-container-lowest/30">
                 <span className="material-symbols-outlined text-4xl text-stone-600 mb-2">done_all</span>
                 <p className="text-sm text-stone-400">Nenhuma transação pendente de validação no momento. Todas foram processadas e arquivadas.</p>
@@ -838,7 +895,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/5 font-body">
-                    {transactions
+                    {effectiveTransactions
                       .filter(t => !t.status || t.status === 'pending')
                       .map((tx) => (
                       <tr key={tx.id} className="hover:bg-surface-container-highest/30 transition-colors">
