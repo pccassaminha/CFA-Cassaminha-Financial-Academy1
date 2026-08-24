@@ -885,8 +885,8 @@ export default function StudentDirectory() {
           </div>
 
           {/* Tabela Desktop (hidden md:block) */}
-          <div className="hidden md:block bg-[#131313] border border-[#353534]/30 rounded-2xl overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
+          <div className="hidden md:block bg-[#131313] border border-[#353534]/30 rounded-2xl overflow-visible shadow-xl relative z-10">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full text-left">
                 <thead className="bg-[#0e0e0e] border-b border-[#353534]/30">
                   <tr>
@@ -1064,7 +1064,7 @@ export default function StudentDirectory() {
                               {activeMenuUserId === userItem.id && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setActiveMenuUserId(null)} />
-                                  <div className="absolute right-0 mt-2 w-52 bg-[#141414] border border-stone-800 rounded-2xl shadow-2xl py-2 z-50 text-left animate-in fade-in zoom-in-95">
+                                  <div className="absolute right-0 mt-2 w-52 bg-[#141414] border border-stone-700 rounded-2xl shadow-2xl py-2 z-[9999] text-left animate-in fade-in zoom-in-95">
                                     {isPendingApproval ? (
                                       <>
                                         <button
@@ -1106,6 +1106,13 @@ export default function StudentDirectory() {
                                             >
                                               <Layers className="w-4 h-4" />
                                               <span>Plano / Status</span>
+                                            </button>
+                                            <button
+                                              onClick={() => { handleMakeStudent(userItem.id); setActiveMenuUserId(null); }}
+                                              className="w-full px-4 py-2.5 text-xs text-stone-200 hover:bg-white/5 flex items-center gap-2.5 cursor-pointer border-t border-stone-800 mt-1 pt-2"
+                                            >
+                                              <UserCheck className="w-4 h-4 text-stone-400" />
+                                              <span>Tornar Aluno</span>
                                             </button>
                                           </>
                                         ) : !isMaster && (
