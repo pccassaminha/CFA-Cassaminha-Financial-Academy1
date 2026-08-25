@@ -86,6 +86,13 @@ service cloud.firestore {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
     }
+
+    // 6. Notificações do Sistema (Novos Alunos, Pagamentos 'Já Paguei', Produtores)
+    match /notifications/{notificationId} {
+      allow create: if true;
+      allow read: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.targetUserId == request.auth.uid);
+    }
   }
 }
 

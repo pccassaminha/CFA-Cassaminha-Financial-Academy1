@@ -4,6 +4,7 @@ import { loginWithGoogle, loginWithEmail, registerWithEmail, sendResetEmail, db 
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { ProducerContractModal } from '../components/ProducerContractModal';
+import { sendSystemNotification } from '../services/notificationService';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -140,6 +141,37 @@ export default function Login() {
       }
 
       await setDoc(userRef, payload);
+
+      // Dispara notificação em tempo real para o telemóvel e painel administrativo
+      if (role === 'producer') {
+        sendSystemNotification({
+          type: 'new_producer',
+          title: '💼 Novo Produtor Cadastrado!',
+          message: `${registrationData?.firstName ? `${registrationData.firstName} ${registrationData.lastName}` : cleanEmail} cadastrou-se como Produtor na CFA Academy.`,
+          link: '/students',
+          targetRole: 'admin',
+          metadata: {
+            email: cleanEmail,
+            name: `${registrationData?.firstName || ''} ${registrationData?.lastName || ''}`.trim(),
+            phone: `${registrationData?.phoneCountryCode || ''} ${registrationData?.phoneNumber || ''}`.trim(),
+            uid: user.uid
+          }
+        });
+      } else if (role === 'student') {
+        sendSystemNotification({
+          type: 'new_student',
+          title: '🎓 Novo Aluno Cadastrado!',
+          message: `${registrationData?.firstName ? `${registrationData.firstName} ${registrationData.lastName}` : cleanEmail} acabou de se cadastrar na CFA Academy.`,
+          link: '/students',
+          targetRole: 'admin',
+          metadata: {
+            email: cleanEmail,
+            name: `${registrationData?.firstName || ''} ${registrationData?.lastName || ''}`.trim(),
+            phone: `${registrationData?.phoneCountryCode || ''} ${registrationData?.phoneNumber || ''}`.trim(),
+            uid: user.uid
+          }
+        });
+      }
 
       // Se for produtor recém-criado, abre o contrato digital imediatamente
       if (role === 'producer' && !isAdminEmail) {

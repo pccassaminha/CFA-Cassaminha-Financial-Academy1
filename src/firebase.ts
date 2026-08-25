@@ -21,7 +21,8 @@ import {
   getDocs,
   arrayUnion,
   serverTimestamp,
-  getDoc
+  getDoc,
+  addDoc
 } from 'firebase/firestore';
 
 import firebaseConfig from '../firebase-applet-config.json';
@@ -147,6 +148,24 @@ export const approveStudentTransaction = async (
     }
 
     console.log(`Curso ${targetCourseId} liberado com sucesso para a transação ${transactionId}`);
+
+    // Dispara notificação de pagamento aprovado
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        type: 'payment_approved',
+        title: '🎉 Matrícula Confirmada!',
+        message: `O seu pagamento foi aprovado com sucesso e o seu acesso ao curso foi liberado na sua Área do Aluno!`,
+        link: '/library',
+        targetRole: 'student',
+        targetUserId: userId || null,
+        read: false,
+        timestamp: Date.now(),
+        createdAt: serverTimestamp()
+      });
+    } catch (notifErr) {
+      console.warn("Failed to create approval notification:", notifErr);
+    }
+
     return true;
   } catch (error) {
     console.error("Erro ao aprovar transação e liberar curso:", error);

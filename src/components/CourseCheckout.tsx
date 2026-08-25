@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { sendSystemNotification } from '../services/notificationService';
 import { ArrowLeft, Copy, Check, MessageCircle, ShieldCheck, Building2, Smartphone, CreditCard, Ticket, Tag, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Coupon } from '../types';
@@ -431,6 +432,23 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
     try {
       // 1. Grava no Firestore na collection 'transactions' para captura imediata pelo painel administrativo
       const docRef = await addDoc(collection(db, 'transactions'), txData);
+
+      // Dispara notificação em tempo real para telemóveis dos administradores
+      sendSystemNotification({
+        type: 'payment_submitted',
+        title: '💳 Pagamento Informado ("Já Paguei")!',
+        message: `O aluno ${finalStudentName} informou pagamento de ${formattedPrice} no curso "${safeTitle}". Referência: ${cleanRef}`,
+        link: '/dashboard',
+        targetRole: 'admin',
+        metadata: {
+          studentName: finalStudentName,
+          courseTitle: safeTitle,
+          amount: finalPrice,
+          referenceNumber: cleanRef,
+          paymentMethod: selectedMethod.shortName || selectedMethod.bankName || 'Transferência',
+          phone: studentPhoneInput.trim()
+        }
+      });
 
       // 2. Armazena localmente para persistência de sessão e reenvio
       const localRecord = {

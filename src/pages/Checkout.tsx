@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
+import { sendSystemNotification } from '../services/notificationService';
 import { PlatformSettings, Transaction, Coupon } from '../types';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 
@@ -284,6 +285,22 @@ export default function Checkout() {
     try {
       // Create transaction record in Firestore
       await setDoc(doc(db, 'transactions', txId), transactionData);
+
+      // Dispara notificação em tempo real
+      sendSystemNotification({
+        type: 'payment_submitted',
+        title: '💳 Pagamento Informado ("Já Paguei")!',
+        message: `O aluno ${fullName || email} informou pagamento de ${finalPrice.toLocaleString('pt-AO')} Kz no curso "${selectedCourse.title}". Referência: ${cleanRef}`,
+        link: '/dashboard',
+        targetRole: 'admin',
+        metadata: {
+          studentName: fullName || email,
+          courseTitle: selectedCourse.title,
+          amount: finalPrice,
+          referenceNumber: cleanRef,
+          paymentMethod: selectedMethod
+        }
+      });
 
       if (currentUser) {
         await updateDoc(doc(db, 'users', currentUser.uid), {

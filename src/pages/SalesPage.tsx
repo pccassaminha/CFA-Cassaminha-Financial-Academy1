@@ -9,6 +9,7 @@ import HeroSection from '../components/HeroSection';
 import AnnouncementBar from '../components/AnnouncementBar';
 import { EcosystemFooter } from '../components/EcosystemFooter';
 import { AndroidInstallModal } from '../components/AndroidInstallModal';
+import { NotificationCenter } from '../components/NotificationCenter';
 import { 
   BookOpen, 
   ArrowRight, 
@@ -213,6 +214,10 @@ export default function SalesPage() {
             </Link>
             
             <div className="flex items-center gap-1.5 sm:gap-3">
+              {currentUser && (
+                <NotificationCenter userRole={isAdmin ? 'admin' : 'student'} userId={currentUser.uid} />
+              )}
+
               <button
                 onClick={() => setIsAndroidModalOpen(true)}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg sm:rounded-xl text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 hover:bg-[#e9c349]/20 transition-all cursor-pointer shadow-sm"

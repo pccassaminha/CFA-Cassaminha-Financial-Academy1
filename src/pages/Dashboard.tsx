@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
+import { NotificationCenter } from '../components/NotificationCenter';
 import { collection, onSnapshot, updateDoc, doc, arrayRemove, deleteDoc, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db, auth, approveStudentTransaction } from '../firebase';
 import { Transaction } from '../types';
@@ -798,6 +799,8 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+
+              <NotificationCenter userRole="admin" />
 
               <button 
                 id="btn-export-dashboard-report"

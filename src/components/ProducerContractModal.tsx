@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { sendSystemNotification } from '../services/notificationService';
 
 interface ProducerContractModalProps {
   isOpen: boolean;
@@ -102,6 +103,22 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
           subscriptionStatus: 'active',
           isApproved: true,
           updatedAt: serverTimestamp()
+        });
+
+        // Notificação em tempo real para a equipe
+        sendSystemNotification({
+          type: 'new_producer',
+          title: '💼 Contrato de Produtor Assinado!',
+          message: `${producerName} assinou o contrato digital de Produtor da CFA Academy (${billingFrequency === 'monthly' ? 'Mensal' : 'Anual'}).`,
+          link: '/students',
+          targetRole: 'admin',
+          metadata: {
+            name: producerName,
+            email: producer.email,
+            phone: producerPhone,
+            billingFrequency,
+            signatureHash
+          }
         });
       }
 
