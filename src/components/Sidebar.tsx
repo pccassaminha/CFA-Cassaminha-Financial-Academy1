@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { logout, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
+import { AndroidInstallModal } from './AndroidInstallModal';
 import { 
   Smartphone, 
   Mail, 
@@ -32,6 +33,7 @@ export default function Sidebar() {
 
   const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_CFA_LOGO);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [isAndroidModalOpen, setIsAndroidModalOpen] = useState(false);
   const [supportWhatsApp, setSupportWhatsApp] = useState('244923456789');
   const [supportEmail, setSupportEmail] = useState('suporte@grupocassaminha.com');
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -263,6 +265,15 @@ export default function Sidebar() {
       <div className="mt-auto px-4 pt-4 border-t border-[#353534]/30">
         <div className="space-y-1">
           <button
+            id="btn-sidebar-android-app"
+            type="button"
+            onClick={() => setIsAndroidModalOpen(true)}
+            className="w-full flex items-center gap-4 text-[#e9c349] px-4 py-2 hover:bg-[#e9c349]/10 rounded-lg transition-all duration-300 hover:translate-x-1 cursor-pointer text-left font-bold text-xs"
+          >
+            <Smartphone className="w-4 h-4 text-[#e9c349]" />
+            <span className="font-headline tracking-wide">App Android (Testes)</span>
+          </button>
+          <button
             id="btn-sidebar-support"
             type="button"
             onClick={() => setIsSupportModalOpen(true)}
@@ -388,6 +399,12 @@ export default function Sidebar() {
         </div>
       </div>
     )}
+
+    {/* Modal de Instalação e Testes Android */}
+    <AndroidInstallModal
+      isOpen={isAndroidModalOpen}
+      onClose={() => setIsAndroidModalOpen(false)}
+    />
     </>
   );
 }

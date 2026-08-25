@@ -1,0 +1,25 @@
+{
+  "short_name": "CFA Academy",
+  "name": "CFA - Cassaminha Financial Academy",
+  "description": "Plataforma de Cursos e Formação Financeira e Profissional do Grupo Cassaminha",
+  "icons": [
+    {
+      "src": "https://i.postimg.cc/Jz2CYxYq/fvcom.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://i.postimg.cc/Jz2CYxYq/fvcom.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#000000",
+  "theme_color": "#e9c349",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/"
+}

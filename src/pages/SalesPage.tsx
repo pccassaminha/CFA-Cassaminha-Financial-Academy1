@@ -8,6 +8,7 @@ import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import HeroSection from '../components/HeroSection';
 import AnnouncementBar from '../components/AnnouncementBar';
 import { EcosystemFooter } from '../components/EcosystemFooter';
+import { AndroidInstallModal } from '../components/AndroidInstallModal';
 import { 
   BookOpen, 
   ArrowRight, 
@@ -19,7 +20,8 @@ import {
   CheckCircle,
   X,
   HelpCircle,
-  Users
+  Users,
+  Smartphone
 } from 'lucide-react';
 
 interface Course {
@@ -40,6 +42,7 @@ export default function SalesPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [isAndroidModalOpen, setIsAndroidModalOpen] = useState(false);
 
   const getCourseDiscountInfo = (course: Course) => {
     if (!course.price || course.price === 0) return { isFree: true, hasDiscount: false, discountedPrice: 0, couponCode: null };
@@ -210,6 +213,15 @@ export default function SalesPage() {
             </Link>
             
             <div className="flex items-center gap-1.5 sm:gap-3">
+              <button
+                onClick={() => setIsAndroidModalOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg sm:rounded-xl text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 hover:bg-[#e9c349]/20 transition-all cursor-pointer shadow-sm"
+                title="Versão App Android"
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>App Android</span>
+              </button>
+
               {currentUser ? (
                 isAdmin ? (
                   <Link to="/dashboard" className="bg-[#e9c349] text-stone-900 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm hover:opacity-90 transition-all flex items-center gap-1.5 shadow-[0_4px_12px_rgba(233,195,115,0.2)]">
@@ -616,6 +628,12 @@ export default function SalesPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Instalação e Testes Android */}
+      <AndroidInstallModal
+        isOpen={isAndroidModalOpen}
+        onClose={() => setIsAndroidModalOpen(false)}
+      />
 
     </div>
   );

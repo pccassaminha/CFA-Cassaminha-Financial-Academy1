@@ -4,7 +4,8 @@ import StudentMyCourses from '../components/StudentMyCourses';
 import StudentProfile from '../components/StudentProfile';
 import CoursePreview from '../components/CoursePreview';
 import CourseCheckout from '../components/CourseCheckout';
-import { BookOpen, Home, User, LogOut, Compass } from 'lucide-react';
+import { AndroidInstallModal } from '../components/AndroidInstallModal';
+import { BookOpen, Home, User, LogOut, Compass, Smartphone } from 'lucide-react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { logout, auth, db } from '../firebase';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -22,6 +23,7 @@ export default function StudentPortal() {
   const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_CFA_LOGO);
   const [isInitializing, setIsInitializing] = useState(true);
   const [user, setUser] = useState<any>(auth.currentUser);
+  const [isAndroidModalOpen, setIsAndroidModalOpen] = useState(false);
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
@@ -284,6 +286,15 @@ export default function StudentPortal() {
         </nav>
 
         <div className="flex items-center justify-end gap-2 sm:gap-3">
+          <button
+            onClick={() => setIsAndroidModalOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 hover:bg-[#e9c349]/20 transition-all cursor-pointer shadow-sm active:scale-95"
+            title="Versão App Android"
+          >
+            <Smartphone className="w-4 h-4" />
+            <span className="hidden md:inline">App Android</span>
+          </button>
+
           {isAdmin && (
             <button
               onClick={handleReturnToAdmin}
@@ -386,6 +397,12 @@ export default function StudentPortal() {
           />
         )}
       </main>
+
+      {/* Modal de Instalação e Testes Android */}
+      <AndroidInstallModal
+        isOpen={isAndroidModalOpen}
+        onClose={() => setIsAndroidModalOpen(false)}
+      />
     </div>
   );
 }
