@@ -1,9 +1,9 @@
-const CACHE_NAME = 'cfa-academy-cache-v1';
+const CACHE_NAME = 'cfa-academy-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://i.postimg.cc/Jz2CYxYq/fvcom.png'
+  'https://i.postimg.cc/mDY7XpVF/apenas-12-vagas.png'
 ];
 
 self.addEventListener('install', (event) => {

@@ -128,11 +128,11 @@ export const AndroidInstallModal: React.FC<AndroidInstallModalProps> = ({ isOpen
           {activeTab === 'instant' ? (
             <div className="space-y-4">
               <div className="bg-gradient-to-br from-[#1a1c23] to-[#0f1117] border border-[#e9c349]/30 rounded-2xl p-5 text-center space-y-3">
-                <div className="w-14 h-14 bg-stone-900 rounded-2xl border border-white/10 mx-auto flex items-center justify-center shadow-lg p-2">
+                <div className="w-16 h-16 bg-black rounded-2xl border border-[#e9c349]/40 mx-auto flex items-center justify-center shadow-lg p-2 overflow-hidden">
                   <img 
-                    src="https://i.postimg.cc/Jz2CYxYq/fvcom.png" 
+                    src="https://i.postimg.cc/mDY7XpVF/apenas-12-vagas.png" 
                     alt="CFA Academy App" 
-                    className="w-full h-full object-contain rounded-xl"
+                    className="w-full h-full object-contain rounded-lg"
                   />
                 </div>
                 <div>
