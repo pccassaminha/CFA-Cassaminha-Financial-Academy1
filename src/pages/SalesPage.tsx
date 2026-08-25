@@ -7,6 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import HeroSection from '../components/HeroSection';
 import AnnouncementBar from '../components/AnnouncementBar';
+import { EcosystemFooter } from '../components/EcosystemFooter';
 import { 
   BookOpen, 
   ArrowRight, 
@@ -471,7 +472,7 @@ export default function SalesPage() {
       </main>
 
       {/* Footer Navigation (With Portuguese terms links and currency information) */}
-      <footer className="w-full border-t border-white/5 bg-[#0e0e0e] text-xs uppercase tracking-widest relative z-10">
+      <footer className="w-full border-t border-white/5 bg-[#0a0a0a] text-xs uppercase tracking-widest relative z-10">
         <div className="flex flex-col md:flex-row justify-between items-center px-8 md:px-12 py-10 gap-6 max-w-7xl mx-auto">
           <div className="text-[#e9c349] font-black tracking-tight text-base">CFA - Cassaminha Financial Academy</div>
           
@@ -485,6 +486,9 @@ export default function SalesPage() {
           </div>
         </div>
       </footer>
+
+      {/* Ecosystem Platforms Footer Section (Discreet Sub-Footer) */}
+      <EcosystemFooter />
 
       {/* Floating Support WhatsApp Button - Collapsed by default, expands on hover/focus/click */}
       <a 

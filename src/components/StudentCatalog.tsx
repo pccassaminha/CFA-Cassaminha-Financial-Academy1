@@ -5,6 +5,7 @@ import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmen
 import { Play, SearchX, Plus, Check, BookmarkCheck, Sparkles } from 'lucide-react';
 import ExpandableSearch from './ExpandableSearch';
 import { Coupon } from '../types';
+import { EcosystemFooter } from './EcosystemFooter';
 
 export interface Course {
   id: string;
@@ -318,6 +319,10 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-12 border-t border-gray-800/60">
+        <EcosystemFooter />
       </div>
     </div>
   );
