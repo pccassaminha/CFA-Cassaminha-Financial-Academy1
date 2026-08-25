@@ -12,7 +12,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export type NotificationType = 'new_student' | 'payment_submitted' | 'new_producer' | 'payment_approved' | 'general';
+export type NotificationType = 
+  | 'new_student' 
+  | 'payment_submitted' 
+  | 'new_producer' 
+  | 'payment_approved' 
+  | 'new_course' 
+  | 'new_module' 
+  | 'new_lesson' 
+  | 'general';
 
 export interface SystemNotification {
   id?: string;
@@ -20,7 +28,7 @@ export interface SystemNotification {
   title: string;
   message: string;
   link?: string;
-  targetRole?: 'admin' | 'student' | 'all';
+  targetRole?: 'admin' | 'student' | 'producer' | 'all';
   targetUserId?: string;
   read?: boolean;
   metadata?: Record<string, any>;
@@ -158,7 +166,7 @@ export const sendSystemNotification = async (payload: {
   title: string;
   message: string;
   link?: string;
-  targetRole?: 'admin' | 'student' | 'all';
+  targetRole?: 'admin' | 'student' | 'producer' | 'all';
   targetUserId?: string;
   metadata?: Record<string, any>;
 }) => {
@@ -168,7 +176,7 @@ export const sendSystemNotification = async (payload: {
       title: payload.title,
       message: payload.message,
       link: payload.link || '/dashboard',
-      targetRole: payload.targetRole || 'admin',
+      targetRole: payload.targetRole || 'all',
       targetUserId: payload.targetUserId || null,
       read: false,
       metadata: payload.metadata || {},
@@ -180,6 +188,76 @@ export const sendSystemNotification = async (payload: {
   } catch (error) {
     console.error('Erro ao registrar notificação no Firestore:', error);
   }
+};
+
+/**
+ * Dispara notificação de Novo Curso para todos os alunos
+ */
+export const notifyNewCourse = async (course: {
+  id: string;
+  title: string;
+  instructor?: string;
+  price?: number;
+}) => {
+  return sendSystemNotification({
+    type: 'new_course',
+    title: '🎓 Novo Curso Disponível!',
+    message: `O curso "${course.title}" foi publicado na CFA Academy! Clique para ver os detalhes e garantir a sua vaga.`,
+    link: `/preview/${course.id}`,
+    targetRole: 'all',
+    metadata: {
+      courseId: course.id,
+      courseTitle: course.title,
+      instructor: course.instructor || 'CFA Academy',
+      price: course.price
+    }
+  });
+};
+
+/**
+ * Dispara notificação de Novo Módulo em um Curso
+ */
+export const notifyNewModule = async (params: {
+  courseId: string;
+  courseTitle: string;
+  moduleTitle: string;
+}) => {
+  return sendSystemNotification({
+    type: 'new_module',
+    title: '📦 Novo Módulo Liberado!',
+    message: `O módulo "${params.moduleTitle}" foi adicionado ao curso "${params.courseTitle}". Clique para conferir o conteúdo!`,
+    link: `/preview/${params.courseId}`,
+    targetRole: 'all',
+    metadata: {
+      courseId: params.courseId,
+      courseTitle: params.courseTitle,
+      moduleTitle: params.moduleTitle
+    }
+  });
+};
+
+/**
+ * Dispara notificação de Nova Aula em um Curso
+ */
+export const notifyNewLesson = async (params: {
+  courseId: string;
+  courseTitle: string;
+  moduleTitle?: string;
+  lessonTitle: string;
+}) => {
+  return sendSystemNotification({
+    type: 'new_lesson',
+    title: '▶️ Nova Aula Disponível!',
+    message: `Uma nova aula "${params.lessonTitle}" foi adicionada ao curso "${params.courseTitle}". Clique para assistir agora!`,
+    link: `/preview/${params.courseId}`,
+    targetRole: 'all',
+    metadata: {
+      courseId: params.courseId,
+      courseTitle: params.courseTitle,
+      moduleTitle: params.moduleTitle || '',
+      lessonTitle: params.lessonTitle
+    }
+  });
 };
 
 /**
@@ -195,7 +273,7 @@ export const subscribeToNotifications = (
   const q = query(
     collection(db, 'notifications'),
     orderBy('createdAt', 'desc'),
-    limit(50)
+    limit(60)
   );
 
   return onSnapshot(
@@ -205,15 +283,26 @@ export const subscribeToNotifications = (
       
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        // Filtro por papel
-        if (targetRole === 'admin' && data.targetRole === 'student' && data.targetUserId !== userId) {
-          return;
-        }
-        if (targetRole === 'student' && data.targetRole === 'admin') {
-          return;
-        }
-        if (data.targetUserId && data.targetUserId !== userId && targetRole !== 'admin') {
-          return;
+        const docRole = data.targetRole || 'all';
+
+        // Filtro por papel do utilizador
+        if (targetRole === 'student') {
+          // Alunos só recebem notificações públicas ('all') ou dirigidas a 'student'
+          if (docRole === 'admin') {
+            return;
+          }
+          // Se for endereçada a um aluno específico, valida o ID
+          if (data.targetUserId && data.targetUserId !== userId) {
+            return;
+          }
+        } else if (targetRole !== 'admin') {
+          // Se for outro papel não-admin, não recebe alertas de admin
+          if (docRole === 'admin') {
+            return;
+          }
+          if (data.targetUserId && data.targetUserId !== userId) {
+            return;
+          }
         }
 
         notifs.push({
@@ -222,7 +311,7 @@ export const subscribeToNotifications = (
           title: data.title || 'Notificação CFA',
           message: data.message || '',
           link: data.link || '/dashboard',
-          targetRole: data.targetRole || 'admin',
+          targetRole: docRole,
           targetUserId: data.targetUserId,
           read: data.read || false,
           metadata: data.metadata || {},
@@ -235,11 +324,25 @@ export const subscribeToNotifications = (
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const data = change.doc.data();
-            showNativeNotification(
-              data.title || 'CFA Academy',
-              data.message || 'Nova atualização na plataforma',
-              data.link || '/dashboard'
-            );
+            const docRole = data.targetRole || 'all';
+
+            // Verifica se o usuário atual deve receber a notificação nativa
+            let shouldNotify = true;
+            if (targetRole === 'student') {
+              if (docRole === 'admin') shouldNotify = false;
+              if (data.targetUserId && data.targetUserId !== userId) shouldNotify = false;
+            } else if (targetRole !== 'admin') {
+              if (docRole === 'admin') shouldNotify = false;
+              if (data.targetUserId && data.targetUserId !== userId) shouldNotify = false;
+            }
+
+            if (shouldNotify) {
+              showNativeNotification(
+                data.title || 'CFA Academy',
+                data.message || 'Nova atualização na plataforma',
+                data.link || '/library'
+              );
+            }
           }
         });
       }

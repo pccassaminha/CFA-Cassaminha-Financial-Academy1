@@ -10,6 +10,7 @@ import { LinkifiedText } from '../components/LinkifiedText';
 import { parseVideoUrlOrIframe } from '../utils/videoParser';
 
 import { LessonLink } from '../types';
+import NotificationCenter from '../components/NotificationCenter';
 
 interface Lesson {
   id: string;
@@ -912,6 +913,8 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                   </button>
                 </>
               )}
+
+              <NotificationCenter />
 
               <Link
                 id="btn-back-to-my-courses-header"

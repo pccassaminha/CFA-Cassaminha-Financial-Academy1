@@ -3,6 +3,7 @@ import { BookOpen, Compass, User, LogOut, ShieldCheck, LayoutDashboard } from 'l
 import { logout, auth, db } from '../firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import NotificationCenter from './NotificationCenter';
 
 interface StudentLayoutProps {
   children: React.ReactNode;
@@ -87,6 +88,7 @@ export default function StudentLayout({ children, activeTab, setActiveTab, onLog
               </h1>
               <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-mono">Academy Portal</p>
             </div>
+            <NotificationCenter />
           </div>
 
           {(isAdmin || isProducer) && (

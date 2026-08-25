@@ -12,7 +12,12 @@ import {
   Volume2, 
   ExternalLink,
   X,
-  AlertCircle
+  AlertCircle,
+  GraduationCap,
+  Layers,
+  PlayCircle,
+  BookOpen,
+  ChevronRight
 } from 'lucide-react';
 import { 
   SystemNotification, 
@@ -129,6 +134,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         return <Briefcase className="w-4 h-4 text-purple-400" />;
       case 'payment_approved':
         return <Check className="w-4 h-4 text-emerald-400" />;
+      case 'new_course':
+        return <GraduationCap className="w-4 h-4 text-[#e9c349]" />;
+      case 'new_module':
+        return <Layers className="w-4 h-4 text-sky-400" />;
+      case 'new_lesson':
+        return <PlayCircle className="w-4 h-4 text-emerald-400" />;
       default:
         return <Sparkles className="w-4 h-4 text-[#e9c349]" />;
     }
@@ -279,6 +290,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         <span>Valor: {Number(notif.metadata.amount).toLocaleString('pt-AO')} Kz</span>
                       </div>
                     )}
+
+                    {/* Botão de Ação Rápida */}
+                    {(notif.type === 'new_course' || notif.type === 'new_module' || notif.type === 'new_lesson' || notif.type === 'payment_approved') && (
+                      <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-[#e9c349] group-hover:underline">
+                        <span>{notif.type === 'new_lesson' ? 'Assistir aula agora' : notif.type === 'new_module' ? 'Explorar módulo' : 'Ver detalhes do curso'}</span>
+                        <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                    )}
                   </div>
 
                   {/* Ação de excluir */}
@@ -317,3 +336,5 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     </div>
   );
 };
+
+export default NotificationCenter;

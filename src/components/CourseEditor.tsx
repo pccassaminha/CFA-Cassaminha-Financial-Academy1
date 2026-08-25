@@ -14,6 +14,11 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { 
+  notifyNewCourse, 
+  notifyNewModule, 
+  notifyNewLesson 
+} from '../services/notificationService';
+import { 
   Trash2, 
   Plus, 
   Globe, 
@@ -246,6 +251,15 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
         updatedAt: serverTimestamp()
       }, { merge: true });
       setSaveStatus('Salvo');
+
+      // Se o curso acabou de ser publicado, notifica todos os alunos
+      if (newStatus) {
+        notifyNewCourse({
+          id: courseId,
+          title: title || 'Curso CFA Academy',
+          price: Number(price) || 0
+        }).catch(err => console.warn('Falha ao disparar notificação de curso:', err));
+      }
     } catch (error) {
       console.error("Erro ao alterar publicação:", error);
       setIsPublished(!newStatus); // Reverte se der erro
@@ -297,19 +311,27 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
 
   const handleSaveModule = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!moduleModal.title.trim()) return;
+    const cleanTitle = moduleModal.title.trim();
+    if (!cleanTitle) return;
 
     if (moduleModal.mode === 'create') {
       const newMod: Module = {
         id: `m_${Date.now()}`,
         courseId,
-        title: moduleModal.title.trim(),
+        title: cleanTitle,
         status: 'published',
         lessons: []
       };
       setModules([...modules, newMod]);
+
+      // Dispara notificação de Novo Módulo
+      notifyNewModule({
+        courseId,
+        courseTitle: title || 'Curso CFA Academy',
+        moduleTitle: cleanTitle
+      }).catch(err => console.warn('Erro ao disparar notificação de módulo:', err));
     } else if (moduleModal.moduleId) {
-      setModules(modules.map(m => m.id === moduleModal.moduleId ? { ...m, title: moduleModal.title.trim() } : m));
+      setModules(modules.map(m => m.id === moduleModal.moduleId ? { ...m, title: cleanTitle } : m));
     }
 
     setModuleModal({ isOpen: false, mode: 'create', title: '' });
@@ -421,11 +443,12 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           };
         } else {
           // Adiciona nova aula
+          const cleanLessonTitle = lessonData.title.trim();
           const newLesson: Lesson = {
             id: `l_${Date.now()}`,
             moduleId: selectedModuleId,
             courseId,
-            title: lessonData.title.trim(),
+            title: cleanLessonTitle,
             duration: lessonData.duration.trim(),
             order: mod.lessons.length + 1,
             videoSource: lessonData.videoSource,
@@ -435,6 +458,15 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             description: (lessonData.description || '').trim(),
             links: lessonData.links || []
           };
+
+          // Dispara notificação de Nova Aula para alunos
+          notifyNewLesson({
+            courseId,
+            courseTitle: title || 'Curso CFA Academy',
+            moduleTitle: mod.title,
+            lessonTitle: cleanLessonTitle
+          }).catch(err => console.warn('Erro ao disparar notificação de aula:', err));
+
           return {
             ...mod,
             lessons: [...mod.lessons, newLesson]

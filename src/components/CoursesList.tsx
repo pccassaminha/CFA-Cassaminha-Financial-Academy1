@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign } from 'lucide-react';
 import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { notifyNewCourse } from '../services/notificationService';
 
 interface CourseItem {
   id: string;
@@ -175,6 +176,17 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
       });
 
       showToast(`Curso "${editForm.title.trim()}" atualizado com sucesso!`, 'success');
+      
+      // Se alterou para publicado, notifica todos os alunos
+      if (editForm.isPublished && editingCourse.status !== 'published') {
+        notifyNewCourse({
+          id: editingCourse.id,
+          title: editForm.title.trim(),
+          instructor: finalSignature,
+          price: Number(editForm.price) || 0
+        }).catch(err => console.warn('Erro ao notificar novo curso publicado:', err));
+      }
+
       setEditingCourse(null);
     } catch (error: any) {
       console.error("Erro ao atualizar curso:", error);
@@ -252,6 +264,16 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
     try {
       await setDoc(doc(db, 'courses', newId), newCourseData);
       showToast(`Novo curso "${newCourseForm.title.trim()}" criado com sucesso!`, 'success');
+
+      if (newCourseForm.isPublished) {
+        notifyNewCourse({
+          id: newId,
+          title: newCourseForm.title.trim(),
+          instructor: finalSignature,
+          price: Number(newCourseForm.price) || 0
+        }).catch(err => console.warn('Erro ao notificar novo curso:', err));
+      }
+
       setIsNewCourseModalOpen(false);
       setNewCourseForm({
         title: '',
