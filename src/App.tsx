@@ -24,6 +24,7 @@ import PushBroadcastManager from './pages/PushBroadcastManager';
 import Settings from './pages/Settings';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import { syncUserDeviceStatus } from './utils/deviceDetection';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -64,6 +65,7 @@ export default function App() {
       }
 
       if (currentUser) {
+        syncUserDeviceStatus(currentUser.uid);
         unsubscribeProfile = subscribeUserEnrollments(currentUser, (enrollData) => {
           const isMaster = isMasterEmail(currentUser.email);
           let baseProfile = enrollData.userProfile || {};
@@ -164,7 +166,7 @@ export default function App() {
           />
           <Route 
             path="/broadcast" 
-            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <PushBroadcastManager /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
+            element={user && isAdminEmail && effectiveRole !== 'student' ? <PushBroadcastManager /> : (user ? <Navigate to="/analytics" replace /> : <Navigate to="/entrar" replace />)} 
           />
           <Route 
             path="/settings" 

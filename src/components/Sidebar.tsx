@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { logout, db } from '../firebase';
+import { logout, db, auth } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { AndroidInstallModal } from './AndroidInstallModal';
@@ -27,6 +27,23 @@ export default function Sidebar() {
   const [viewAsStudent, setViewAsStudent] = useState(() => {
     return localStorage.getItem('viewAsStudent') === 'true';
   });
+
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(auth.currentUser?.email || null);
+
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      setCurrentUserEmail(u?.email || null);
+    });
+    return () => unsub();
+  }, []);
+
+  const isMasterEmail = (email?: string | null) => {
+    if (!email) return false;
+    const clean = email.trim().toLowerCase();
+    return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
+  };
+
+  const isMaster = isMasterEmail(currentUserEmail);
 
   // Fecha a barra lateral no mobile sempre que mudar de rota
   useEffect(() => {
@@ -256,19 +273,21 @@ export default function Sidebar() {
           </span>
           <span>Análise</span>
         </Link>
-        <Link
-          to="/broadcast"
-          className={`flex items-center gap-4 px-4 py-3 mx-2 my-1 font-headline font-medium transition-transform duration-300 rounded-lg ${
-            location.pathname === '/broadcast'
-              ? 'bg-[#353534] text-[#e9c349] active:scale-95 brightness-110'
-              : 'text-[#bccabe] hover:bg-[#353534]/30 hover:translate-x-1'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[#e9c349]" style={location.pathname === '/broadcast' ? { fontVariationSettings: "'FILL' 1" } : {}}>
-            sensors
-          </span>
-          <span>Notificações Push</span>
-        </Link>
+        {isMaster && (
+          <Link
+            to="/broadcast"
+            className={`flex items-center gap-4 px-4 py-3 mx-2 my-1 font-headline font-medium transition-transform duration-300 rounded-lg ${
+              location.pathname === '/broadcast'
+                ? 'bg-[#353534] text-[#e9c349] active:scale-95 brightness-110'
+                : 'text-[#bccabe] hover:bg-[#353534]/30 hover:translate-x-1'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[#e9c349]" style={location.pathname === '/broadcast' ? { fontVariationSettings: "'FILL' 1" } : {}}>
+              sensors
+            </span>
+            <span>Notificações Push</span>
+          </Link>
+        )}
         <Link
           to="/settings"
           className={`flex items-center gap-4 px-4 py-3 mx-2 my-1 font-headline font-medium transition-transform duration-300 rounded-lg ${

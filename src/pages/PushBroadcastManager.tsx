@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import { 
   Send, 
@@ -19,7 +19,9 @@ import {
   Smartphone,
   ChevronRight,
   Filter,
-  Info
+  Info,
+  Monitor,
+  Download
 } from 'lucide-react';
 import { 
   collection, 
@@ -55,6 +57,45 @@ export default function PushBroadcastManager() {
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+
+  // Filtros e Estado do Relatório de Dispositivos Móveis
+  const [deviceSearchTerm, setDeviceSearchTerm] = useState('');
+  const [deviceFilterTab, setDeviceFilterTab] = useState<'all' | 'installed' | 'push_enabled' | 'mobile'>('all');
+
+  // Cálculos de Estatísticas de Dispositivos & Instalações
+  const installedAppCount = useMemo(() => {
+    return studentsList.filter(u => u.appInstalled || u.isAppInstalled || u.isStandalone).length;
+  }, [studentsList]);
+
+  const pushEnabledCount = useMemo(() => {
+    return studentsList.filter(u => u.pushEnabled || u.pushStatus === 'granted').length;
+  }, [studentsList]);
+
+  const mobileDeviceCount = useMemo(() => {
+    return studentsList.filter(u => u.isMobileDevice || u.appInstalled).length;
+  }, [studentsList]);
+
+  const filteredDevicesList = useMemo(() => {
+    return studentsList.filter(u => {
+      const name = (u.firstName ? `${u.firstName} ${u.lastName || ''}` : (u.name || u.email || '')).toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const term = deviceSearchTerm.toLowerCase().trim();
+
+      const matchesSearch = !term || name.includes(term) || email.includes(term);
+      if (!matchesSearch) return false;
+
+      if (deviceFilterTab === 'installed') {
+        return u.appInstalled || u.isAppInstalled || u.isStandalone;
+      }
+      if (deviceFilterTab === 'push_enabled') {
+        return u.pushEnabled || u.pushStatus === 'granted';
+      }
+      if (deviceFilterTab === 'mobile') {
+        return u.isMobileDevice || u.appInstalled;
+      }
+      return true;
+    });
+  }, [studentsList, deviceSearchTerm, deviceFilterTab]);
 
   // Stats & Status
   const [history, setHistory] = useState<SystemNotification[]>([]);
@@ -299,6 +340,39 @@ export default function PushBroadcastManager() {
     return name.includes(term) || email.includes(term);
   });
 
+  const isMasterEmail = (email?: string | null) => {
+    if (!email) return false;
+    const clean = email.trim().toLowerCase();
+    return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
+  };
+
+  const isMaster = isMasterEmail(auth.currentUser?.email);
+
+  if (!isMaster) {
+    return (
+      <div className="min-h-screen bg-[#0e0e0e] text-white font-body flex">
+        <Sidebar />
+        <main className="flex-1 lg:ml-72 p-8 pt-20 lg:pt-8 flex items-center justify-center">
+          <div className="bg-[#181818] border border-red-500/30 p-8 rounded-3xl max-w-md text-center space-y-4 shadow-2xl">
+            <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center text-red-400 mx-auto">
+              <Radio className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold font-headline text-white">Acesso Exclusivo ao Master Admin</h2>
+            <p className="text-xs text-stone-400 leading-relaxed">
+              A gestão e transmissão de Notificações Push é uma funcionalidade exclusiva do Administrador Master do Grupo Cassaminha.
+            </p>
+            <button 
+              onClick={() => window.location.href = '/analytics'}
+              className="px-6 py-2.5 bg-[#e9c349] text-black font-bold text-xs rounded-xl hover:brightness-110 cursor-pointer font-headline"
+            >
+              Voltar ao Painel
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0e0e0e] text-white font-body flex">
       {/* Sidebar Administrativa */}
@@ -372,34 +446,56 @@ export default function PushBroadcastManager() {
         </div>
 
         {/* STATS CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <div className="bg-[#181818] border border-[#353534]/50 rounded-2xl p-5 flex items-center gap-4">
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
-              <Users className="w-6 h-6" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-[#181818] border border-[#e9c349]/40 rounded-2xl p-5 flex items-center gap-4 relative overflow-hidden group">
+            <div className="p-3 bg-[#e9c349]/10 border border-[#e9c349]/30 text-[#e9c349] rounded-xl shrink-0">
+              <Smartphone className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase text-stone-400">Alunos Cadastrados</p>
-              <h3 className="text-xl font-bold font-headline text-white">{studentsList.length} Alunos</h3>
+              <p className="text-[10px] font-bold uppercase text-stone-400">App Instalado no Telemóvel</p>
+              <h3 className="text-xl font-bold font-headline text-white">{installedAppCount} Usuários</h3>
+              <p className="text-[10px] text-[#e9c349] font-medium mt-0.5">
+                {studentsList.length > 0 ? Math.round((installedAppCount / studentsList.length) * 100) : 0}% da base de alunos
+              </p>
             </div>
           </div>
 
-          <div className="bg-[#181818] border border-[#353534]/50 rounded-2xl p-5 flex items-center gap-4">
-            <div className="p-3 bg-[#e9c349]/10 border border-[#e9c349]/30 text-[#e9c349] rounded-xl">
+          <div className="bg-[#181818] border border-emerald-500/30 rounded-2xl p-5 flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl shrink-0">
               <BellRing className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase text-stone-400">Notificações Efetuadas</p>
-              <h3 className="text-xl font-bold font-headline text-white">{history.length} Mensagens</h3>
+              <p className="text-[10px] font-bold uppercase text-stone-400">Push Habilitado</p>
+              <h3 className="text-xl font-bold font-headline text-white">{pushEnabledCount} Aparelhos</h3>
+              <p className="text-[10px] text-emerald-400 font-medium mt-0.5">
+                Autorizações ativas
+              </p>
             </div>
           </div>
 
           <div className="bg-[#181818] border border-[#353534]/50 rounded-2xl p-5 flex items-center gap-4">
-            <div className="p-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-xl">
+            <div className="p-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-xl shrink-0">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase text-stone-400">Total Registados</p>
+              <h3 className="text-xl font-bold font-headline text-white">{studentsList.length} Usuários</h3>
+              <p className="text-[10px] text-stone-400 font-medium mt-0.5">
+                Alunos e Produtores
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[#181818] border border-[#353534]/50 rounded-2xl p-5 flex items-center gap-4">
+            <div className="p-3 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-xl shrink-0">
               <Radio className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase text-stone-400">Canal de Transmissão</p>
-              <h3 className="text-xl font-bold font-headline text-white">Firestore PWA Realtime</h3>
+              <p className="text-[10px] font-bold uppercase text-stone-400">Notificações Enviadas</p>
+              <h3 className="text-xl font-bold font-headline text-white">{history.length} Mensagens</h3>
+              <p className="text-[10px] text-stone-400 font-medium mt-0.5">
+                Transmissões efetuadas
+              </p>
             </div>
           </div>
         </div>
@@ -814,6 +910,204 @@ export default function PushBroadcastManager() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* RELATÓRIO DE DISPOSITIVOS MÓVEIS & INSTALAÇÕES DE APP */}
+        <div className="bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 shadow-xl mb-12">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#353534]/40">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Smartphone className="w-5 h-5 text-[#e9c349]" />
+                <h2 className="text-lg font-bold font-headline text-white">
+                  Relatório de Instalações Mobile & Dispositivos
+                </h2>
+              </div>
+              <p className="text-xs text-stone-400">
+                Acompanhe em tempo real quais alunos e produtores instalaram a aplicação no telemóvel e têm notificações ativas.
+              </p>
+            </div>
+
+            {/* BARRA DE PESQUISA & ABAS DE FILTRO */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar utilizador por nome ou email..."
+                  value={deviceSearchTerm}
+                  onChange={(e) => setDeviceSearchTerm(e.target.value)}
+                  className="w-full bg-[#0e0e0e] border border-[#353534] focus:border-[#e9c349] text-white text-xs rounded-xl pl-9 pr-3 py-2 outline-none transition-colors"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 bg-[#0e0e0e] p-1 border border-[#353534] rounded-xl w-full sm:w-auto overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setDeviceFilterTab('all')}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    deviceFilterTab === 'all'
+                      ? 'bg-[#e9c349] text-black'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  Todos ({studentsList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeviceFilterTab('installed')}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    deviceFilterTab === 'installed'
+                      ? 'bg-emerald-500 text-black'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  📱 App Instalada ({installedAppCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeviceFilterTab('push_enabled')}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    deviceFilterTab === 'push_enabled'
+                      ? 'bg-[#e9c349] text-black'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  🔔 Push Ativo ({pushEnabledCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeviceFilterTab('mobile')}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    deviceFilterTab === 'mobile'
+                      ? 'bg-sky-500 text-black'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  📲 Mobile ({mobileDeviceCount})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* TABELA DE USUÁRIOS E STATUS DISPOSITIVO */}
+          {filteredDevicesList.length === 0 ? (
+            <div className="py-12 text-center text-stone-500 text-xs">
+              <Smartphone className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p>Nenhum utilizador encontrado com o filtro selecionado.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#353534] text-stone-400 font-headline uppercase text-[10px] tracking-wider">
+                    <th className="py-3 px-4">Utilizador / Aluno</th>
+                    <th className="py-3 px-4">Papel</th>
+                    <th className="py-3 px-4">Aplicação Instalada</th>
+                    <th className="py-3 px-4">Permissão Push</th>
+                    <th className="py-3 px-4">Dispositivo</th>
+                    <th className="py-3 px-4 text-right">Última Sincronização</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#353534]/40">
+                  {filteredDevicesList.map((userItem) => {
+                    const fullName = userItem.firstName 
+                      ? `${userItem.firstName} ${userItem.lastName || ''}`.trim()
+                      : userItem.name || 'Utilizador Sem Nome';
+                    const cleanEmail = (userItem.email || '').trim().toLowerCase();
+                    const isMaster = cleanEmail === 'grupocassaminha@gmail.com' || cleanEmail === 'exportacoes.extras@gmail.com';
+                    const isProducer = userItem.role === 'producer' || userItem.roleType === 'producer';
+                    const isInstalled = userItem.appInstalled || userItem.isAppInstalled || userItem.isStandalone;
+                    const isPushActive = userItem.pushEnabled || userItem.pushStatus === 'granted';
+                    const isMobile = userItem.isMobileDevice || isInstalled;
+
+                    const syncDate = userItem.lastDeviceSync
+                      ? new Date(userItem.lastDeviceSync).toLocaleString('pt-AO')
+                      : userItem.installedAppAt
+                      ? new Date(userItem.installedAppAt).toLocaleString('pt-AO')
+                      : 'Registado';
+
+                    return (
+                      <tr key={userItem.id} className="hover:bg-[#353534]/20 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#353534] text-[#e9c349] flex items-center justify-center font-bold text-xs uppercase border border-[#e9c349]/30">
+                              {fullName.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-white leading-tight">{fullName}</p>
+                              <p className="text-[11px] text-stone-400 font-mono">{cleanEmail}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          {isMaster ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#e9c349]/20 text-[#e9c349] border border-[#e9c349]/40">
+                              👑 Master Admin
+                            </span>
+                          ) : isProducer ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                              🎥 Produtor
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                              🎓 Aluno
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          {isInstalled ? (
+                            <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 w-max">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>App Instalado (PWA)</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-xl text-[10px] font-medium bg-stone-800 text-stone-400 border border-stone-700 flex items-center gap-1.5 w-max">
+                              <Monitor className="w-3.5 h-3.5" />
+                              <span>Navegador Web</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          {isPushActive ? (
+                            <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30 flex items-center gap-1.5 w-max">
+                              <BellRing className="w-3.5 h-3.5" />
+                              <span>Permissão Concedida</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-xl text-[10px] font-medium bg-stone-800 text-stone-400 border border-stone-700 flex items-center gap-1.5 w-max">
+                              <Clock className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Pendente</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          {isMobile ? (
+                            <span className="text-stone-300 flex items-center gap-1">
+                              <Smartphone className="w-3.5 h-3.5 text-sky-400" />
+                              <span>Telemóvel / Tablet</span>
+                            </span>
+                          ) : (
+                            <span className="text-stone-400 flex items-center gap-1">
+                              <Monitor className="w-3.5 h-3.5 text-stone-500" />
+                              <span>Computador / PC</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-mono text-[11px] text-stone-400">
+                          {syncDate}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* HISTÓRICO DE TRANSMISSÕES */}

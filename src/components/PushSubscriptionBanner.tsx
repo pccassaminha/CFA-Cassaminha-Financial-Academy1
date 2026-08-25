@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BellRing, Sparkles } from 'lucide-react';
 import { requestPushPermission, showNativeNotification } from '../services/notificationService';
+import { syncUserDeviceStatus } from '../utils/deviceDetection';
+import { auth } from '../firebase';
 
 interface PushSubscriptionBannerProps {
   userRole?: 'student' | 'producer' | 'admin';
@@ -25,6 +27,9 @@ export function PushSubscriptionBanner({ userRole = 'student' }: PushSubscriptio
     setIsActivating(true);
     try {
       const granted = await requestPushPermission();
+      if (auth.currentUser) {
+        syncUserDeviceStatus(auth.currentUser.uid);
+      }
       if (granted) {
         setPermissionState('granted');
         showNativeNotification(

@@ -436,6 +436,25 @@ export default function StudentDirectory() {
     return true;
   });
 
+  // Ordenação garantida: Administrador Master SEMPRE no topo, seguido de organização alfabética dos demais usuários
+  const sortedFilteredUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      const cleanEmailA = (a.email || '').trim().toLowerCase();
+      const cleanEmailB = (b.email || '').trim().toLowerCase();
+
+      const aIsMaster = isMasterEmail(cleanEmailA) || a.role === 'master_admin' || a.roleType === 'master_admin' || a.isMaster === true || cleanEmailA.includes('grupocassaminha');
+      const bIsMaster = isMasterEmail(cleanEmailB) || b.role === 'master_admin' || b.roleType === 'master_admin' || b.isMaster === true || cleanEmailB.includes('grupocassaminha');
+
+      if (aIsMaster && !bIsMaster) return -1;
+      if (!aIsMaster && bIsMaster) return 1;
+
+      const nameA = (a.firstName ? `${a.firstName} ${a.lastName || ''}` : (a.email ? a.email.split('@')[0] : '')).trim().toLowerCase();
+      const nameB = (b.firstName ? `${b.firstName} ${b.lastName || ''}` : (b.email ? b.email.split('@')[0] : '')).trim().toLowerCase();
+
+      return nameA.localeCompare(nameB, 'pt', { sensitivity: 'base' });
+    });
+  }, [filteredUsers]);
+
   // Alunos reais da plataforma (exclui Master Admin e Produtores)
   const studentUsers = effectiveUsers.filter(u => {
     const cleanEmail = (u.email || '').trim().toLowerCase();
@@ -635,7 +654,7 @@ export default function StudentDirectory() {
             </div>
 
             <span className="text-xs text-gray-500 font-mono">
-              Mostrando {filteredUsers.length} de {isProducerMode ? effectiveUsers.length : users.length} usuários
+              Mostrando {sortedFilteredUsers.length} de {isProducerMode ? effectiveUsers.length : users.length} usuários
             </span>
           </div>
 
@@ -646,12 +665,12 @@ export default function StudentDirectory() {
                 <div className="w-8 h-8 border-2 border-[#e9c349] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                 Carregando registros...
               </div>
-            ) : filteredUsers.length === 0 ? (
+            ) : sortedFilteredUsers.length === 0 ? (
               <div className="p-8 bg-[#131313] border border-[#353534]/30 rounded-2xl text-center text-gray-500">
                 Nenhum usuário encontrado com os filtros atuais.
               </div>
             ) : (
-              filteredUsers.map((userItem) => {
+              sortedFilteredUsers.map((userItem) => {
                 const cleanEmail = (userItem.email || '').trim().toLowerCase();
                 const isMaster = isMasterEmail(cleanEmail);
                 const isProducerRole = userItem.role === 'producer' || userItem.roleType === 'producer';
@@ -914,14 +933,14 @@ export default function StudentDirectory() {
                         Carregando registros...
                       </td>
                     </tr>
-                  ) : filteredUsers.length === 0 ? (
+                  ) : sortedFilteredUsers.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                         Nenhum usuário encontrado com os filtros atuais.
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((userItem) => {
+                    sortedFilteredUsers.map((userItem) => {
                       const cleanEmail = (userItem.email || '').trim().toLowerCase();
                       const isMaster = isMasterEmail(cleanEmail);
                       const isProducerRole = userItem.role === 'producer' || userItem.roleType === 'producer';

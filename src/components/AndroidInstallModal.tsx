@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   CheckCircle2
 } from 'lucide-react';
-import { isAppInstalledOrStandalone } from '../utils/deviceDetection';
+import { isAppInstalledOrStandalone, syncUserDeviceStatus } from '../utils/deviceDetection';
+import { auth } from '../firebase';
 
 interface AndroidInstallModalProps {
   isOpen: boolean;
@@ -50,6 +51,9 @@ export const AndroidInstallModal: React.FC<AndroidInstallModalProps> = ({
   if (!isOpen) return null;
 
   const handleInstallClick = async () => {
+    if (auth.currentUser) {
+      syncUserDeviceStatus(auth.currentUser.uid);
+    }
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;

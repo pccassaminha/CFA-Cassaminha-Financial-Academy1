@@ -1,3 +1,6 @@
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+
 export const isMobileOrTabletDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
   
@@ -49,3 +52,29 @@ export const shouldShowInstallPopup = (): boolean => {
   
   return true;
 };
+
+export const syncUserDeviceStatus = async (userId: string) => {
+  if (!userId) return;
+  try {
+    const isMobile = isMobileOrTabletDevice();
+    const isInstalled = isAppInstalledOrStandalone();
+    const pushPermission = typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
+
+    const updates: Record<string, any> = {
+      isMobileDevice: isMobile,
+      appInstalled: isInstalled,
+      pushStatus: pushPermission,
+      pushEnabled: pushPermission === 'granted',
+      lastDeviceSync: new Date().toISOString()
+    };
+
+    if (isInstalled) {
+      updates.installedAppAt = new Date().toISOString();
+    }
+
+    await updateDoc(doc(db, 'users', userId), updates);
+  } catch (err) {
+    console.warn('Erro ao sincronizar status do dispositivo:', err);
+  }
+};
+
