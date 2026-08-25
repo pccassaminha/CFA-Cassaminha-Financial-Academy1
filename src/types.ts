@@ -103,8 +103,8 @@ export interface UserProfile {
   plan?: string;
   phone?: string;
   registeredAt?: string;
-  // Campos específicos de Produtor
-  producerPlan?: 'monthly' | 'quarterly' | 'none'; // 'monthly' (3.500 Kz/mês) ou 'quarterly' (10.000 Kz/trimestral)
+  // Campos específicos de Produtor e Contrato Digital
+  producerPlan?: 'monthly' | 'quarterly' | 'semiannual' | 'none'; // 'monthly' ou 'semiannual'
   producerPlanStatus?: 'active' | 'pending' | 'expired';
   producerPlanExpiresAt?: string;
   producerIban?: string;
@@ -112,4 +112,13 @@ export interface UserProfile {
   producerBankName?: string;
   producerWhatsApp?: string;
   producerExpressPhone?: string;
+  // Contrato Digital do Produtor
+  contractAccepted?: boolean;
+  contractAcceptedAt?: string;
+  contractBillingFrequency?: 'monthly' | 'semiannual';
+  contractSignerName?: string;
+  contractSignerEmail?: string;
+  contractSignerPhone?: string;
+  contractSignerNif?: string;
+  contractSignatureHash?: string;
 }

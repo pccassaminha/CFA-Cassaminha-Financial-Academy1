@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, updateDoc, doc, deleteDoc, getDocs, getDoc, arrayUnion, arrayRemove, query, where } from 'firebase/firestore';
 import { db, adminCreateStudentAccount, auth } from '../firebase';
 import Sidebar from '../components/Sidebar';
+import { ProducerContractModal } from '../components/ProducerContractModal';
 import { 
   UserPlus, 
   Search, 
@@ -31,7 +32,8 @@ import {
   Plus,
   MoreVertical,
   Trash2,
-  UserCheck
+  UserCheck,
+  FileText
 } from 'lucide-react';
 
 interface CourseOption {
@@ -80,6 +82,9 @@ export default function StudentDirectory() {
 
   // Modal de Exibição dos Cursos do Produtor
   const [viewProducerCoursesUser, setViewProducerCoursesUser] = useState<any | null>(null);
+
+  // Modal de Contrato Digital do Produtor
+  const [selectedProducerForContract, setSelectedProducerForContract] = useState<any | null>(null);
 
   // Menu de Opções e Eliminar Conta
   const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
@@ -1105,6 +1110,13 @@ export default function StudentDirectory() {
                                               <span>Ver Cursos Criados</span>
                                             </button>
                                             <button
+                                              onClick={() => { setSelectedProducerForContract(userItem); setActiveMenuUserId(null); }}
+                                              className="w-full px-4 py-2.5 text-xs text-[#e9c349] hover:bg-white/5 flex items-center gap-2.5 cursor-pointer font-bold"
+                                            >
+                                              <FileText className="w-4 h-4" />
+                                              <span>Visualizar Contrato Digital</span>
+                                            </button>
+                                            <button
                                               onClick={() => { handleOpenProducerPlan(userItem); setActiveMenuUserId(null); }}
                                               className="w-full px-4 py-2.5 text-xs text-amber-300 hover:bg-white/5 flex items-center gap-2.5 cursor-pointer"
                                             >
@@ -1699,6 +1711,16 @@ export default function StudentDirectory() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL 6: VISUALIZAR CONTRATO DIGITAL DO PRODUTOR (COM PDF) */}
+      {selectedProducerForContract && (
+        <ProducerContractModal
+          isOpen={!!selectedProducerForContract}
+          onClose={() => setSelectedProducerForContract(null)}
+          producer={selectedProducerForContract}
+          isReadOnly={true}
+        />
       )}
     </div>
   );

@@ -447,6 +447,63 @@ export default function SalesPage() {
           </div>
         </section>
 
+        {/* Section: Seja um Produtor */}
+        <section className="max-w-6xl mx-auto px-6 py-16">
+          <div className="bg-gradient-to-br from-[#1c180e] via-[#121212] to-[#0a0a0a] border border-[#e9c349]/30 rounded-[2.5rem] p-8 md:p-14 relative overflow-hidden shadow-2xl">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-[#e9c349]/10 blur-[120px] rounded-full pointer-events-none" />
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="lg:col-span-8 space-y-4 text-left">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e9c349]/10 border border-[#e9c349]/30 rounded-full text-[#e9c349] text-xs font-bold uppercase tracking-wider">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Área de Produtores & Criadores</span>
+                </div>
+                <h3 className="font-headline text-2xl sm:text-3xl md:text-4xl font-black text-white leading-tight">
+                  Seja um Produtor na CFA Academy
+                </h3>
+                <p className="text-stone-300 text-base sm:text-lg max-w-2xl font-body leading-relaxed">
+                  Publique os seus cursos, alcance milhares de alunos e monetize o seu conhecimento nesse ecossistema.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="bg-black/40 border border-white/10 rounded-xl p-3.5">
+                    <div className="text-[#e9c349] font-bold text-sm flex items-center gap-1.5 mb-1">
+                      <CheckCircle className="w-4 h-4" /> Acesso Gratuito
+                    </div>
+                    <p className="text-stone-400 text-xs">Crie a sua conta e configure os seus cursos sem barreiras.</p>
+                  </div>
+                  <div className="bg-black/40 border border-white/10 rounded-xl p-3.5">
+                    <div className="text-[#e9c349] font-bold text-sm flex items-center gap-1.5 mb-1">
+                      <CheckCircle className="w-4 h-4" /> Planos Flexíveis
+                    </div>
+                    <p className="text-stone-400 text-xs">Escolha entre modalidade Mensal ou Semestral.</p>
+                  </div>
+                  <div className="bg-black/40 border border-white/10 rounded-xl p-3.5">
+                    <div className="text-[#e9c349] font-bold text-sm flex items-center gap-1.5 mb-1">
+                      <CheckCircle className="w-4 h-4" /> Contrato Digital
+                    </div>
+                    <p className="text-stone-400 text-xs">Transparência jurídica e suporte direto da equipe.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-4 flex flex-col gap-3 justify-center">
+                <Link
+                  to="/criar-conta?role=producer"
+                  className="w-full text-center px-6 py-4 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold rounded-xl shadow-[0_4px_20px_rgba(233,195,73,0.35)] active:scale-95 transition-all text-sm font-headline flex items-center justify-center gap-2"
+                >
+                  <span>Criar Conta de Produtor</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  to="/entrar"
+                  className="w-full text-center px-6 py-3 bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-white/10 rounded-xl font-bold text-xs transition-colors"
+                >
+                  Já sou produtor &middot; Entrar no Painel
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Final Registration CTA Section */}
         <section className="max-w-4xl mx-auto px-6 py-24 text-center">
           <div className="bg-[#181818] p-8 md:p-12 rounded-[2rem] border border-white/5 relative overflow-hidden">

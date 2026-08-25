@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
+import { ProducerContractModal } from '../components/ProducerContractModal';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { PlatformSettings, Coupon } from '../types';
@@ -31,7 +32,8 @@ import {
   Tag,
   Percent,
   DollarSign,
-  Check
+  Check,
+  FileText
 } from 'lucide-react';
 
 interface CustomRole {
@@ -157,6 +159,8 @@ export default function Settings() {
 
   // 4. Multi-Produtor / User Context
   const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'producer' | 'student'>('admin');
+  const [currentUserFullProfile, setCurrentUserFullProfile] = useState<any | null>(null);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [producerData, setProducerData] = useState({
     producerName: '',
     producerWhatsApp: '',
@@ -185,6 +189,7 @@ export default function Settings() {
         const uSnap = await getDoc(doc(db, 'users', user.uid));
         if (uSnap.exists()) {
           const uData = uSnap.data();
+          setCurrentUserFullProfile({ id: user.uid, uid: user.uid, ...uData });
           if (uData.role === 'producer' || uData.roleType === 'producer') {
             setCurrentUserRole('producer');
           } else if (uData.role === 'admin' || uData.role === 'super_admin' || uData.roleType === 'admin' || uData.email === 'grupocassaminha@gmail.com') {
@@ -875,6 +880,26 @@ export default function Settings() {
               >
                 <Plus className="w-4 h-4" />
                 <span>Gerenciar Cupões</span>
+              </button>
+            </div>
+
+            {/* 4. CONTRATO DIGITAL DO PRODUTOR */}
+            <div className="bg-surface-container-low border border-[#e9c349]/20 rounded-2xl p-6 md:p-8 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText className="w-5 h-5 text-[#e9c349]" />
+                  <h3 className="font-headline text-lg font-bold text-white">Meu Contrato Digital de Produtor</h3>
+                </div>
+                <p className="text-xs text-stone-400">
+                  Consulte os termos legais celebrados com o Grupo Cassaminha e baixe uma cópia autenticada em PDF a qualquer momento.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsContractModalOpen(true)}
+                className="px-5 py-3 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2 shrink-0"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Visualizar e Baixar PDF</span>
               </button>
             </div>
           </div>
@@ -2159,6 +2184,16 @@ export default function Settings() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Visualização do Contrato Digital do Produtor Logado */}
+      {isContractModalOpen && currentUserFullProfile && (
+        <ProducerContractModal
+          isOpen={isContractModalOpen}
+          producer={currentUserFullProfile}
+          isReadOnly={true}
+          onClose={() => setIsContractModalOpen(false)}
+        />
       )}
 
     </div>

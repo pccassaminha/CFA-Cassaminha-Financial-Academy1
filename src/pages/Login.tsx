@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { loginWithGoogle, loginWithEmail, registerWithEmail, sendResetEmail, db } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
+import { ProducerContractModal } from '../components/ProducerContractModal';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,6 +26,17 @@ export default function Login() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
+  
+  // Contrato Digital do Produtor
+  const [pendingContractUser, setPendingContractUser] = useState<any | null>(null);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('role') === 'producer') {
+      setRoleType('producer');
+    }
+  }, [location.search]);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -91,19 +103,19 @@ export default function Login() {
       }
       
       // Regra de Cadastro:
-      // Se for Aluno -> Cadastrado com status 'inactive' (sem assinatura ativa até se inscrever em um curso), com acesso ao portal/vitrine.
-      // Se for Produtor/Admin e não for Master -> TRAVA o registro para aprovação do Administrador Master (pending_approval).
+      // Se for Produtor -> Acesso direto e gratuito, abrindo o Contrato Digital para escolha do método de pagamento e aceite dos termos.
+      // Se for Aluno -> Cadastrado com status 'inactive' (acesso ao portal e vitrine de cursos).
       if (isAdminEmail) {
         role = 'admin';
         status = 'active';
         isApproved = true;
       } else if (role === 'producer' || role === 'admin') {
         role = 'producer';
-        status = 'pending_approval';
-        isApproved = false;
+        status = 'active';
+        isApproved = true;
       } else {
         role = 'student';
-        status = 'inactive'; // Aluno cadastrado só terá assinatura ativa ao se inscrever/comprar um curso
+        status = 'inactive'; // Aluno cadastrado
         isApproved = true;
       }
       
@@ -114,7 +126,8 @@ export default function Login() {
         roleType: role,
         subscriptionStatus: status,
         isApproved: isApproved,
-        enrolledCourses: [], // Começa sem cursos até efetuar a matrícula
+        contractAccepted: false,
+        enrolledCourses: [],
         plan: role === 'student' ? 'Aluno Cadastrado (Sem Curso)' : 'Produtor',
         createdAt: serverTimestamp()
       };
@@ -127,11 +140,26 @@ export default function Login() {
       }
 
       await setDoc(userRef, payload);
+
+      // Se for produtor recém-criado, abre o contrato digital imediatamente
+      if (role === 'producer' && !isAdminEmail) {
+        setPendingContractUser({
+          uid: user.uid,
+          email: cleanEmail,
+          firstName: registrationData?.firstName || '',
+          lastName: registrationData?.lastName || '',
+          phoneCountryCode: registrationData?.phoneCountryCode || '+244',
+          phoneNumber: registrationData?.phoneNumber || '',
+          contractAccepted: false
+        });
+        setIsContractModalOpen(true);
+        return;
+      }
     } else {
       const data = userSnap.data();
       role = isAdminEmail ? 'admin' : (data.role || 'student');
-      status = isAdminEmail ? 'active' : (data.subscriptionStatus || (data.enrolledCourses && data.enrolledCourses.length > 0 ? 'active' : 'inactive'));
-      isApproved = isAdminEmail ? true : (data.isApproved !== undefined ? data.isApproved : (role === 'student' || status === 'active'));
+      status = isAdminEmail ? 'active' : (data.subscriptionStatus || 'active');
+      isApproved = true;
 
       if (isAdminEmail && (data.role !== 'admin' || data.subscriptionStatus !== 'active')) {
         await setDoc(userRef, { role: 'admin', subscriptionStatus: 'active', roleType: 'admin', isApproved: true }, { merge: true });
@@ -145,16 +173,29 @@ export default function Login() {
           phoneNumber: registrationData.phoneNumber
         }, { merge: true });
       }
+
+      // Se for produtor e ainda não assinou o contrato digital, abre o contrato
+      if (role === 'producer' && !isAdminEmail && !data.contractAccepted) {
+        setPendingContractUser({
+          uid: user.uid,
+          email: cleanEmail,
+          firstName: data.firstName || registrationData?.firstName || '',
+          lastName: data.lastName || registrationData?.lastName || '',
+          phoneNumber: data.phoneNumber || registrationData?.phoneNumber || '',
+          phoneCountryCode: data.phoneCountryCode || registrationData?.phoneCountryCode || '+244',
+          contractAccepted: false,
+          contractBillingFrequency: data.contractBillingFrequency || 'monthly'
+        });
+        setIsContractModalOpen(true);
+        return;
+      }
     }
     
-    // Roteamento seguro:
-    // Apenas Master Admin ou Produtores/Admins aprovados vão para o /dashboard
-    if (isAdminEmail || ((role === 'admin' || role === 'producer') && status === 'active' && isApproved)) {
+    // Roteamento
+    if (isAdminEmail || ((role === 'admin' || role === 'producer') && isApproved)) {
       navigate('/dashboard');
-    } else if (status === 'pending_approval' || ( (role === 'producer' || role === 'admin') && !isApproved )) {
-      navigate('/pending');
     } else {
-      // Aluno (ativo ou inativo) acessa o portal do aluno para ver cursos disponíveis e matriculados
+      // Aluno acessa o catálogo da academia
       const postRegSlug = sessionStorage.getItem('post_register_slug');
       if (postRegSlug) {
         navigate(`/library/${postRegSlug}`);
@@ -350,21 +391,13 @@ export default function Login() {
                     value={roleType}
                     onChange={(e) => setRoleType(e.target.value)}
                   >
-                    <option value="student">🎓 Aluno / Estudante (Acesso Direto à Plataforma)</option>
-                    <option value="producer">🛡️ Produtor / Administrador (Requer Aprovação Master)</option>
+                    <option value="student">🎓 Aluno / Estudante</option>
+                    <option value="producer">🛡️ Produtor</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-lg">keyboard_arrow_down</span>
                   </div>
                 </div>
-                {roleType === 'producer' && (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2 text-xs text-amber-200">
-                    <span className="material-symbols-outlined text-amber-400 text-base flex-shrink-0 mt-0.5">verified_user</span>
-                    <span>
-                      <strong>Atenção:</strong> Contas de Produtor/Administrador são bloqueadas para verificação de segurança e requerem aprovação manual do Administrador Master para liberar o acesso ao painel.
-                    </span>
-                  </div>
-                )}
               </div>
             )}
 
@@ -541,7 +574,7 @@ export default function Login() {
               disabled={isLoading}
               className="w-full py-4 px-6 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold rounded-xl shadow-[0_10px_30px_rgba(233,195,73,0.35)] active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 mt-4 font-headline disabled:opacity-50 cursor-pointer"
             >
-              <span>{isLoading ? 'Processando...' : (isRegistering ? 'Criar Minha Conta de Aluno' : 'Entrar na Minha Conta')}</span>
+              <span>{isLoading ? 'Processando...' : (isRegistering ? 'Criar Minha Conta' : 'Entrar na Minha Conta')}</span>
               {!isLoading && <span className="material-symbols-outlined text-lg">arrow_forward</span>}
             </button>
           </form>
@@ -587,6 +620,39 @@ export default function Login() {
           </div>
         </div>
       </main>
+
+      {/* Modal Interativo de Contrato Digital do Produtor */}
+      {isContractModalOpen && pendingContractUser && (
+        <ProducerContractModal
+          isOpen={isContractModalOpen}
+          producer={pendingContractUser}
+          isReadOnly={false}
+          onClose={() => {
+            setIsContractModalOpen(false);
+          }}
+          onContractAccepted={(billingFrequency) => {
+            setIsContractModalOpen(false);
+            navigate('/dashboard');
+          }}
+          onContractRejected={async () => {
+            setIsContractModalOpen(false);
+            if (pendingContractUser?.uid) {
+              try {
+                // Se recusar, converte para estudante
+                await setDoc(doc(db, 'users', pendingContractUser.uid), {
+                  role: 'student',
+                  roleType: 'student',
+                  plan: 'Aluno Cadastrado (Sem Curso)'
+                }, { merge: true });
+              } catch (e) {
+                console.error(e);
+              }
+            }
+            alert('Você optou por recusar os termos de produtor. Sua conta foi mantida como Aluno.');
+            navigate('/library');
+          }}
+        />
+      )}
       <footer className="relative z-10 w-full px-8 py-10 flex flex-col md:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-6">
           <div className="flex flex-col">
