@@ -4,6 +4,7 @@ import { logout, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { AndroidInstallModal } from './AndroidInstallModal';
+import { NotificationCenter } from './NotificationCenter';
 import { 
   Smartphone, 
   Mail, 
@@ -131,12 +132,15 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        <button
-          onClick={toggleStudentView}
-          className="text-[10px] font-bold uppercase tracking-wider text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 px-3 py-1.5 rounded-lg hover:bg-[#e9c349]/20 transition-all cursor-pointer"
-        >
-          Visão Aluno
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationCenter userRole="admin" />
+          <button
+            onClick={toggleStudentView}
+            className="text-[10px] font-bold uppercase tracking-wider text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 px-3 py-1.5 rounded-lg hover:bg-[#e9c349]/20 transition-all cursor-pointer"
+          >
+            Visão Aluno
+          </button>
+        </div>
       </header>
 
       {/* BACKDROP OVERLAY NO MOBILE */}
@@ -171,6 +175,10 @@ export default function Sidebar() {
               </div>
             )}
           </Link>
+
+          <div className="hidden lg:flex items-center">
+            <NotificationCenter userRole="admin" />
+          </div>
 
           {/* Botão para fechar no Mobile */}
           <button
