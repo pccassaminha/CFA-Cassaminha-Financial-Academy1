@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import { NotificationCenter } from '../components/NotificationCenter';
+import { PushSubscriptionBanner } from '../components/PushSubscriptionBanner';
 import { collection, onSnapshot, updateDoc, doc, arrayRemove, deleteDoc, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db, auth, approveStudentTransaction } from '../firebase';
 import { Transaction } from '../types';
@@ -755,6 +756,8 @@ export default function Dashboard() {
         <div className="fixed inset-0 pointer-events-none z-[99] opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}></div>
         
         <div className="p-4 sm:p-8 lg:p-12 max-w-7xl mx-auto relative z-10">
+          <PushSubscriptionBanner userRole="producer" />
+
           <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-12">
             <div>
               <div className="flex items-center gap-2 text-secondary mb-1">

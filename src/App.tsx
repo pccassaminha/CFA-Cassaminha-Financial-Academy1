@@ -20,6 +20,7 @@ import PurchaseConfirmation from './pages/PurchaseConfirmation';
 import Dashboard from './pages/Dashboard';
 import ContentManager from './pages/ContentManager';
 import Analytics from './pages/Analytics';
+import PushBroadcastManager from './pages/PushBroadcastManager';
 import Settings from './pages/Settings';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
@@ -160,6 +161,10 @@ export default function App() {
           <Route 
             path="/analytics" 
             element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <Analytics /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
+          />
+          <Route 
+            path="/broadcast" 
+            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <PushBroadcastManager /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/settings" 

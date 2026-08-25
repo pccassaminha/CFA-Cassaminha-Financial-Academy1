@@ -6,6 +6,8 @@ import CoursePreview from '../components/CoursePreview';
 import CourseCheckout from '../components/CourseCheckout';
 import { AndroidInstallModal } from '../components/AndroidInstallModal';
 import { NotificationCenter } from '../components/NotificationCenter';
+import { PushSubscriptionBanner } from '../components/PushSubscriptionBanner';
+import { shouldShowInstallPopup } from '../utils/deviceDetection';
 import { BookOpen, Home, User, LogOut, Compass, Smartphone } from 'lucide-react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { logout, auth, db } from '../firebase';
@@ -33,7 +35,16 @@ export default function StudentPortal() {
     return () => unsub();
   }, []);
 
-  // Sync URL to view state
+  // Auto popup para orientação de instalação do app no telemóvel para alunos (apenas mobile/tablet)
+  useEffect(() => {
+    if (shouldShowInstallPopup()) {
+      const timer = setTimeout(() => {
+        setIsAndroidModalOpen(true);
+      }, 1800);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   useEffect(() => {
     const syncStateFromUrl = async () => {
       if (!slug) {
@@ -292,10 +303,10 @@ export default function StudentPortal() {
           <button
             onClick={() => setIsAndroidModalOpen(true)}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 hover:bg-[#e9c349]/20 transition-all cursor-pointer shadow-sm active:scale-95"
-            title="Versão App Android"
+            title="Instalar Aplicação no Telemóvel"
           >
             <Smartphone className="w-4 h-4" />
-            <span className="hidden md:inline">App Android</span>
+            <span className="hidden md:inline">Instalar App</span>
           </button>
 
           {isAdmin && (
@@ -368,7 +379,9 @@ export default function StudentPortal() {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 pt-4 max-w-7xl mx-auto w-full">
+        <PushSubscriptionBanner userRole="student" />
+
         {currentView === 'catalog' && (
           <StudentCatalog onSelectCourse={handleSelectCourse} />
         )}
@@ -405,6 +418,7 @@ export default function StudentPortal() {
       <AndroidInstallModal
         isOpen={isAndroidModalOpen}
         onClose={() => setIsAndroidModalOpen(false)}
+        userRole="student"
       />
     </div>
   );

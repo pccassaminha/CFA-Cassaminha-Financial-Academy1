@@ -4,6 +4,7 @@ import { logout, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { AndroidInstallModal } from './AndroidInstallModal';
+import { shouldShowInstallPopup } from '../utils/deviceDetection';
 import { NotificationCenter } from './NotificationCenter';
 import { 
   Smartphone, 
@@ -45,6 +46,16 @@ export default function Sidebar() {
     };
     window.addEventListener('student-view-changed', handleToggle);
     return () => window.removeEventListener('student-view-changed', handleToggle);
+  }, []);
+
+  // Auto popup para orientação de instalação do app para Produtores / Admins (apenas mobile/tablet)
+  useEffect(() => {
+    if (shouldShowInstallPopup()) {
+      const timer = setTimeout(() => {
+        setIsAndroidModalOpen(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   // Fetch support and logo details from settings
@@ -246,6 +257,19 @@ export default function Sidebar() {
           <span>Análise</span>
         </Link>
         <Link
+          to="/broadcast"
+          className={`flex items-center gap-4 px-4 py-3 mx-2 my-1 font-headline font-medium transition-transform duration-300 rounded-lg ${
+            location.pathname === '/broadcast'
+              ? 'bg-[#353534] text-[#e9c349] active:scale-95 brightness-110'
+              : 'text-[#bccabe] hover:bg-[#353534]/30 hover:translate-x-1'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[#e9c349]" style={location.pathname === '/broadcast' ? { fontVariationSettings: "'FILL' 1" } : {}}>
+            sensors
+          </span>
+          <span>Notificações Push</span>
+        </Link>
+        <Link
           to="/settings"
           className={`flex items-center gap-4 px-4 py-3 mx-2 my-1 font-headline font-medium transition-transform duration-300 rounded-lg ${
             location.pathname === '/settings'
@@ -279,7 +303,7 @@ export default function Sidebar() {
             className="w-full flex items-center gap-4 text-[#e9c349] px-4 py-2 hover:bg-[#e9c349]/10 rounded-lg transition-all duration-300 hover:translate-x-1 cursor-pointer text-left font-bold text-xs"
           >
             <Smartphone className="w-4 h-4 text-[#e9c349]" />
-            <span className="font-headline tracking-wide">App Android (Testes)</span>
+            <span className="font-headline tracking-wide">Instalar App</span>
           </button>
           <button
             id="btn-sidebar-support"
@@ -412,6 +436,7 @@ export default function Sidebar() {
     <AndroidInstallModal
       isOpen={isAndroidModalOpen}
       onClose={() => setIsAndroidModalOpen(false)}
+      userRole="producer"
     />
     </>
   );

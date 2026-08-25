@@ -8,7 +8,9 @@ import {
   query, 
   orderBy, 
   limit, 
-  serverTimestamp 
+  serverTimestamp,
+  getDocs,
+  where
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -215,6 +217,32 @@ export const notifyNewCourse = async (course: {
 };
 
 /**
+ * Dispara notificação de Transmissão Push Personalizada do Admin para Alunos
+ */
+export const sendBroadcastPushNotification = async (params: {
+  title: string;
+  message: string;
+  link?: string;
+  targetRole?: 'admin' | 'student' | 'producer' | 'all';
+  targetUserId?: string;
+  senderName?: string;
+}) => {
+  return sendSystemNotification({
+    type: 'general',
+    title: params.title,
+    message: params.message,
+    link: params.link || '/library',
+    targetRole: params.targetRole || 'all',
+    targetUserId: params.targetUserId || undefined,
+    metadata: {
+      isBroadcast: true,
+      senderName: params.senderName || 'Administração CFA',
+      sentAt: new Date().toISOString()
+    }
+  });
+};
+
+/**
  * Dispara notificação de Novo Módulo em um Curso
  */
 export const notifyNewModule = async (params: {
@@ -389,5 +417,86 @@ export const deleteNotification = async (id: string) => {
     await deleteDoc(doc(db, 'notifications', id));
   } catch (error) {
     console.error('Erro ao excluir notificação:', error);
+  }
+};
+
+/**
+ * Gera o Relatório Diário de Desempenho (20:00) para Administradores
+ * Calcula faturamento do dia, novos alunos registados e matrículas efetuadas.
+ */
+export const generateDailyAdminSummaryNotification = async (scheduledTime: string = '20:00') => {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    // 1. Consulta novos alunos cadastrados hoje
+    let newStudentsCount = 0;
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      usersSnap.forEach(d => {
+        const u = d.data();
+        if (u.createdAt) {
+          const created = u.createdAt.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
+          if (created >= todayStart) {
+            newStudentsCount++;
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Erro ao ler novos alunos:', e);
+    }
+
+    // 2. Consulta compras / matrículas efetuadas hoje e faturamento
+    let totalRevenue = 0;
+    let enrollmentsCount = 0;
+
+    try {
+      const purchasesSnap = await getDocs(collection(db, 'purchases'));
+      purchasesSnap.forEach(d => {
+        const p = d.data();
+        const pDate = p.createdAt?.toDate ? p.createdAt.toDate() : p.createdAt ? new Date(p.createdAt) : null;
+        if (!pDate || pDate >= todayStart) {
+          enrollmentsCount++;
+          totalRevenue += Number(p.price || p.amount || 0);
+        }
+      });
+    } catch (e) {
+      console.warn('Erro ao ler compras do dia:', e);
+    }
+
+    const formattedRevenue = new Intl.NumberFormat('pt-AO', {
+      style: 'currency',
+      currency: 'AOA',
+      maximumFractionDigits: 0
+    }).format(totalRevenue).replace('AOA', 'Kz');
+
+    const title = `📊 Relatório Diário de Desempenho (${scheduledTime})`;
+    const message = `Resumo de Hoje: 💰 Faturamento: ${formattedRevenue} | 👥 ${newStudentsCount} Novos Alunos | 🎓 ${enrollmentsCount} Novas Matrículas efetuadas!`;
+
+    // Dispara a notificação para Admins
+    await sendSystemNotification({
+      type: 'general',
+      title,
+      message,
+      link: '/analytics',
+      targetRole: 'admin',
+      metadata: {
+        isDailySummary: true,
+        revenue: totalRevenue,
+        newStudents: newStudentsCount,
+        enrollments: enrollmentsCount,
+        generatedAt: new Date().toISOString()
+      }
+    });
+
+    return {
+      success: true,
+      revenue: totalRevenue,
+      newStudents: newStudentsCount,
+      enrollments: enrollmentsCount
+    };
+  } catch (err) {
+    console.error('Erro ao gerar relatório diário de desempenho:', err);
+    throw err;
   }
 };
