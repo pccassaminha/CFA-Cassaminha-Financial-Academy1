@@ -169,7 +169,7 @@ export default function StudentProfile() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-headline">Meus Dados de Acesso & Conta</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-headline">Meu Perfil</h1>
         <p className="text-gray-400 text-xs sm:text-sm mt-1">Visualize suas credenciais de acesso, nome, telefone, número de ID numérico e status da conta.</p>
       </div>
 

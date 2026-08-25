@@ -40,9 +40,18 @@ export default function StudentPortal() {
       }
 
       if (slug === 'meus-cursos') {
-        const currentUser = auth.currentUser;
+        const currentUser = auth.currentUser || user;
         if (!currentUser) {
-          navigate('/entrar', { replace: true });
+          const unsubscribe = auth.onAuthStateChanged((u) => {
+            unsubscribe();
+            if (!u) {
+              navigate('/entrar', { replace: true });
+            } else {
+              setUser(u);
+              setCurrentView('my-courses');
+              setIsInitializing(false);
+            }
+          });
           return;
         }
         setCurrentView('my-courses');
@@ -51,9 +60,18 @@ export default function StudentPortal() {
       }
 
       if (slug === 'perfil') {
-        const currentUser = auth.currentUser;
+        const currentUser = auth.currentUser || user;
         if (!currentUser) {
-          navigate('/entrar', { replace: true });
+          const unsubscribe = auth.onAuthStateChanged((u) => {
+            unsubscribe();
+            if (!u) {
+              navigate('/entrar', { replace: true });
+            } else {
+              setUser(u);
+              setCurrentView('profile');
+              setIsInitializing(false);
+            }
+          });
           return;
         }
         setCurrentView('profile');
@@ -102,18 +120,25 @@ export default function StudentPortal() {
   }, [slug]);
 
   const handleSetView = (view: typeof currentView) => {
-    if (view === 'catalog') navigate('/library');
+    if (view === 'catalog') {
+      setCurrentView('catalog');
+      navigate('/library');
+    }
     else if (view === 'my-courses') {
-      if (!user) {
+      const activeUser = auth.currentUser || user;
+      if (!activeUser) {
         navigate('/entrar');
       } else {
+        setCurrentView('my-courses');
         navigate('/library/meus-cursos');
       }
     }
     else if (view === 'profile') {
-      if (!user) {
+      const activeUser = auth.currentUser || user;
+      if (!activeUser) {
         navigate('/entrar');
       } else {
+        setCurrentView('profile');
         navigate('/library/perfil');
       }
     }
@@ -247,14 +272,14 @@ export default function StudentPortal() {
           <button
             id="nav-profile-btn"
             onClick={() => handleSetView('profile')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               currentView === 'profile'
                 ? 'bg-[#e9c349] text-black shadow-md'
                 : 'text-gray-300 hover:text-white hover:bg-white/10'
             }`}
           >
             <User className="w-4 h-4" />
-            <span>Meus Dados de Acesso</span>
+            <span>Meu Perfil</span>
           </button>
         </nav>
 
