@@ -26,15 +26,15 @@ import {
 
 import firebaseConfig from '../firebase-applet-config.json';
 
-// Configure log level to error to avoid warning spam during transient reconnects in iframe/sandbox
-setLogLevel('error');
+// Configure log level to silent to prevent connection heartbeat noise during transient reconnects
+setLogLevel('silent');
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Firestore initialization with force long polling for iframe/sandbox environment compatibility
+// Firestore initialization with auto-detect long polling
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
 
 export const googleProvider = new GoogleAuthProvider();

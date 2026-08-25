@@ -179,6 +179,14 @@ export default function App() {
             element={<StudentPortal />} 
           />
           <Route 
+            path="/my-courses" 
+            element={<Navigate to="/library/meus-cursos" replace />} 
+          />
+          <Route 
+            path="/meus-cursos" 
+            element={<Navigate to="/library/meus-cursos" replace />} 
+          />
+          <Route 
             path="/classroom" 
             element={
               user && (

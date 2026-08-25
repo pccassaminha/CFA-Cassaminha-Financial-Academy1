@@ -582,6 +582,13 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
 
             <div className="flex flex-col gap-2 mt-4">
               <Link
+                to="/library/meus-cursos"
+                className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 hover:bg-[#e9c349]/20 rounded-xl border border-[#e9c349]/30 transition-all shadow-sm"
+              >
+                <span className="material-symbols-outlined text-sm">grid_view</span>
+                <span>Meus Cursos</span>
+              </Link>
+              <Link
                 to="/library"
                 className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-400 hover:text-[#e9c349] bg-white/5 hover:bg-[#e9c349]/10 rounded-xl border border-white/5 hover:border-[#e9c349]/20 transition-all"
               >
@@ -763,14 +770,22 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                 </button>
               </div>
 
-              <div className="p-4">
+              <div className="p-4 space-y-2">
                 <Link
-                  to="/library"
+                  to="/library/meus-cursos"
                   onClick={() => setIsMobileDrawerOpen(false)}
                   className="flex items-center justify-center gap-2 w-full py-2.5 text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 rounded-xl border border-[#e9c349]/20"
                 >
+                  <span className="material-symbols-outlined text-sm">grid_view</span>
+                  <span>Voltar para Meus Cursos</span>
+                </Link>
+                <Link
+                  to="/library"
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center justify-center gap-2 w-full py-2 text-xs font-medium text-gray-400 hover:text-white bg-white/5 rounded-xl border border-white/5"
+                >
                   <span className="material-symbols-outlined text-sm">storefront</span>
-                  <span>Voltar para Vitrine</span>
+                  <span>Vitrine de Cursos</span>
                 </Link>
                 
                 <div className="mt-3 p-3 bg-[#353534]/20 rounded-xl border border-[#353534]/30">
@@ -899,7 +914,8 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
               )}
 
               <Link
-                to="/my-courses"
+                id="btn-back-to-my-courses-header"
+                to="/library/meus-cursos"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-[#353534]/50 hover:bg-[#353534] text-gray-300 hover:text-white border border-gray-700/50 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-sm">grid_view</span>
@@ -1120,7 +1136,8 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                   </button>
 
                   <Link
-                    to="/my-courses"
+                    id="btn-back-to-my-courses-bottom"
+                    to="/library/meus-cursos"
                     className="w-full sm:w-auto px-5 py-3 bg-[#353534]/60 hover:bg-[#353534] text-gray-200 border border-gray-700/60 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-lg">grid_view</span>
