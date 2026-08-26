@@ -59,7 +59,7 @@ export default function StudentLayout({ children, activeTab, setActiveTab, onLog
   const handleReturnToAdmin = () => {
     localStorage.setItem('viewAsStudent', 'false');
     window.dispatchEvent(new Event('student-view-changed'));
-    window.location.href = '/dashboard';
+    navigate('/dashboard');
   };
 
   const handleLogout = async () => {

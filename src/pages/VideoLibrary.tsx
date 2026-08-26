@@ -343,7 +343,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
     localStorage.setItem('viewAsStudent', 'false');
     window.dispatchEvent(new Event('student-view-changed'));
     showNotification('Retornando ao Painel Administrativo...');
-    window.location.href = '/dashboard';
+    navigate('/dashboard');
   };
 
   // Toggle module collapse in Student view

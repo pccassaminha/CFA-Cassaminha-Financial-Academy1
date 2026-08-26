@@ -154,7 +154,7 @@ export default function StudentProfile() {
 
       localStorage.setItem('viewAsStudent', 'false');
       window.dispatchEvent(new Event('student-view-changed'));
-      window.location.href = '/dashboard';
+      navigate('/dashboard');
     } catch (err) {
       console.error("Erro ao ativar conta de produtor:", err);
       alert("Ocorreu um erro ao ativar a sua conta de produtor. Tente novamente.");
