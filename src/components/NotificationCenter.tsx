@@ -29,7 +29,8 @@ import {
   showNativeNotification,
   playNotificationSound,
   generateDailyAdminSummaryNotification,
-  triggerAutomaticStudentReminders
+  triggerAutomaticStudentReminders,
+  triggerAutomatedProducerBillingReminders
 } from '../services/notificationService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -97,6 +98,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
         // Lembrete automático de regularização pendente
         await triggerAutomaticStudentReminders();
+
+        // Lembrete automático de cobrança programada para produtores (Mensal e Trimestral)
+        await triggerAutomatedProducerBillingReminders();
       } catch (err) {
         console.warn('Erro no scheduler de notificações:', err);
       }

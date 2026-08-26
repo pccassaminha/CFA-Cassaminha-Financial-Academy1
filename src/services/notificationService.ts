@@ -587,3 +587,130 @@ export const triggerAutomaticStudentReminders = async () => {
     console.warn('Erro ao verificar lembretes automáticos:', err);
   }
 };
+
+/**
+ * Verificação automática e envio de notificações de cobrança programada para produtores (Mensal e Trimestral)
+ */
+export const triggerAutomatedProducerBillingReminders = async () => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const runKey = `lastProducerBillingRun_${todayStr}`;
+
+    // Evita re-processamento no mesmo dia na mesma sessão do navegador
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(runKey)) {
+      return;
+    }
+
+    const usersSnap = await getDocs(query(collection(db, 'users')));
+
+    for (const userDoc of usersSnap.docs) {
+      const u = userDoc.data();
+      const isProducer = u.role === 'producer' || u.roleType === 'producer';
+      if (!isProducer) continue;
+
+      const plan = u.producerPlan || 'monthly'; // 'monthly' ou 'quarterly' / 'semiannual'
+
+      // Determina a data de vencimento
+      let expiresAtMs: number | null = null;
+      if (u.producerPlanExpiresAt) {
+        expiresAtMs = u.producerPlanExpiresAt.toMillis 
+          ? u.producerPlanExpiresAt.toMillis() 
+          : new Date(u.producerPlanExpiresAt).getTime();
+      } else if (u.producerPlanSelectedAt || u.updatedAt || u.createdAt) {
+        const startDate = new Date(u.producerPlanSelectedAt || u.updatedAt || u.createdAt).getTime();
+        const cycleDays = (plan === 'quarterly' || plan === 'semiannual') ? 90 : 30;
+        expiresAtMs = startDate + (cycleDays * 24 * 60 * 60 * 1000);
+      }
+
+      if (!expiresAtMs || isNaN(expiresAtMs)) continue;
+
+      const nowMs = Date.now();
+      const diffMs = expiresAtMs - nowMs;
+      const daysRemaining = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+
+      let reminderTitle = '';
+      let reminderMessage = '';
+      let stageKey = '';
+
+      if (plan === 'monthly') {
+        // --- PLANO MENSAL (3.500 Kz) ---
+        if (daysRemaining === 10) {
+          stageKey = 'monthly_10d';
+          reminderTitle = '⏳ Lembrete de Cobrança: Plano Mensal (10 Dias)';
+          reminderMessage = 'Aviso CFA: Daqui a 10 dias será cobrada a taxa mensal do seu plano de produtor (3.500 Kz). Mantenha a sua conta regularizada.';
+        } else if (daysRemaining === 5) {
+          stageKey = 'monthly_5d';
+          reminderTitle = '⚠️ Lembrete de Cobrança: 5 Dias Restantes (Plano Mensal)';
+          reminderMessage = 'Aviso CFA: Daqui a 5 dias vence a taxa mensal do seu plano de produtor (3.500 Kz). Prepare o comprovativo para envio.';
+        } else if (daysRemaining === 3 || daysRemaining === 2) {
+          stageKey = `monthly_${daysRemaining}d`;
+          reminderTitle = `🚨 Aviso de Vencimento Próximo: Faltam ${daysRemaining} Dias`;
+          reminderMessage = `Atenção: Faltam apenas ${daysRemaining} dias para o vencimento da taxa do seu plano mensal de produtor. Regularize o pagamento para evitar interrupções.`;
+        } else if (daysRemaining === 0) {
+          stageKey = 'monthly_due';
+          reminderTitle = '🛑 Prazo Encerrado: Cobrança do Plano Mensal de Produtor';
+          reminderMessage = 'Aviso Importante: Hoje terminou o prazo do seu plano mensal de produtor CFA (3.500 Kz). Se ainda não efetuou o pagamento, por favor regularize o pagamento e envie o comprovativo.';
+        }
+      } else {
+        // --- PLANO TRIMESTRAL (7.000 Kz) ---
+        if (daysRemaining === 30) {
+          stageKey = 'quarterly_30d';
+          reminderTitle = '📅 Notificação: Início do Último Mês (Plano Trimestral)';
+          reminderMessage = 'Aviso CFA: Entrou no último mês da sua assinatura trimestral de produtor. No final deste mês será cobrada a taxa de renovação (7.000 Kz).';
+        } else if (daysRemaining === 15) {
+          stageKey = 'quarterly_15d';
+          reminderTitle = '⏳ Lembrete de Cobrança: 15 Dias Restantes (Plano Trimestral)';
+          reminderMessage = 'Aviso CFA: Faltam 15 dias para o vencimento do seu plano trimestral de produtor (7.000 Kz).';
+        } else if (daysRemaining === 10) {
+          stageKey = 'quarterly_10d';
+          reminderTitle = '⏳ Lembrete de Cobrança: 10 Dias Restantes (Plano Trimestral)';
+          reminderMessage = 'Aviso CFA: Faltam 10 dias para a cobrança da taxa do seu plano trimestral de produtor (7.000 Kz).';
+        } else if (daysRemaining === 5) {
+          stageKey = 'quarterly_5d';
+          reminderTitle = '⚠️ Lembrete Urgente: 5 Dias Restantes (Plano Trimestral)';
+          reminderMessage = 'Aviso CFA: Faltam apenas 5 dias para o vencimento da taxa do seu plano trimestral de produtor (7.000 Kz).';
+        } else if (daysRemaining === 0) {
+          stageKey = 'quarterly_due';
+          reminderTitle = '🛑 Prazo Encerrado: Cobrança do Plano Trimestral de Produtor';
+          reminderMessage = 'Aviso Importante: Hoje é o último dia do seu plano trimestral de produtor CFA (7.000 Kz). Caso ainda não tenha efetuado o pagamento, por favor regularize o pagamento imediatamente.';
+        }
+      }
+
+      if (stageKey && reminderTitle) {
+        // Evita duplicar notificação se já foi gerada hoje no Firestore
+        const notifCheckQuery = query(
+          collection(db, 'notifications'),
+          where('targetUserId', '==', userDoc.id),
+          where('metadata.stageKey', '==', stageKey),
+          where('metadata.dateStr', '==', todayStr)
+        );
+        const existingSnap = await getDocs(notifCheckQuery);
+
+        if (existingSnap.empty) {
+          await sendSystemNotification({
+            type: 'general',
+            title: reminderTitle,
+            message: reminderMessage,
+            link: '/settings',
+            targetRole: 'producer',
+            targetUserId: userDoc.id,
+            metadata: {
+              isAutomatedProducerBilling: true,
+              producerUid: userDoc.id,
+              producerPlan: plan,
+              daysRemaining,
+              stageKey,
+              dateStr: todayStr
+            }
+          });
+        }
+      }
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(runKey, 'done');
+    }
+  } catch (err) {
+    console.warn('Erro na verificação de cobrança automática de produtores:', err);
+  }
+};

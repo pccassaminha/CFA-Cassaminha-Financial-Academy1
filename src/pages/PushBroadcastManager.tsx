@@ -753,6 +753,48 @@ export default function PushBroadcastManager() {
                   >
                     <span>💰 Repasse para Produtores</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTitle('⏳ Lembrete de Cobrança: Plano Mensal (10 Dias)');
+                      setMessage('Aviso CFA: Daqui a 10 dias será cobrada a taxa mensal do seu plano de produtor (3.500 Kz). Mantenha a sua conta regularizada.');
+                      setLink('/settings');
+                      setTargetRole('producer');
+                      setSelectedStudent(null);
+                    }}
+                    className="px-3 py-1.5 bg-[#181818] hover:bg-[#353534] border border-[#353534] hover:border-[#e9c349]/50 text-stone-200 text-xs rounded-xl font-medium transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>📅 Mensal 10/5 Dias</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTitle('📅 Notificação: Início do Último Mês (Plano Trimestral)');
+                      setMessage('Aviso CFA: Entrou no último mês da sua assinatura trimestral de produtor. No final deste mês será cobrada a taxa de renovação (7.000 Kz).');
+                      setLink('/settings');
+                      setTargetRole('producer');
+                      setSelectedStudent(null);
+                    }}
+                    className="px-3 py-1.5 bg-[#181818] hover:bg-[#353534] border border-[#353534] hover:border-purple-500/50 text-stone-200 text-xs rounded-xl font-medium transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>📆 Trimestral (15-30 Dias)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTitle('🛑 Prazo Encerrado: Cobrança de Plano de Produtor');
+                      setMessage('Aviso Importante: Hoje terminou o prazo do seu plano de produtor CFA. Se ainda não efetuou o pagamento, por favor regularize o pagamento e envie o comprovativo.');
+                      setLink('/settings');
+                      setTargetRole('producer');
+                      setSelectedStudent(null);
+                    }}
+                    className="px-3 py-1.5 bg-[#181818] hover:bg-[#353534] border border-[#353534] hover:border-red-500/50 text-rose-300 text-xs rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>🛑 Hoje Vencimento</span>
+                  </button>
                 </div>
               </div>
 
