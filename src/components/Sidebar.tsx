@@ -161,7 +161,7 @@ export default function Sidebar() {
         </div>
 
         <div className="flex items-center gap-2">
-          <NotificationCenter userRole="admin" />
+          <NotificationCenter userRole="admin" userId={auth.currentUser?.uid} />
           <button
             onClick={toggleStudentView}
             className="text-[10px] font-bold uppercase tracking-wider text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 px-3 py-1.5 rounded-lg hover:bg-[#e9c349]/20 transition-all cursor-pointer"
@@ -205,7 +205,7 @@ export default function Sidebar() {
           </Link>
 
           <div className="hidden lg:flex items-center">
-            <NotificationCenter userRole="admin" />
+            <NotificationCenter userRole="admin" userId={auth.currentUser?.uid} />
           </div>
 
           {/* Botão para fechar no Mobile */}

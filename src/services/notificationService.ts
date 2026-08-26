@@ -9,6 +9,7 @@ import {
   orderBy, 
   limit, 
   serverTimestamp,
+  getDoc,
   getDocs,
   where
 } from 'firebase/firestore';
@@ -45,6 +46,22 @@ const CFA_ICON = 'https://i.postimg.cc/mDY7XpVF/apenas-12-vagas.png';
 /**
  * Toca um som suave de notificação de alta qualidade usando Web Audio API
  */
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export const playNotificationSound = () => {
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -101,20 +118,63 @@ export const vibrateDevice = () => {
 /**
  * Solicita permissão para Notificações do Navegador / Telemóvel
  */
-export const requestPushPermission = async (): Promise<boolean> => {
-  if (!('Notification' in window)) {
+export const requestPushPermission = async (userId?: string): Promise<boolean> => {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
     return false;
   }
 
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      showNativeNotification(
-        'Notificações CFA Ativadas!',
-        'Você receberá alertas no telemóvel quando alunos se cadastrarem ou enviarem pagamentos.',
-        '/dashboard'
-      );
-      return true;
+      try {
+        // Registrar o Service Worker
+        const register = await navigator.serviceWorker.register('/sw.js');
+        
+        // Esperar o Service Worker ficar ativo
+        await navigator.serviceWorker.ready;
+
+        // Obter a Public VAPID Key do backend
+        const response = await fetch('/api/push/vapidPublicKey');
+        const vapidData = await response.json();
+        const convertedVapidKey = urlBase64ToUint8Array(vapidData.publicKey);
+
+        // Inscrever para Push Notifications
+        const subscription = await register.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedVapidKey
+        });
+
+        // Se o userId estiver disponível, gravar a subscrição no Firestore (pode suportar múltiplas futuramente, mas aqui substituímos/atualizamos)
+        if (userId) {
+          const userRef = doc(db, 'users', userId);
+          // Obter os dados atuais para não sobrescrever sem querer
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            const currentSubs = userData.pushSubscriptions || [];
+            
+            // Gravar (evitando duplicados exatos)
+            const subStr = JSON.stringify(subscription);
+            const isDuplicate = currentSubs.some((s: any) => JSON.stringify(s) === subStr);
+            
+            if (!isDuplicate) {
+               await updateDoc(userRef, {
+                 pushSubscriptions: [...currentSubs, JSON.parse(subStr)]
+               });
+            }
+          }
+        }
+
+        showNativeNotification(
+          'Notificações Push Ativas!',
+          'O seu dispositivo está agora configurado para receber alertas reais em segundo plano.',
+          '/dashboard'
+        );
+        return true;
+      } catch (err) {
+        console.error('Erro na subscrição do Service Worker / Push:', err);
+        return true; // A permissão local foi dada, mas a Web Push falhou
+      }
     }
     return false;
   } catch (error) {
@@ -189,6 +249,45 @@ export const sendSystemNotification = async (payload: {
     };
 
     await addDoc(collection(db, 'notifications'), notificationData);
+    
+    // Agora disparar as Web Push em segundo plano via Backend
+    // Precisamos de recolher as subscrições dos utilizadores alvo
+    const usersQuery = payload.targetUserId 
+      ? query(collection(db, 'users'), where('__name__', '==', payload.targetUserId))
+      : payload.targetRole === 'all'
+        ? query(collection(db, 'users'))
+        : query(collection(db, 'users'), where('role', '==', payload.targetRole)); // Simplificado, na prática para 'all' ou papeis complexos pode precisar de lógicas compostas
+        
+    const usersSnap = await getDocs(usersQuery);
+    let allSubscriptions: any[] = [];
+    
+    usersSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.pushSubscriptions && Array.isArray(data.pushSubscriptions)) {
+        // Extra check for complex roles (e.g., student vs admin simulation)
+        if (payload.targetRole === 'admin' && (data.role !== 'admin' && data.roleType !== 'producer' && !data.email?.includes('cassaminha'))) return;
+        
+        allSubscriptions = [...allSubscriptions, ...data.pushSubscriptions];
+      }
+    });
+    
+    if (allSubscriptions.length > 0) {
+      await fetch('/api/push/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subscriptions: allSubscriptions,
+          payload: {
+            title: payload.title,
+            body: payload.message,
+            url: payload.link || '/dashboard'
+          }
+        })
+      }).catch(err => console.error("Falha ao enviar push para o backend:", err));
+    }
+
   } catch (error) {
     console.error('Erro ao registrar notificação no Firestore:', error);
   }

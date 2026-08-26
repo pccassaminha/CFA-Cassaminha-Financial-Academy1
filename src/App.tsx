@@ -9,6 +9,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { subscribeUserEnrollments } from './services/enrollmentService';
+import PushNotificationPrompt from './components/PushNotificationPrompt';
 import Login from './pages/Login';
 import StudentDirectory from './pages/StudentDirectory';
 import VideoLibrary from './pages/VideoLibrary';
@@ -112,6 +113,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {user && <PushNotificationPrompt />}
       <div className="min-h-screen">
         <Routes>
           <Route path="/" element={<SalesPage />} />

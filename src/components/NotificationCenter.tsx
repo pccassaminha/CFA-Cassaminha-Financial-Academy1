@@ -131,7 +131,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleRequestPush = async () => {
-    const granted = await requestPushPermission();
+    const granted = await requestPushPermission(userId);
     if (granted) {
       setPermissionState('granted');
     } else if ('Notification' in window) {

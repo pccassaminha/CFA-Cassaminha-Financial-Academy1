@@ -1,64 +1,39 @@
-const CACHE_NAME = 'cfa-academy-cache-v3';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  'https://i.postimg.cc/mDY7XpVF/apenas-12-vagas.png'
-];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE).catch(() => {});
-    })
-  );
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      );
-    })
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/index.html');
-      })
-    );
-    return;
+self.addEventListener('push', function(event) {
+  let data = {};
+  if (event.data) {
+    data = event.data.json();
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request).catch(() => {});
-    })
+  const title = data.title || 'CFA Academy';
+  const options = {
+    body: data.body || 'Você tem uma nova notificação.',
+    icon: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png', // Generic icon
+    data: {
+      url: data.url || '/'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
   );
 });
 
-// Manipulador de clique em notificações do telemóvel
-self.addEventListener('notificationclick', (event) => {
+self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || '/';
+  
+  // Use the url provided in the payload or default to '/'
+  const urlToOpen = new URL(event.notification.data.url, self.location.origin).href;
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      for (const client of windowClients) {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // Check if there is already a window/tab open with the target URL
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
+      // If not, open the target URL in a new window/tab.
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }

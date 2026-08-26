@@ -804,7 +804,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <NotificationCenter userRole="admin" />
+              <NotificationCenter userRole="admin" userId={auth.currentUser?.uid} />
 
               <button 
                 id="btn-export-dashboard-report"
