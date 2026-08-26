@@ -21,7 +21,10 @@ import {
   Filter,
   Info,
   Monitor,
-  Download
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Layers
 } from 'lucide-react';
 import { 
   collection, 
@@ -61,6 +64,19 @@ export default function PushBroadcastManager() {
   // Filtros e Estado do Relatório de Dispositivos Móveis
   const [deviceSearchTerm, setDeviceSearchTerm] = useState('');
   const [deviceFilterTab, setDeviceFilterTab] = useState<'all' | 'installed' | 'push_enabled' | 'mobile'>('all');
+
+  // Controle de Abas / Seções para otimizar layout (Evita página excessivamente longa)
+  const [activeTab, setActiveTab] = useState<'send' | 'report' | 'devices' | 'history' | 'all'>('send');
+  const [expandedSections, setExpandedSections] = useState({
+    send: true,
+    report: true,
+    devices: true,
+    history: true
+  });
+
+  const toggleSection = (key: 'send' | 'report' | 'devices' | 'history') => {
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // Cálculos de Estatísticas de Dispositivos & Instalações
   const installedAppCount = useMemo(() => {
@@ -500,11 +516,99 @@ export default function PushBroadcastManager() {
           </div>
         </div>
 
+        {/* BARRA DE BOTÕES DE NAVEGAÇÃO POR SEÇÕES (REORGANIZAÇÃO PARA EVITAR PÁGINA LONGA) */}
+        <div className="bg-[#181818] border border-[#353534] p-2 rounded-2xl mb-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xl">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('send');
+                setExpandedSections(prev => ({ ...prev, send: true }));
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                activeTab === 'send'
+                  ? 'bg-[#e9c349] text-black shadow-lg font-headline scale-[1.02]'
+                  : 'text-stone-300 hover:bg-[#353534]/50 hover:text-white'
+              }`}
+            >
+              <Send className="w-4 h-4" />
+              <span>1. Nova Transmissão</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('report');
+                setExpandedSections(prev => ({ ...prev, report: true }));
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                activeTab === 'report'
+                  ? 'bg-[#e9c349] text-black shadow-lg font-headline scale-[1.02]'
+                  : 'text-stone-300 hover:bg-[#353534]/50 hover:text-white'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              <span>2. Relatório Automático ({reportTime})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('devices');
+                setExpandedSections(prev => ({ ...prev, devices: true }));
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                activeTab === 'devices'
+                  ? 'bg-[#e9c349] text-black shadow-lg font-headline scale-[1.02]'
+                  : 'text-stone-300 hover:bg-[#353534]/50 hover:text-white'
+              }`}
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>3. Dispositivos & App Móvel</span>
+              <span className="px-1.5 py-0.5 text-[10px] bg-black/30 rounded-full">{installedAppCount}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('history');
+                setExpandedSections(prev => ({ ...prev, history: true }));
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                activeTab === 'history'
+                  ? 'bg-[#e9c349] text-black shadow-lg font-headline scale-[1.02]'
+                  : 'text-stone-300 hover:bg-[#353534]/50 hover:text-white'
+              }`}
+            >
+              <BellRing className="w-4 h-4" />
+              <span>4. Histórico</span>
+              <span className="px-1.5 py-0.5 text-[10px] bg-black/30 rounded-full">{history.length}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('all');
+              setExpandedSections({ send: true, report: true, devices: true, history: true });
+            }}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer ${
+              activeTab === 'all'
+                ? 'bg-stone-700 text-white border border-stone-500 shadow'
+                : 'text-stone-400 hover:text-white hover:bg-[#353534]/40 border border-[#353534]'
+            }`}
+            title="Mostrar todas as seções simultaneamente na página"
+          >
+            <Layers className="w-4 h-4 text-[#e9c349]" />
+            <span>Ver Tudo</span>
+          </button>
+        </div>
+
         {/* RELATÓRIO DIÁRIO AUTOMÁTICO (HORÁRIO CONFIGURÁVEL) */}
-        <div className="mb-8 bg-gradient-to-r from-[#1c1c1a] via-[#16171a] to-[#0f1015] border border-[#e9c349]/30 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-            <div className="space-y-3 max-w-2xl">
-              <div className="flex items-center gap-2 flex-wrap">
+        {(activeTab === 'all' || activeTab === 'report') && (
+          <div className="mb-8 bg-gradient-to-r from-[#1c1c1a] via-[#16171a] to-[#0f1015] border border-[#e9c349]/30 rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all">
+            <div className="flex items-center justify-between border-b border-[#353534]/40 pb-4 mb-4">
+              <div className="flex items-center gap-2">
                 <span className="p-2 bg-[#e9c349]/20 border border-[#e9c349]/40 rounded-xl text-[#e9c349]">
                   <Clock className="w-5 h-5" />
                 </span>
@@ -516,63 +620,92 @@ export default function PushBroadcastManager() {
                   Agendado às {reportTime}
                 </span>
               </div>
-              <p className="text-xs text-stone-300 leading-relaxed">
-                Todos os dias no horário configurado (<strong>{reportTime}</strong>), os administradores recebem automaticamente uma notificação push com o resumo completo do <strong>Faturamento do Dia (Kz)</strong>, número de <strong>Novos Alunos Cadastrados</strong> e <strong>Matrículas Efetuadas</strong>.
-              </p>
 
-              {/* SELETOR E ALTERAÇÃO DE HORÁRIO */}
-              <div className="pt-2 flex flex-wrap items-center gap-3">
-                <span className="text-xs font-bold text-[#e9c349] flex items-center gap-1">
-                  ⏰ Alterar Horário do Relatório:
-                </span>
-                <div className="flex items-center gap-2 bg-[#0e0e0e] border border-[#353534] rounded-xl px-3 py-1.5">
-                  <input
-                    type="time"
-                    value={reportTime}
-                    onChange={(e) => handleSaveReportTime(e.target.value)}
-                    className="bg-transparent text-white text-xs font-mono font-bold outline-none cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  {['18:00', '19:00', '20:00', '21:00', '22:00'].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => handleSaveReportTime(preset)}
-                      className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border transition-all cursor-pointer ${
-                        reportTime === preset
-                          ? 'bg-[#e9c349] text-black border-[#e9c349]'
-                          : 'bg-[#181818] border-[#353534] text-stone-400 hover:text-white'
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => toggleSection('report')}
+                className="p-2 text-stone-400 hover:text-white hover:bg-[#353534]/50 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-medium"
+              >
+                <span>{expandedSections.report ? 'Recolher' : 'Expandir'}</span>
+                {expandedSections.report ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
             </div>
 
-            <button
-              onClick={handleTriggerDailySummary}
-              disabled={isGeneratingSummary}
-              className="w-full lg:w-auto px-6 py-3.5 bg-[#e9c349] hover:bg-[#d4b03f] disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-[0_4px_20px_rgba(233,195,73,0.3)] transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer active:scale-95 font-headline"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>{isGeneratingSummary ? 'Gerando Relatório...' : `Gerar Relatório das ${reportTime} Agora`}</span>
-            </button>
+            {expandedSections.report && (
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10 pt-2">
+                <div className="space-y-3 max-w-2xl">
+                  <p className="text-xs text-stone-300 leading-relaxed">
+                    Todos os dias no horário configurado (<strong>{reportTime}</strong>), os administradores recebem automaticamente uma notificação push com o resumo completo do <strong>Faturamento do Dia (Kz)</strong>, número de <strong>Novos Alunos Cadastrados</strong> e <strong>Matrículas Efetuadas</strong>.
+                  </p>
+
+                  {/* SELETOR E ALTERAÇÃO DE HORÁRIO */}
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-bold text-[#e9c349] flex items-center gap-1">
+                      ⏰ Alterar Horário do Relatório:
+                    </span>
+                    <div className="flex items-center gap-2 bg-[#0e0e0e] border border-[#353534] rounded-xl px-3 py-1.5">
+                      <input
+                        type="time"
+                        value={reportTime}
+                        onChange={(e) => handleSaveReportTime(e.target.value)}
+                        className="bg-transparent text-white text-xs font-mono font-bold outline-none cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {['18:00', '19:00', '20:00', '21:00', '22:00'].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => handleSaveReportTime(preset)}
+                          className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border transition-all cursor-pointer ${
+                            reportTime === preset
+                              ? 'bg-[#e9c349] text-black border-[#e9c349]'
+                              : 'bg-[#181818] border-[#353534] text-stone-400 hover:text-white'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleTriggerDailySummary}
+                  disabled={isGeneratingSummary}
+                  className="w-full lg:w-auto px-6 py-3.5 bg-[#e9c349] hover:bg-[#d4b03f] disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-[0_4px_20px_rgba(233,195,73,0.3)] transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer active:scale-95 font-headline"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{isGeneratingSummary ? 'Gerando Relatório...' : `Gerar Relatório das ${reportTime} Agora`}</span>
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* GRID PRINCIPAL DE FORMULÁRIO E GUIA */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-          {/* FORMULÁRIO DE DISPARO (2 COLUNAS) */}
-          <div className="lg:col-span-2 bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-            <div className="flex items-center gap-2 mb-6 pb-4 border-b border-[#353534]/40">
-              <Send className="w-5 h-5 text-[#e9c349]" />
-              <h2 className="text-lg font-bold font-headline text-white">Criar Nova Mensagem Push</h2>
-            </div>
+        {(activeTab === 'all' || activeTab === 'send') && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+            {/* FORMULÁRIO DE DISPARO (2 COLUNAS) */}
+            <div className="lg:col-span-2 bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#353534]/40">
+                <div className="flex items-center gap-2">
+                  <Send className="w-5 h-5 text-[#e9c349]" />
+                  <h2 className="text-lg font-bold font-headline text-white">Criar Nova Mensagem Push</h2>
+                </div>
 
-            <form onSubmit={handleSendBroadcast} className="space-y-6">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('send')}
+                  className="p-2 text-stone-400 hover:text-white hover:bg-[#353534]/50 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-medium"
+                >
+                  <span>{expandedSections.send ? 'Recolher' : 'Expandir'}</span>
+                  {expandedSections.send ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {expandedSections.send && (
+                <form onSubmit={handleSendBroadcast} className="space-y-6">
               {/* MODELOS RÁPIDOS DE AVISOS E PAGAMENTOS */}
               <div className="bg-[#0e0e0e] border border-[#353534] rounded-2xl p-4 space-y-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#e9c349] flex items-center gap-1.5">
@@ -866,69 +999,86 @@ export default function PushBroadcastManager() {
                   )}
                 </button>
               </div>
-            </form>
-          </div>
-
-          {/* GUIA PRÁTICO & DICAS (1 COLUNA) */}
-          <div className="bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#353534]/40">
-                <Sparkles className="w-5 h-5 text-[#e9c349]" />
-                <h3 className="text-base font-bold font-headline text-white">Como Funciona o Push PWA</h3>
-              </div>
-
-              <div className="space-y-4 text-xs text-stone-300 leading-relaxed">
-                <div className="p-3 bg-[#0e0e0e] border border-[#353534] rounded-xl flex items-start gap-3">
-                  <span className="w-5 h-5 bg-[#e9c349]/20 text-[#e9c349] font-bold rounded-full flex items-center justify-center text-[10px] shrink-0">1</span>
-                  <p>
-                    <strong>Garantia de Entrega:</strong> A notificação é gravada no Firestore em tempo real e atinge todos os alunos conectados no aplicativo Web ou PWA instalado.
-                  </p>
-                </div>
-
-                <div className="p-3 bg-[#0e0e0e] border border-[#353534] rounded-xl flex items-start gap-3">
-                  <span className="w-5 h-5 bg-[#e9c349]/20 text-[#e9c349] font-bold rounded-full flex items-center justify-center text-[10px] shrink-0">2</span>
-                  <p>
-                    <strong>Som & Vibração Nativos:</strong> Alunos com permissão concedida recebem o toque dourado suave da CFA Academy e vibração no telemóvel.
-                  </p>
-                </div>
-
-                <div className="p-3 bg-[#0e0e0e] border border-[#353534] rounded-xl flex items-start gap-3">
-                  <span className="w-5 h-5 bg-[#e9c349]/20 text-[#e9c349] font-bold rounded-full flex items-center justify-center text-[10px] shrink-0">3</span>
-                  <p>
-                    <strong>Ação com 1 Toque:</strong> Ao clicar na notificação nativa, o aluno é direcionado imediatamente para a rota/aula especificada.
-                  </p>
-                </div>
-              </div>
+                </form>
+              )}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-[#353534]/40 bg-[#e9c349]/5 p-4 rounded-2xl border border-[#e9c349]/20">
-              <p className="text-[11px] font-bold text-[#e9c349] flex items-center gap-1.5 mb-1">
-                <Info className="w-4 h-4" /> Dica de Ouro
-              </p>
-              <p className="text-[10px] text-stone-300 leading-normal">
-                Use emojis amigáveis no início do título (ex: 🚀, 📢, 🔥, 🎓) para captar a atenção do aluno instantaneamente no painel de notificações do telemóvel!
-              </p>
+            {/* GUIA PRÁTICO & DICAS (1 COLUNA) */}
+            <div className="bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#353534]/40">
+                  <Sparkles className="w-5 h-5 text-[#e9c349]" />
+                  <h3 className="text-base font-bold font-headline text-white">Como Funciona o Push PWA</h3>
+                </div>
+
+                <div className="space-y-4 text-xs text-stone-300 leading-relaxed">
+                  <div className="p-3 bg-[#0e0e0e] border border-[#353534] rounded-xl flex items-start gap-3">
+                    <span className="w-5 h-5 bg-[#e9c349]/20 text-[#e9c349] font-bold rounded-full flex items-center justify-center text-[10px] shrink-0">1</span>
+                    <p>
+                      <strong>Garantia de Entrega:</strong> A notificação é gravada no Firestore em tempo real e atinge todos os alunos conectados no aplicativo Web ou PWA instalado.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-[#0e0e0e] border border-[#353534] rounded-xl flex items-start gap-3">
+                    <span className="w-5 h-5 bg-[#e9c349]/20 text-[#e9c349] font-bold rounded-full flex items-center justify-center text-[10px] shrink-0">2</span>
+                    <p>
+                      <strong>Som & Vibração Nativos:</strong> Alunos com permissão concedida recebem o toque dourado suave da CFA Academy e vibração no telemóvel.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-[#0e0e0e] border border-[#353534] rounded-xl flex items-start gap-3">
+                    <span className="w-5 h-5 bg-[#e9c349]/20 text-[#e9c349] font-bold rounded-full flex items-center justify-center text-[10px] shrink-0">3</span>
+                    <p>
+                      <strong>Ação com 1 Toque:</strong> Ao clicar na notificação nativa, o aluno é direcionado imediatamente para a rota/aula especificada.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-[#353534]/40 bg-[#e9c349]/5 p-4 rounded-2xl border border-[#e9c349]/20">
+                <p className="text-[11px] font-bold text-[#e9c349] flex items-center gap-1.5 mb-1">
+                  <Info className="w-4 h-4" /> Dica de Ouro
+                </p>
+                <p className="text-[10px] text-stone-300 leading-normal">
+                  Use emojis amigáveis no início do título (ex: 🚀, 📢, 🔥, 🎓) para captar a atenção do aluno instantaneamente no painel de notificações do telemóvel!
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* RELATÓRIO DE DISPOSITIVOS MÓVEIS & INSTALAÇÕES DE APP */}
-        <div className="bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 shadow-xl mb-12">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#353534]/40">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Smartphone className="w-5 h-5 text-[#e9c349]" />
-                <h2 className="text-lg font-bold font-headline text-white">
-                  Relatório de Instalações Mobile & Dispositivos
-                </h2>
+        {(activeTab === 'all' || activeTab === 'devices') && (
+          <div className="bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 shadow-xl mb-12">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#353534]/40">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Smartphone className="w-5 h-5 text-[#e9c349]" />
+                  <h2 className="text-lg font-bold font-headline text-white">
+                    Relatório de Instalações Mobile & Dispositivos
+                  </h2>
+                </div>
+                <p className="text-xs text-stone-400">
+                  Acompanhe em tempo real quais alunos e produtores instalaram a aplicação no telemóvel e têm notificações ativas.
+                </p>
               </div>
-              <p className="text-xs text-stone-400">
-                Acompanhe em tempo real quais alunos e produtores instalaram a aplicação no telemóvel e têm notificações ativas.
-              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('devices')}
+                  className="p-2 text-stone-400 hover:text-white hover:bg-[#353534]/50 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-medium"
+                >
+                  <span>{expandedSections.devices ? 'Recolher' : 'Expandir'}</span>
+                  {expandedSections.devices ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
-            {/* BARRA DE PESQUISA & ABAS DE FILTRO */}
-            <div className="flex flex-col sm:flex-row items-center gap-3">
+            {expandedSections.devices && (
+              <div className="space-y-6">
+                {/* BARRA DE PESQUISA & ABAS DE FILTRO */}
+                <div className="flex flex-col sm:flex-row items-center gap-3">
               <div className="relative w-full sm:w-64">
                 <Search className="w-4 h-4 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -987,9 +1137,8 @@ export default function PushBroadcastManager() {
                 </button>
               </div>
             </div>
-          </div>
 
-          {/* TABELA DE USUÁRIOS E STATUS DISPOSITIVO */}
+            {/* TABELA DE USUÁRIOS E STATUS DISPOSITIVO */}
           {filteredDevicesList.length === 0 ? (
             <div className="py-12 text-center text-stone-500 text-xs">
               <Smartphone className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -1108,87 +1257,103 @@ export default function PushBroadcastManager() {
               </table>
             </div>
           )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* HISTÓRICO DE TRANSMISSÕES */}
-        <div className="bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#353534]/40">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-[#e9c349]" />
-              <h2 className="text-lg font-bold font-headline text-white">
-                Histórico de Transmissões Recentes
-              </h2>
+        {(activeTab === 'all' || activeTab === 'history') && (
+          <div className="bg-[#181818] border border-[#353534] rounded-3xl p-6 sm:p-8 shadow-xl mb-12">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#353534]/40">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-[#e9c349]" />
+                <h2 className="text-lg font-bold font-headline text-white">
+                  Histórico de Transmissões Recentes
+                </h2>
+                <span className="text-xs text-stone-400 font-mono">
+                  ({history.length} mensagens enviadas)
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => toggleSection('history')}
+                className="p-2 text-stone-400 hover:text-white hover:bg-[#353534]/50 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-medium"
+              >
+                <span>{expandedSections.history ? 'Recolher' : 'Expandir'}</span>
+                {expandedSections.history ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
             </div>
-            <span className="text-xs text-stone-400 font-mono">
-              Total de {history.length} mensagens enviadas
-            </span>
+
+            {expandedSections.history && (
+              loadingHistory ? (
+                <div className="py-12 flex items-center justify-center gap-3 text-stone-400 text-xs">
+                  <div className="w-5 h-5 border-2 border-[#e9c349] border-t-transparent rounded-full animate-spin"></div>
+                  <span>Carregando histórico...</span>
+                </div>
+              ) : history.length === 0 ? (
+                <div className="py-12 text-center text-stone-500 text-xs">
+                  <BellRing className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p>Nenhuma notificação foi transmitida ainda.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#353534]/40 overflow-hidden">
+                  {history.map((item) => {
+                    const dateStr = item.createdAt?.toDate 
+                      ? item.createdAt.toDate().toLocaleString('pt-AO')
+                      : item.timestamp 
+                      ? new Date(item.timestamp).toLocaleString('pt-AO')
+                      : 'Recentemente';
+
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="py-4 hover:bg-[#353534]/20 px-3 rounded-2xl transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+                      >
+                        <div className="space-y-1 max-w-2xl">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30 px-2 py-0.5 rounded">
+                              {item.targetRole === 'admin' ? 'Apenas Admins' : item.targetRole === 'student' ? 'Alunos' : 'Geral (Todos)'}
+                            </span>
+                            <h4 className="text-sm font-bold text-white">{item.title}</h4>
+                          </div>
+                          <p className="text-xs text-stone-300 leading-normal">{item.message}</p>
+                          <div className="flex items-center gap-4 text-[10px] text-stone-500 font-mono pt-1">
+                            <span>🕒 {dateStr}</span>
+                            <span>🔗 Rota: {item.link || '/library'}</span>
+                            {item.metadata?.senderName && (
+                              <span>Enviado por: {item.metadata.senderName}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <button
+                            onClick={() => handleReuseTemplate(item)}
+                            className="px-3 py-1.5 bg-[#353534]/50 hover:bg-[#353534] text-stone-300 text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                            title="Usar como modelo"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Reutilizar</span>
+                          </button>
+
+                          <button
+                            onClick={() => item.id && handleDeleteHistoryItem(item.id)}
+                            className="p-2 text-stone-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
+                            title="Excluir do histórico"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            )}
           </div>
-
-          {loadingHistory ? (
-            <div className="py-12 flex items-center justify-center gap-3 text-stone-400 text-xs">
-              <div className="w-5 h-5 border-2 border-[#e9c349] border-t-transparent rounded-full animate-spin"></div>
-              <span>Carregando histórico...</span>
-            </div>
-          ) : history.length === 0 ? (
-            <div className="py-12 text-center text-stone-500 text-xs">
-              <BellRing className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p>Nenhuma notificação foi transmitida ainda.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-[#353534]/40 overflow-hidden">
-              {history.map((item) => {
-                const dateStr = item.createdAt?.toDate 
-                  ? item.createdAt.toDate().toLocaleString('pt-AO')
-                  : item.timestamp 
-                  ? new Date(item.timestamp).toLocaleString('pt-AO')
-                  : 'Recentemente';
-
-                return (
-                  <div 
-                    key={item.id} 
-                    className="py-4 hover:bg-[#353534]/20 px-3 rounded-2xl transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
-                  >
-                    <div className="space-y-1 max-w-2xl">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-[#e9c349]/10 text-[#e9c349] border border-[#e9c349]/30 px-2 py-0.5 rounded">
-                          {item.targetRole === 'admin' ? 'Apenas Admins' : item.targetRole === 'student' ? 'Alunos' : 'Geral (Todos)'}
-                        </span>
-                        <h4 className="text-sm font-bold text-white">{item.title}</h4>
-                      </div>
-                      <p className="text-xs text-stone-300 leading-normal">{item.message}</p>
-                      <div className="flex items-center gap-4 text-[10px] text-stone-500 font-mono pt-1">
-                        <span>🕒 {dateStr}</span>
-                        <span>🔗 Rota: {item.link || '/library'}</span>
-                        {item.metadata?.senderName && (
-                          <span>Enviado por: {item.metadata.senderName}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                      <button
-                        onClick={() => handleReuseTemplate(item)}
-                        className="px-3 py-1.5 bg-[#353534]/50 hover:bg-[#353534] text-stone-300 text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Usar como modelo"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Reutilizar</span>
-                      </button>
-
-                      <button
-                        onClick={() => item.id && handleDeleteHistoryItem(item.id)}
-                        className="p-2 text-stone-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
-                        title="Excluir do histórico"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        )}
       </main>
     </div>
   );
