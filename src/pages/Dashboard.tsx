@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Cell } from "recharts";
 import Sidebar from '../components/Sidebar';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { PushSubscriptionBanner } from '../components/PushSubscriptionBanner';
@@ -1091,130 +1092,127 @@ export default function Dashboard() {
                   className="h-64 w-full bg-surface-container-highest/40 rounded-xl border border-outline-variant/10 p-4 relative overflow-hidden flex flex-col justify-between"
                   onMouseLeave={() => setHoveredDataPoint(null)}
                 >
-                  {/* Grid Lines */}
-                  <div className="absolute inset-0 px-4 py-6 flex flex-col justify-between pointer-events-none opacity-10">
-                    <div className="border-b border-stone-400 w-full"></div>
-                    <div className="border-b border-stone-400 w-full"></div>
-                    <div className="border-b border-stone-400 w-full"></div>
-                    <div className="border-b border-stone-400 w-full"></div>
-                  </div>
-
-                  {/* Active Hover Tooltip */}
-                  {hoveredDataPoint && (
-                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-[#121212] border border-[#e9c349]/40 px-3.5 py-2 rounded-xl shadow-2xl text-xs pointer-events-none flex items-center gap-3 animate-in fade-in duration-150">
-                      <div className="w-2.5 h-2.5 rounded-full bg-primary animate-ping"></div>
-                      <div>
-                        <p className="font-bold text-white text-xs">{hoveredDataPoint.dateStr || hoveredDataPoint.label}</p>
-                        <p className="text-[11px] text-stone-400">
-                          {metricType === 'revenue' && (
-                            <span className="text-[#e9c349] font-mono font-bold">
-                              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(hoveredDataPoint.revenue)}
-                            </span>
-                          )}
-                          {metricType === 'transactions' && (
-                            <span className="text-sky-400 font-mono font-bold">
-                              {hoveredDataPoint.transactions} Transações ({hoveredDataPoint.pending} pendentes)
-                            </span>
-                          )}
-                          {metricType === 'students' && (
-                            <span className="text-emerald-400 font-mono font-bold">
-                              {hoveredDataPoint.students} Novos Alunos
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   {/* CHART RENDERING: BARS OR AREA */}
-                  {chartStyle === 'bar' ? (
-                    <div className="relative z-10 h-44 w-full flex items-end justify-between gap-1.5 sm:gap-3 pt-6">
-                      {chartData.map((d, idx) => {
-                        const val = metricType === 'revenue' ? d.revenue : metricType === 'transactions' ? d.transactions : d.students;
-                        const heightPct = maxChartValue > 0 ? Math.max((val / maxChartValue) * 100, 8) : 8;
-                        const isCurrentHover = hoveredDataPoint?.label === d.label;
-
-                        return (
-                          <div 
-                            key={idx}
-                            onMouseEnter={() => setHoveredDataPoint(d)}
-                            className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer"
+                  <div className="relative z-10 h-[240px] w-full pt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      {chartStyle === 'area' ? (
+                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#e9c349" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="#e9c349" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" opacity={0.5} />
+                          <XAxis 
+                            dataKey="label" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#78716c', fontSize: 10 }}
+                            dy={10}
+                          />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#78716c', fontSize: 10 }}
+                            tickFormatter={(value) => {
+                              if (metricType === 'revenue') {
+                                return value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value;
+                              }
+                              return value;
+                            }}
+                          />
+                          <RechartsTooltip 
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const val = payload[0].value as number;
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="bg-[#121212] border border-[#333] p-3 rounded-xl shadow-xl">
+                                    <p className="text-xs text-stone-400 mb-1">{label}</p>
+                                    <p className="text-sm font-bold text-[#e9c349] font-mono">
+                                      {metricType === 'revenue' 
+                                        ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(val)
+                                        : metricType === 'transactions'
+                                        ? `${val} Vendas (${data.pending} pendentes)`
+                                        : `${val} Alunos`
+                                      }
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey={metricType === 'revenue' ? 'revenue' : metricType === 'transactions' ? 'transactions' : 'students'}
+                            stroke="#e9c349" 
+                            strokeWidth={3}
+                            fillOpacity={1} 
+                            fill="url(#colorValue)" 
+                            activeDot={{ r: 6, fill: '#e9c349', stroke: '#121212', strokeWidth: 2 }}
+                          />
+                        </AreaChart>
+                      ) : (
+                        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" opacity={0.5} />
+                          <XAxis 
+                            dataKey="label" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#78716c', fontSize: 10 }}
+                            dy={10}
+                          />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#78716c', fontSize: 10 }}
+                            tickFormatter={(value) => {
+                              if (metricType === 'revenue') {
+                                return value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value;
+                              }
+                              return value;
+                            }}
+                          />
+                          <RechartsTooltip 
+                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const val = payload[0].value as number;
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="bg-[#121212] border border-[#333] p-3 rounded-xl shadow-xl">
+                                    <p className="text-xs text-stone-400 mb-1">{label}</p>
+                                    <p className="text-sm font-bold text-[#e9c349] font-mono">
+                                      {metricType === 'revenue' 
+                                        ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0 }).format(val)
+                                        : metricType === 'transactions'
+                                        ? `${val} Vendas (${data.pending} pendentes)`
+                                        : `${val} Alunos`
+                                      }
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar 
+                            dataKey={metricType === 'revenue' ? 'revenue' : metricType === 'transactions' ? 'transactions' : 'students'}
+                            fill="#e9c349" 
+                            radius={[4, 4, 0, 0]}
                           >
-                            <div className="w-full relative flex items-end justify-center h-full">
-                              <div 
-                                style={{ height: `${heightPct}%` }}
-                                className={`w-full max-w-[32px] rounded-t-md transition-all duration-300 relative ${
-                                  isCurrentHover 
-                                    ? 'bg-gradient-to-t from-primary to-amber-300 shadow-[0_0_12px_rgba(233,195,73,0.5)]' 
-                                    : 'bg-gradient-to-t from-primary/30 to-primary/80 group-hover:from-primary/50 group-hover:to-primary'
-                                }`}
-                              >
-                                {val > 0 && (
-                                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] font-mono font-bold text-stone-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-1.5 py-0.5 rounded">
-                                    {metricType === 'revenue' ? `${Math.round(val / 1000)}k` : val}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <span className={`text-[10px] sm:text-[11px] font-label mt-2 truncate w-full text-center transition-colors ${
-                              isCurrentHover ? 'text-primary font-bold' : 'text-stone-400'
-                            }`}>
-                              {d.label}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    /* Area / Smooth Curve Chart */
-                    <div className="relative z-10 h-44 w-full flex flex-col justify-end pt-4">
-                      <svg className="w-full h-36 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
-                        <defs>
-                          <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="#e9c349" stopOpacity="0.4" />
-                            <stop offset="100%" stopColor="#e9c349" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-
-                        {/* Area Polygon */}
-                        {(() => {
-                          const points = chartData.map((d, i) => {
-                            const val = metricType === 'revenue' ? d.revenue : metricType === 'transactions' ? d.transactions : d.students;
-                            const x = (i / (chartData.length - 1 || 1)) * 100;
-                            const y = 100 - (maxChartValue > 0 ? (val / maxChartValue) * 80 : 0) - 10;
-                            return { x, y, d };
-                          });
-
-                          const dPath = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
-                          const areaPath = `${dPath} L 100 100 L 0 100 Z`;
-
-                          return (
-                            <>
-                              <path d={areaPath} fill="url(#areaGradient)" />
-                              <path d={dPath} fill="none" stroke="#e9c349" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                              {points.map((p, idx) => (
-                                <circle
-                                  key={idx}
-                                  cx={p.x}
-                                  cy={p.y}
-                                  r={hoveredDataPoint?.label === p.d.label ? "5" : "3"}
-                                  className="fill-primary stroke-[#121212] stroke-2 hover:r-6 transition-all cursor-pointer"
-                                  onMouseEnter={() => setHoveredDataPoint(p.d)}
-                                />
-                              ))}
-                            </>
-                          );
-                        })()}
-                      </svg>
-
-                      {/* X Axis Labels */}
-                      <div className="flex justify-between w-full mt-2 text-[10px] text-stone-400 px-1 font-label">
-                        {chartData.map((d, i) => (
-                          <span key={i} className="truncate">{d.label}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                            {
+                              chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={hoveredDataPoint?.label === entry.label ? '#fcd34d' : '#e9c349'} />
+                              ))
+                            }
+                          </Bar>
+                        </BarChart>
+                      )}
+                    </ResponsiveContainer>
+                  </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10 text-[11px] text-stone-500">
                     <span className="flex items-center gap-1.5">

@@ -914,7 +914,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                 </>
               )}
 
-              <NotificationCenter />
+              <NotificationCenter userRole="student" userId={auth.currentUser?.uid} />
 
               <Link
                 id="btn-back-to-my-courses-header"

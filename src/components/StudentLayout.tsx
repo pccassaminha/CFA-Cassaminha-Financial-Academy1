@@ -88,7 +88,7 @@ export default function StudentLayout({ children, activeTab, setActiveTab, onLog
               </h1>
               <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-mono">Academy Portal</p>
             </div>
-            <NotificationCenter />
+            <NotificationCenter userRole="student" userId={auth.currentUser?.uid} />
           </div>
 
           {(isAdmin || isProducer) && (

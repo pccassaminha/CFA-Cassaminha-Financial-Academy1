@@ -35,7 +35,9 @@ import {
   GripVertical,
   ChevronUp,
   ChevronDown,
-  ExternalLink
+  ExternalLink,
+  Copy,
+  ClipboardPaste
 } from 'lucide-react';
 import LessonModal from './LessonModal';
 
@@ -325,11 +327,13 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
       setModules([...modules, newMod]);
 
       // Dispara notificação de Novo Módulo
-      notifyNewModule({
-        courseId,
-        courseTitle: title || 'Curso CFA Academy',
-        moduleTitle: cleanTitle
-      }).catch(err => console.warn('Erro ao disparar notificação de módulo:', err));
+      if (isPublished) {
+        notifyNewModule({
+          courseId,
+          courseTitle: title || 'Curso CFA Academy',
+          moduleTitle: cleanTitle
+        }).catch(err => console.warn('Erro ao disparar notificação de módulo:', err));
+      }
     } else if (moduleModal.moduleId) {
       setModules(modules.map(m => m.id === moduleModal.moduleId ? { ...m, title: cleanTitle } : m));
     }
@@ -460,12 +464,14 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
           };
 
           // Dispara notificação de Nova Aula para alunos
-          notifyNewLesson({
-            courseId,
-            courseTitle: title || 'Curso CFA Academy',
-            moduleTitle: mod.title,
-            lessonTitle: cleanLessonTitle
-          }).catch(err => console.warn('Erro ao disparar notificação de aula:', err));
+          if (isPublished) {
+            notifyNewLesson({
+              courseId,
+              courseTitle: title || 'Curso CFA Academy',
+              moduleTitle: mod.title,
+              lessonTitle: cleanLessonTitle
+            }).catch(err => console.warn('Erro ao disparar notificação de aula:', err));
+          }
 
           return {
             ...mod,
@@ -475,6 +481,50 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
       }
       return mod;
     }));
+  };
+
+
+  // Funções para copiar e colar aula
+  const handleCopyLesson = (lesson: Lesson) => {
+    try {
+      localStorage.setItem('copied_lesson', JSON.stringify(lesson));
+      alert(`Aula "${lesson.title}" copiada! Pode colá-la em qualquer módulo.`);
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao copiar aula.');
+    }
+  };
+
+  const handlePasteLesson = (moduleId: string) => {
+    try {
+      const copiedRaw = localStorage.getItem('copied_lesson');
+      if (!copiedRaw) {
+        alert('Nenhuma aula copiada.');
+        return;
+      }
+      const copiedLesson = JSON.parse(copiedRaw) as Lesson;
+      
+      setModules(modules.map(mod => {
+        if (mod.id === moduleId) {
+          const newLesson: Lesson = {
+            ...copiedLesson,
+            id: `l_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            moduleId,
+            courseId,
+            order: mod.lessons.length + 1
+          };
+          
+          return {
+            ...mod,
+            lessons: [...mod.lessons, newLesson]
+          };
+        }
+        return mod;
+      }));
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao colar aula.');
+    }
   };
 
   // 8. Reordenação e Mover Módulos (Troca de posição e renumeração automática)
@@ -1228,6 +1278,13 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                         </div>
 
                         <button
+                          onClick={() => handlePasteLesson(mod.id)}
+                          className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          title="Colar aula previamente copiada"
+                        >
+                          <ClipboardPaste className="w-3.5 h-3.5" /> Colar
+                        </button>
+                        <button
                           id={`btn-add-lesson-mod-${mod.id}`}
                           onClick={() => openAddLesson(mod.id)}
                           className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -1339,6 +1396,13 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
 
                               <div className="w-[1px] h-4 bg-gray-800/80 mx-1" />
 
+                              <button
+                                onClick={() => handleCopyLesson(lesson)}
+                                className="p-1.5 text-gray-400 hover:text-[#e9c349] hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+                                title="Copiar Aula"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
                               <button
                                 id={`btn-edit-lesson-${lesson.id}`}
                                 onClick={() => openEditLesson(mod.id, lesson)}

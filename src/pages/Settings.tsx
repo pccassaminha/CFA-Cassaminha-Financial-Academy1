@@ -809,6 +809,41 @@ export default function Settings() {
                 </div>
               </div>
             </section>
+
+            {/* BUTTON 4: Gestão de Cupões */}
+            <section 
+              onClick={() => {
+                setPaymentModalTab('coupons');
+                setIsPaymentModalOpen(true);
+              }}
+              className="group relative bg-surface-container-low hover:bg-surface-container rounded-2xl p-6 sm:p-7 border border-outline-variant/10 hover:border-[#e9c349]/50 shadow-lg hover:shadow-[0_8px_30px_rgba(233,195,73,0.15)] transition-all cursor-pointer flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#e9c349]/10 group-hover:bg-[#e9c349] text-[#e9c349] group-hover:text-black flex items-center justify-center border border-[#e9c349]/20 transition-all">
+                    <Tag className="w-6 h-6" />
+                  </div>
+                  <span className="p-2 rounded-xl bg-surface-container-highest group-hover:bg-[#e9c349]/20 text-stone-400 group-hover:text-[#e9c349] transition-colors">
+                    <ArrowUpRight className="w-4 h-4" />
+                  </span>
+                </div>
+                <div className="mb-4">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349] block mb-1">Módulo 4</span>
+                  <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
+                    Gestão de Cupões
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-1.5 line-clamp-5 leading-relaxed">
+                    Crie e gira os seus cupões de desconto para promover e impulsionar vendas de cursos.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-outline-variant/10">
+                <div className="w-full py-2.5 px-4 bg-surface-container-highest group-hover:bg-[#e9c349] text-stone-300 group-hover:text-black font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                  <span>Gerir Meus Cupões</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </section>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
