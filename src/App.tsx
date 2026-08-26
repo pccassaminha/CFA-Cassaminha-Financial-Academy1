@@ -21,6 +21,7 @@ import Dashboard from './pages/Dashboard';
 import ContentManager from './pages/ContentManager';
 import Analytics from './pages/Analytics';
 import PushBroadcastManager from './pages/PushBroadcastManager';
+import ProducerMessages from './pages/ProducerMessages';
 import Settings from './pages/Settings';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
@@ -167,6 +168,10 @@ export default function App() {
           <Route 
             path="/broadcast" 
             element={user && isAdminEmail && effectiveRole !== 'student' ? <PushBroadcastManager /> : (user ? <Navigate to="/analytics" replace /> : <Navigate to="/entrar" replace />)} 
+          />
+          <Route 
+            path="/messages" 
+            element={user && (effectiveRole === 'admin' || effectiveRole === 'producer') ? <ProducerMessages /> : (isReallyAdmin && viewAsStudent) ? <Navigate to="/library" replace /> : <Navigate to="/entrar" replace />} 
           />
           <Route 
             path="/settings" 

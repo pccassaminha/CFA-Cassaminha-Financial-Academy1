@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import { ProducerContractModal } from '../components/ProducerContractModal';
-import { doc, getDoc, setDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { PlatformSettings, Coupon } from '../types';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
@@ -371,6 +371,35 @@ export default function Settings() {
     } catch (err) {
       console.error("Erro ao salvar dados do produtor:", err);
       showNotification('Erro ao salvar seus dados bancários.', 'error');
+    } finally {
+      setIsSavingProducerData(false);
+    }
+  };
+
+  // Guardar Plano Selecionado pelo Produtor para Vinculação ao Contrato
+  const handleSaveProducerPlan = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      showNotification('Usuário não autenticado.', 'error');
+      return;
+    }
+    setIsSavingProducerData(true);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const planLabel = producerData.producerPlan === 'monthly' ? 'Plano Mensal (3.500 Kz/mês)' : 'Plano Trimestral (7.000 Kz/3 meses)';
+      const contractBilling = producerData.producerPlan === 'monthly' ? 'monthly' : 'semiannual';
+
+      await updateDoc(userRef, {
+        producerPlan: producerData.producerPlan,
+        contractBillingFrequency: contractBilling,
+        producerPlanSelectedAt: new Date().toISOString(),
+        updatedAt: serverTimestamp()
+      });
+
+      showNotification(`✅ ${planLabel} guardado com sucesso! O plano foi vinculado ao seu contrato de produtor.`, 'success');
+    } catch (err) {
+      console.error('Erro ao guardar plano do produtor:', err);
+      showNotification('Erro ao guardar o plano selecionado. Tente novamente.', 'error');
     } finally {
       setIsSavingProducerData(false);
     }
@@ -854,17 +883,29 @@ export default function Settings() {
               <div className="p-4 bg-[#0e0e0e] border border-stone-800 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                   <span className="text-xs font-bold text-white block">Suporte e Pagamento do Plano (Grupo Cassaminha)</span>
-                  <span className="text-[11px] text-stone-400">Envie o comprovativo do pagamento da taxa do plano ao Maestro pelo WhatsApp.</span>
+                  <span className="text-[11px] text-stone-400">Guarde o plano escolhido no seu contrato e envie o comprovativo ao Maestro pelo WhatsApp.</span>
                 </div>
-                <a
-                  href={`https://wa.me/${supportWhatsApp}?text=${encodeURIComponent(`Olá Maestro, acabei de efetuar o pagamento do meu plano de produtor (${producerData.producerPlan === 'monthly' ? 'Mensal - 3.500 Kz' : 'Trimestral - 7.000 Kz'}). Segue o comprovativo.`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0"
-                >
-                  <Smartphone className="w-4 h-4" />
-                  <span>Enviar Comprovativo</span>
-                </a>
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleSaveProducerPlan}
+                    disabled={isSavingProducerData}
+                    className="px-4 py-2.5 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 disabled:opacity-50"
+                    title="Salvar método e plano selecionados para vinculação ao seu contrato"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-black" />
+                    <span>{isSavingProducerData ? 'A guardar...' : 'Guardar Plano no Contrato'}</span>
+                  </button>
+                  <a
+                    href={`https://wa.me/${supportWhatsApp}?text=${encodeURIComponent(`Olá Maestro, acabei de guardar o meu plano de produtor (${producerData.producerPlan === 'monthly' ? 'Mensal - 3.500 Kz' : 'Trimestral - 7.000 Kz'}). Segue o comprovativo.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>Enviar Comprovativo</span>
+                  </a>
+                </div>
               </div>
             </div>
 

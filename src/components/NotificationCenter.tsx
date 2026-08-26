@@ -27,8 +27,12 @@ import {
   deleteNotification, 
   requestPushPermission,
   showNativeNotification,
-  playNotificationSound
+  playNotificationSound,
+  generateDailyAdminSummaryNotification,
+  triggerAutomaticStudentReminders
 } from '../services/notificationService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
 interface NotificationCenterProps {
@@ -63,6 +67,46 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
     return () => unsub();
   }, [userRole, userId]);
+
+  // Scheduler global para disparar relatórios e lembretes automáticos no horário programado
+  useEffect(() => {
+    const checkScheduledTriggers = async () => {
+      try {
+        let reportTime = '20:00';
+        const reportDoc = await getDoc(doc(db, 'settings', 'dailyReport'));
+        if (reportDoc.exists() && reportDoc.data().time) {
+          reportTime = reportDoc.data().time;
+        }
+
+        const now = new Date();
+        const currentH = now.getHours();
+        const currentM = now.getMinutes();
+        const [targetH, targetM] = reportTime.split(':').map(Number);
+
+        // Disparo automático de relatório para admin no horário configurado
+        if (userRole === 'admin' && currentH === targetH && currentM === targetM) {
+          const lastRunKey = `lastDailyReportDate_${reportTime}`;
+          const lastRun = localStorage.getItem(lastRunKey);
+          const todayStr = now.toISOString().split('T')[0];
+
+          if (lastRun !== todayStr) {
+            localStorage.setItem(lastRunKey, todayStr);
+            await generateDailyAdminSummaryNotification(reportTime);
+          }
+        }
+
+        // Lembrete automático de regularização pendente
+        await triggerAutomaticStudentReminders();
+      } catch (err) {
+        console.warn('Erro no scheduler de notificações:', err);
+      }
+    };
+
+    const scheduleInterval = setInterval(checkScheduledTriggers, 30000);
+    checkScheduledTriggers();
+
+    return () => clearInterval(scheduleInterval);
+  }, [userRole]);
 
   // Fechar dropdown ao clicar fora
   useEffect(() => {
@@ -317,19 +361,24 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           </div>
 
           {/* Rodapé */}
-          {notifications.length > 0 && (
-            <div className="p-3 bg-[#0a0c10] border-t border-white/10 flex items-center justify-between text-[11px] text-stone-400">
-              <span className="text-[10px] text-stone-500">
-                CFA Academy Real-Time Engine
-              </span>
-              <button
-                onClick={() => markAllNotificationsAsRead(notifications)}
-                className="text-[#e9c349] hover:underline font-bold text-[11px] cursor-pointer"
-              >
-                Limpar / Marcar Lidas
-              </button>
-            </div>
-          )}
+          <div className="p-3 bg-[#0a0c10] border-t border-white/10 flex items-center justify-between text-[11px] text-stone-400">
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                navigate('/messages');
+              }}
+              className="text-[#e9c349] hover:underline font-bold text-[11px] cursor-pointer flex items-center gap-1"
+            >
+              <span>Ver Histórico & Arquivo</span>
+              <ChevronRight className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => markAllNotificationsAsRead(notifications)}
+              className="text-stone-400 hover:text-white font-bold text-[11px] cursor-pointer"
+            >
+              Marcar Todas Lidas
+            </button>
+          </div>
 
         </div>
       )}

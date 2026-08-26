@@ -22,6 +22,7 @@ export type NotificationType =
   | 'new_course' 
   | 'new_module' 
   | 'new_lesson' 
+  | 'doubt'
   | 'general';
 
 export interface SystemNotification {
@@ -33,6 +34,7 @@ export interface SystemNotification {
   targetRole?: 'admin' | 'student' | 'producer' | 'all';
   targetUserId?: string;
   read?: boolean;
+  archived?: boolean;
   metadata?: Record<string, any>;
   createdAt?: any;
   timestamp?: number;
@@ -342,6 +344,7 @@ export const subscribeToNotifications = (
           targetRole: docRole,
           targetUserId: data.targetUserId,
           read: data.read || false,
+          archived: data.archived || false,
           metadata: data.metadata || {},
           timestamp: data.timestamp || (data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now()),
         });
@@ -417,6 +420,56 @@ export const deleteNotification = async (id: string) => {
     await deleteDoc(doc(db, 'notifications', id));
   } catch (error) {
     console.error('Erro ao excluir notificação:', error);
+  }
+};
+
+/**
+ * Alterna o estado de arquivamento de uma notificação/mensagem
+ */
+export const toggleArchiveNotification = async (id: string, currentArchivedStatus: boolean) => {
+  try {
+    await updateDoc(doc(db, 'notifications', id), {
+      archived: !currentArchivedStatus
+    });
+  } catch (err) {
+    console.error('Erro ao arquivar notificação:', err);
+    throw err;
+  }
+};
+
+/**
+ * Envia uma dúvida/problema do produtor para a administração e guarda no histórico
+ */
+export const sendProducerDoubtMessage = async (payload: {
+  producerUid: string;
+  producerName: string;
+  producerEmail: string;
+  subject: string;
+  message: string;
+}) => {
+  try {
+    await addDoc(collection(db, 'notifications'), {
+      type: 'doubt',
+      title: `❓ Dúvida de Produtor: ${payload.subject}`,
+      message: payload.message,
+      link: '/messages',
+      targetRole: 'admin',
+      targetUserId: payload.producerUid,
+      read: false,
+      archived: false,
+      timestamp: Date.now(),
+      createdAt: serverTimestamp(),
+      metadata: {
+        isProducerDoubt: true,
+        producerUid: payload.producerUid,
+        producerName: payload.producerName,
+        producerEmail: payload.producerEmail,
+        subject: payload.subject
+      }
+    });
+  } catch (err) {
+    console.error('Erro ao registrar dúvida do produtor:', err);
+    throw err;
   }
 };
 
@@ -498,5 +551,39 @@ export const generateDailyAdminSummaryNotification = async (scheduledTime: strin
   } catch (err) {
     console.error('Erro ao gerar relatório diário de desempenho:', err);
     throw err;
+  }
+};
+
+/**
+ * Verificação automática e envio de lembretes diários para alunos e produtores
+ */
+export const triggerAutomaticStudentReminders = async () => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const lastReminderKey = `lastStudentRemindersRun_${todayStr}`;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(lastReminderKey)) return;
+
+    const usersSnap = await getDocs(query(collection(db, 'users'), where('subscriptionStatus', '==', 'pending_approval')));
+    let pendingCount = 0;
+    
+    usersSnap.forEach(() => {
+      pendingCount++;
+    });
+
+    if (pendingCount > 0) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(lastReminderKey, 'done');
+      }
+      await sendSystemNotification({
+        type: 'general',
+        title: '⏳ Lembrete Automático: Regularização Pendente',
+        message: `Aviso do Sistema: Existem ${pendingCount} cadastro(s) aguardando validação de comprovativo ou regularização do plano.`,
+        link: '/directory',
+        targetRole: 'admin',
+        metadata: { isAutomaticReminder: true, pendingCount }
+      });
+    }
+  } catch (err) {
+    console.warn('Erro ao verificar lembretes automáticos:', err);
   }
 };

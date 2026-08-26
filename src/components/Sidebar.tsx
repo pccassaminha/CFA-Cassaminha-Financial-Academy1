@@ -273,6 +273,19 @@ export default function Sidebar() {
           </span>
           <span>Análise</span>
         </Link>
+        <Link
+          to="/messages"
+          className={`flex items-center gap-4 px-4 py-3 mx-2 my-1 font-headline font-medium transition-transform duration-300 rounded-lg ${
+            location.pathname === '/messages'
+              ? 'bg-[#353534] text-[#e9c349] active:scale-95 brightness-110'
+              : 'text-[#bccabe] hover:bg-[#353534]/30 hover:translate-x-1'
+          }`}
+        >
+          <span className="material-symbols-outlined" style={location.pathname === '/messages' ? { fontVariationSettings: "'FILL' 1" } : {}}>
+            mail
+          </span>
+          <span>Mensagens & Arquivo</span>
+        </Link>
         {isMaster && (
           <Link
             to="/broadcast"
