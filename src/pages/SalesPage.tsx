@@ -33,6 +33,7 @@ interface Course {
   coverImage: string;
   isPublished: boolean;
   structureType?: 'modules' | 'single_lesson' | 'direct_link';
+  authorId?: string;
 }
 
 export default function SalesPage() {
@@ -50,10 +51,12 @@ export default function SalesPage() {
     
     // 1. Procurar cupão específico para este curso
     const specificCoupon = coupons.find(c => c.scope === 'course' && c.courseId === course.id);
-    // 2. Procurar cupão geral (todos os cursos)
-    const generalCoupon = coupons.find(c => c.scope === 'all' || c.scope === 'general' || !c.scope || !c.courseId);
+    // 2. Procurar cupão de produtor (todos os cursos do mesmo autor)
+    const producerCoupon = coupons.find(c => c.scope === 'producer' && c.producerId === course.authorId);
+    // 3. Procurar cupão geral (todos os cursos)
+    const generalCoupon = coupons.find(c => c.scope === 'all' || c.scope === 'general');
     
-    const activeCoupon = specificCoupon || generalCoupon;
+    const activeCoupon = specificCoupon || producerCoupon || generalCoupon;
     if (!activeCoupon) return { isFree: false, hasDiscount: false, discountedPrice: course.price, couponCode: null };
     
     let discountAmount = 0;

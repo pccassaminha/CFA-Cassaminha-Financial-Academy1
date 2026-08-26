@@ -109,7 +109,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
         sendSystemNotification({
           type: 'new_producer',
           title: '💼 Contrato de Produtor Assinado!',
-          message: `${producerName} assinou o contrato digital de Produtor da CFA Academy (${billingFrequency === 'monthly' ? 'Mensal' : 'Anual'}).`,
+          message: `${producerName} assinou o contrato digital de Produtor da CFA Cassaminha Financial Academy (${billingFrequency === 'monthly' ? 'Mensal' : 'Anual'}).`,
           link: '/students',
           targetRole: 'admin',
           metadata: {
@@ -205,7 +205,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
                 )}
               </h2>
               <p className="text-xs text-stone-400">
-                Grupo Cassaminha &middot; CFA Academy &middot; Termos de Parceria e Licenciamento
+                Grupo Cassaminha &middot; CFA Cassaminha Financial Academy &middot; Termos de Parceria e Licenciamento
               </p>
             </div>
           </div>
@@ -243,7 +243,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
                 </h3>
               </div>
               <p className="text-xs text-stone-300">
-                Selecione como prefere manter o seu compromisso de manutenção e utilização da infraestrutura da CFA Academy. Esta opção ficará expressa no seu contrato digital.
+                Selecione como prefere manter o seu compromisso de manutenção e utilização da infraestrutura da CFA Cassaminha Financial Academy. Esta opção ficará expressa no seu contrato digital.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <label
@@ -353,7 +353,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
               <div>
                 <strong className="text-stone-950 font-bold uppercase">1. CONCEDENTE / PLATAFORMA:</strong>
                 <p className="text-stone-700 mt-0.5">
-                  <strong>CASSAMINHA - COMÉRCIO & PRESTAÇÃO DE SERVIÇOS (SU), LDA.</strong>, com sede na Rua da Ordem dos Enfermeiros, Casa n.º 208, Município de Viana, Luanda, titular do <strong>NIF 5002868210</strong>, administradora da plataforma <strong>CFA Academy</strong>.
+                  <strong>CASSAMINHA - COMÉRCIO & PRESTAÇÃO DE SERVIÇOS (SU), LDA.</strong>, com sede na Rua da Ordem dos Enfermeiros, Casa n.º 208, Município de Viana, Luanda, titular do <strong>NIF 5002868210</strong>, administradora da plataforma <strong>CFA Cassaminha Financial Academy</strong>.
                 </p>
               </div>
               <div className="pt-2 border-t border-stone-200">
@@ -376,7 +376,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
                   CLÁUSULA PRIMEIRA – DO OBJETO E DA DISPONIBILIZAÇÃO DA INFRAESTRUTURA
                 </h3>
                 <p>
-                  O presente contrato tem como objeto a concessão de licença de uso da plataforma tecnológica <strong>CFA Academy</strong>, pertencente ao Grupo Cassaminha, permitindo ao PRODUTOR publicar, comercializar, hospedar aulas em vídeo, emitir certificados e gerir os seus alunos matriculados através de ferramentas integradas.
+                  O presente contrato tem como objeto a concessão de licença de uso da plataforma tecnológica <strong>CFA Cassaminha Financial Academy</strong>, pertencente ao Grupo Cassaminha, permitindo ao PRODUTOR publicar, comercializar, hospedar aulas em vídeo, emitir certificados e gerir os seus alunos matriculados através de ferramentas integradas.
                 </p>
               </div>
 
@@ -397,7 +397,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
                   CLÁUSULA TERCEIRA – DA CONDUTA ÉTICA, SINCERIDADE E PROIBIÇÃO ABSOLUTA DE FRAUDES
                 </h3>
                 <p>
-                  3.1. O PRODUTOR assume o compromisso solene de agir com estrita <strong>honestidade, transparência e boa-fé</strong> perante os alunos matriculados e a administração da CFA Academy.
+                  3.1. O PRODUTOR assume o compromisso solene de agir com estrita <strong>honestidade, transparência e boa-fé</strong> perante os alunos matriculados e a administração da CFA Cassaminha Financial Academy.
                 </p>
                 <p className="mt-1">
                   3.2. É estritamente vedada a publicação de conteúdos que promovam esquemas ilegais, pirâmides financeiras, promessas irreais de ganhos fáceis, plágio, violação de direitos autorais ou qualquer prática fraudulenta ou enganosa.
@@ -430,7 +430,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
                   CLÁUSULA SEXTA – DA VALIDADE DO ACEITE ELETRÓNICO E REGISTO DIGITAL
                 </h3>
                 <p>
-                  As partes reconhecem a plena validade jurídica, autenticidade e força executiva deste instrumento eletrónico, celebrado mediante autenticação digital no portal da CFA Academy.
+                  As partes reconhecem a plena validade jurídica, autenticidade e força executiva deste instrumento eletrónico, celebrado mediante autenticação digital no portal da CFA Cassaminha Financial Academy.
                 </p>
               </div>
 
@@ -441,7 +441,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
               <div className="p-3 bg-stone-100 rounded border border-stone-300 space-y-1">
                 <strong className="block text-[11px] uppercase font-bold text-stone-900">PELA CONCEDENTE:</strong>
                 <p className="font-bold text-stone-800">CASSAMINHA - COMÉRCIO & PRESTAÇÃO DE SERVIÇOS (SU), LDA.</p>
-                <p className="text-[10px] text-stone-600">Direção Executiva &middot; CFA Academy</p>
+                <p className="text-[10px] text-stone-600">Direção Executiva &middot; CFA Cassaminha Financial Academy</p>
                 <p className="text-[10px] font-mono text-emerald-800 font-bold mt-1">✓ Assinado Digitalmente pela Entidade</p>
               </div>
 
@@ -458,7 +458,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
 
             {/* Rodapé do PDF */}
             <div className="text-center text-[9px] text-stone-500 font-mono border-t border-stone-200 pt-3">
-              Documento gerado eletronicamente pela CFA Academy &middot; Grupo Cassaminha &middot; Rua da Ordem dos Enfermeiros, Casa 208, Viana, Luanda &middot; NIF 5002868210
+              Documento gerado eletronicamente pela CFA Cassaminha Financial Academy &middot; Grupo Cassaminha &middot; Rua da Ordem dos Enfermeiros, Casa 208, Viana, Luanda &middot; NIF 5002868210
             </div>
 
           </div>
@@ -474,7 +474,7 @@ export const ProducerContractModal: React.FC<ProducerContractModalProps> = ({
                   className="mt-1 w-4 h-4 rounded border-gray-600 bg-black text-[#e9c349] focus:ring-[#e9c349] accent-[#e9c349]"
                 />
                 <span className="text-xs text-stone-200 leading-relaxed">
-                  Declaro que li atentamente, compreendi e concordo integralmente com todas as cláusulas do <strong>Contrato Digital de Produtor da CFA Academy</strong>, comprometendo-me com a integridade pedagógica, com a proibição de fraudes e com o pagamento da modalidade <strong>{billingFrequency === 'semiannual' ? 'Semestral' : 'Mensal'}</strong> selecionada.
+                  Declaro que li atentamente, compreendi e concordo integralmente com todas as cláusulas do <strong>Contrato Digital de Produtor da CFA Cassaminha Financial Academy</strong>, comprometendo-me com a integridade pedagógica, com a proibição de fraudes e com o pagamento da modalidade <strong>{billingFrequency === 'semiannual' ? 'Semestral' : 'Mensal'}</strong> selecionada.
                 </span>
               </label>
             </div>

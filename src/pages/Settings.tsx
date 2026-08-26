@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import { ProducerContractModal } from '../components/ProducerContractModal';
-import { doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { PlatformSettings, Coupon } from '../types';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
@@ -78,7 +78,7 @@ export default function Settings() {
     code: string;
     type: 'percentage' | 'fixed';
     discountValue: number | string;
-    scope: 'general' | 'course';
+    scope: 'general' | 'course' | 'producer';
     courseId: string;
     active: boolean;
   }>({
@@ -259,7 +259,17 @@ export default function Settings() {
       }
 
       // 6. Fetch courses for coupon scope
-      const coursesSnap = await getDocs(collection(db, 'courses'));
+      let coursesSnap;
+      const currentUserLocalRole = user ? (await getDoc(doc(db, 'users', user.uid))).data()?.role : null;
+      if (currentUserLocalRole === 'producer' || currentUserLocalRole === 'admin') {
+        const cQuery = currentUserLocalRole === 'producer' 
+          ? query(collection(db, 'courses'), where('authorId', '==', user?.uid))
+          : query(collection(db, 'courses'));
+        coursesSnap = await getDocs(cQuery);
+      } else {
+        coursesSnap = await getDocs(collection(db, 'courses'));
+      }
+      
       if (!coursesSnap.empty) {
         const cList = coursesSnap.docs.map(d => ({
           id: d.id,
@@ -484,8 +494,12 @@ export default function Settings() {
           courseId: couponForm.courseId,
           courseTitle: selectedCourseTitle
         } : {}),
+        ...(couponForm.scope === 'producer' ? {
+          producerId: currentUserFullProfile?.uid
+        } : {}),
         active: couponForm.active,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        authorId: currentUserFullProfile?.uid
       };
       updatedCoupons = [newCoupon, ...coupons];
       setCoupons(updatedCoupons);
@@ -504,9 +518,13 @@ export default function Settings() {
         };
         delete base.courseId;
         delete base.courseTitle;
+        delete base.producerId;
         if (couponForm.scope === 'course' && couponForm.courseId) {
           base.courseId = couponForm.courseId;
           base.courseTitle = selectedCourseTitle;
+        }
+        if (couponForm.scope === 'producer') {
+          base.producerId = currentUserFullProfile?.uid;
         }
         return base;
       });
@@ -916,7 +934,10 @@ export default function Settings() {
                 <p className="text-xs text-stone-400 mt-0.5">Crie códigos de desconto exclusivos para os alunos dos seus cursos.</p>
               </div>
               <button
-                onClick={() => setIsPaymentModalOpen(true)}
+                onClick={() => {
+                  setPaymentModalTab('coupons');
+                  setIsPaymentModalOpen(true);
+                }}
                 className="px-5 py-2.5 bg-white/5 hover:bg-[#e9c349] hover:text-black text-white font-bold text-xs rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
@@ -997,16 +1018,19 @@ export default function Settings() {
             </div>
           </section>
 
-          {/* BUTTON 2: Canais de Pagamento (Angola) */}
+          {/* BUTTON 2: Canais de Pagamento (Angola) / Cupões */}
           <section 
             id="card-btn-payments"
-            onClick={() => setIsPaymentModalOpen(true)}
+            onClick={() => {
+              setPaymentModalTab(currentUserRole === 'admin' ? 'channels' : 'coupons');
+              setIsPaymentModalOpen(true);
+            }}
             className="group relative bg-surface-container-low hover:bg-surface-container rounded-2xl p-6 sm:p-7 border border-outline-variant/10 hover:border-[#e9c349]/50 shadow-lg hover:shadow-[0_8px_30px_rgba(233,195,73,0.15)] transition-all cursor-pointer flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-5">
                 <div className="w-12 h-12 rounded-2xl bg-[#e9c349]/10 group-hover:bg-[#e9c349] text-[#e9c349] group-hover:text-black flex items-center justify-center border border-[#e9c349]/20 transition-all">
-                  <CreditCard className="w-6 h-6" />
+                  {currentUserRole === 'admin' ? <CreditCard className="w-6 h-6" /> : <Ticket className="w-6 h-6" />}
                 </div>
                 <span className="p-2 rounded-xl bg-surface-container-highest group-hover:bg-[#e9c349]/20 text-stone-400 group-hover:text-[#e9c349] transition-colors">
                   <ArrowUpRight className="w-4 h-4" />
@@ -1016,30 +1040,36 @@ export default function Settings() {
               <div className="mb-4">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349] block mb-1">Módulo 2</span>
                 <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
-                  Pagamentos & Cupões
+                  {currentUserRole === 'admin' ? 'Pagamentos & Cupões' : 'Meus Cupões de Desconto'}
                 </h3>
                 <p className="text-xs text-stone-400 mt-1.5 line-clamp-5 leading-relaxed">
-                  Dados de IBAN, Express, KWIK, Referência e gestão de cupões de desconto.
+                  {currentUserRole === 'admin' 
+                    ? 'Dados de IBAN, Express, KWIK, Referência e gestão de cupões de desconto.'
+                    : 'Crie e gerencie códigos promocionais exclusivos para seus cursos.'}
                 </p>
               </div>
 
               <div className="space-y-2 pt-2 border-t border-outline-variant/10 text-xs">
-                <div className="flex justify-between items-center text-stone-400">
-                  <span>Canais de Pagamento:</span>
-                  <span className="font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full text-[11px]">
-                    {activePaymentsCount} de 4 Ativos
-                  </span>
-                </div>
+                {currentUserRole === 'admin' && (
+                  <div className="flex justify-between items-center text-stone-400">
+                    <span>Canais de Pagamento:</span>
+                    <span className="font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full text-[11px]">
+                      {activePaymentsCount} de 4 Ativos
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-stone-400">
                   <span>Cupões Ativos:</span>
                   <span className="font-bold text-[#e9c349] font-mono text-[11px]">
-                    {coupons.filter(c => c.active).length} Cupões
+                    {coupons.filter(c => c.active && (currentUserRole === 'admin' || c.authorId === currentUserFullProfile?.uid)).length} Cupões
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-stone-400">
-                  <span>Beneficiário:</span>
-                  <span className="font-mono text-stone-300 truncate max-w-[140px]">{paymentSettings.ibanAccountName || 'GRUPO CASSAMINHA'}</span>
-                </div>
+                {currentUserRole === 'admin' && (
+                  <div className="flex justify-between items-center text-stone-400">
+                    <span>Beneficiário:</span>
+                    <span className="font-mono text-stone-300 truncate max-w-[140px]">{paymentSettings.ibanAccountName || 'GRUPO CASSAMINHA'}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1375,18 +1405,20 @@ export default function Settings() {
 
             {/* Modal Tabs Navigation */}
             <div className="flex gap-2 mb-6 border-b border-outline-variant/10 pb-3">
-              <button
-                type="button"
-                onClick={() => setPaymentModalTab('channels')}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                  paymentModalTab === 'channels'
-                    ? 'bg-[#e9c349] text-black shadow-md'
-                    : 'bg-surface-container-highest text-stone-400 hover:text-white'
-                }`}
-              >
-                <CreditCard className="w-4 h-4" />
-                <span>Canais de Pagamento</span>
-              </button>
+              {currentUserRole === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalTab('channels')}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+                    paymentModalTab === 'channels'
+                      ? 'bg-[#e9c349] text-black shadow-md'
+                      : 'bg-surface-container-highest text-stone-400 hover:text-white'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Canais de Pagamento</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setPaymentModalTab('coupons')}
@@ -1401,13 +1433,13 @@ export default function Settings() {
                 <span className={`px-2 py-0.5 text-[10px] rounded-full font-mono ${
                   paymentModalTab === 'coupons' ? 'bg-black text-[#e9c349]' : 'bg-surface-container-low text-stone-300'
                 }`}>
-                  {coupons.length}
+                  {coupons.filter(c => currentUserRole === 'admin' || c.authorId === currentUserFullProfile?.uid).length}
                 </span>
               </button>
             </div>
 
             {/* TAB 1: CANAIS DE PAGAMENTO */}
-            {paymentModalTab === 'channels' && (
+            {currentUserRole === 'admin' && paymentModalTab === 'channels' && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[55vh] overflow-y-auto pr-1">
                   
@@ -1771,19 +1803,37 @@ export default function Settings() {
                         <label className="block text-[10px] uppercase font-bold tracking-wider text-stone-400 mb-1">
                           Aplicabilidade (Escopo)
                         </label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setCouponForm(prev => ({ ...prev, scope: 'general' }))}
-                            className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                              couponForm.scope === 'general'
-                                ? 'bg-[#e9c349] text-black border-[#e9c349]'
-                                : 'bg-black text-stone-400 border-outline-variant/20 hover:border-outline-variant/50'
-                            }`}
-                          >
-                            <Globe className="w-3.5 h-3.5" />
-                            <span>Todos os Cursos</span>
-                          </button>
+                        <div className={`grid gap-2 ${currentUserRole === 'admin' ? 'grid-cols-2' : 'grid-cols-2'}`}>
+                          {currentUserRole === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={() => setCouponForm(prev => ({ ...prev, scope: 'general' }))}
+                              className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                couponForm.scope === 'general'
+                                  ? 'bg-[#e9c349] text-black border-[#e9c349]'
+                                  : 'bg-black text-stone-400 border-outline-variant/20 hover:border-outline-variant/50'
+                              }`}
+                            >
+                              <Globe className="w-3.5 h-3.5" />
+                              <span>Todos os Cursos</span>
+                            </button>
+                          )}
+                          
+                          {(currentUserRole === 'producer' || currentUserRole === 'admin') && (
+                            <button
+                              type="button"
+                              onClick={() => setCouponForm(prev => ({ ...prev, scope: 'producer' }))}
+                              className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                couponForm.scope === 'producer'
+                                  ? 'bg-[#e9c349] text-black border-[#e9c349]'
+                                  : 'bg-black text-stone-400 border-outline-variant/20 hover:border-outline-variant/50'
+                              }`}
+                            >
+                              <Globe className="w-3.5 h-3.5" />
+                              <span>{currentUserRole === 'producer' ? 'Meus Cursos' : 'Cursos do Autor'}</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => setCouponForm(prev => ({ ...prev, scope: 'course' }))}
@@ -1852,14 +1902,14 @@ export default function Settings() {
 
                 {/* COUPONS LIST TABLE */}
                 <div className="max-h-[42vh] overflow-y-auto pr-1 space-y-3">
-                  {coupons.length === 0 ? (
+                  {(currentUserRole === 'admin' ? coupons : coupons.filter(c => c.authorId === currentUserFullProfile?.uid)).length === 0 ? (
                     <div className="text-center py-12 border border-dashed border-outline-variant/20 rounded-2xl bg-black/20">
                       <Ticket className="w-10 h-10 mx-auto text-stone-600 mb-2" />
                       <p className="text-xs text-stone-400 font-bold">Nenhum cupão cadastrado.</p>
                       <p className="text-[11px] text-stone-500 mt-1">Clique no botão "Criar Novo Cupão" acima para disponibilizar um desconto aos seus alunos.</p>
                     </div>
                   ) : (
-                    coupons.map((cp) => (
+                    (currentUserRole === 'admin' ? coupons : coupons.filter(c => c.authorId === currentUserFullProfile?.uid)).map((cp) => (
                       <div
                         key={cp.id}
                         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 hover:border-outline-variant/30 transition-all"

@@ -12,7 +12,7 @@ export default function Checkout() {
   const [searchParams] = useSearchParams();
   const courseIdParam = searchParams.get('courseId') || '';
 
-  const [selectedCourse, setSelectedCourse] = useState<{ id: string; title: string; price: number; coverImage?: string } | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<{ id: string; title: string; price: number; coverImage?: string; authorId?: string } | null>(null);
   const [selectedMethod, setSelectedMethod] = useState('multicaixa');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -90,7 +90,8 @@ export default function Checkout() {
               id: cSnap.id,
               title: data.title || 'Formação CFA',
               price: Number(data.price) || 0,
-              coverImage: data.coverImage || data.imageUrl || data.image || ''
+              coverImage: data.coverImage || data.imageUrl || data.image || '',
+              authorId: data.authorId
             });
             return;
           }
@@ -104,7 +105,8 @@ export default function Checkout() {
             id: first.id,
             title: fData.title || 'Formação CFA',
             price: Number(fData.price) || 0,
-            coverImage: fData.coverImage || fData.imageUrl || fData.image || ''
+            coverImage: fData.coverImage || fData.imageUrl || fData.image || '',
+            authorId: fData.authorId
           });
         } else {
           setSelectedCourse({
@@ -173,20 +175,7 @@ export default function Checkout() {
         }
         setCouponsList(loadedCoupons);
 
-        // Auto apply coupon if available
-        const activeCoupons = loadedCoupons.filter(c => c && c.active !== false);
-        if (activeCoupons.length > 0) {
-          const courseSpecific = activeCoupons.find(c => c.scope === 'course' && c.courseId === courseIdParam);
-          const general = activeCoupons.find(c => c.scope === 'all' || !c.scope || !c.courseId);
-          const best = courseSpecific || general;
-          if (best) {
-            setAppliedCoupon(best);
-            const discountStr = best.type === 'percentage' 
-              ? `${best.discountValue}%` 
-              : `Kz ${Number(best.discountValue).toLocaleString('pt-AO')}`;
-            setCouponSuccessMsg(`Cupão ${best.code} aplicado com sucesso! (-${discountStr})`);
-          }
-        }
+        // Auto apply coupon will happen in a separate useEffect
       } catch (err) {
         console.error("Failed to load settings:", err);
       }
@@ -202,6 +191,25 @@ export default function Checkout() {
 
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (couponsList.length > 0 && selectedCourse && !appliedCoupon && !couponError) {
+      const activeCoupons = couponsList.filter(c => c && c.active !== false);
+      if (activeCoupons.length > 0) {
+        const courseSpecific = activeCoupons.find(c => c.scope === 'course' && c.courseId === selectedCourse.id);
+        const producerSpecific = activeCoupons.find(c => c.scope === 'producer' && c.producerId === selectedCourse.authorId);
+        const general = activeCoupons.find(c => c.scope === 'all' || c.scope === 'general');
+        const best = courseSpecific || producerSpecific || general;
+        if (best) {
+          setAppliedCoupon(best);
+          const discountStr = best.type === 'percentage' 
+            ? `${best.discountValue}%` 
+            : `Kz ${Number(best.discountValue).toLocaleString('pt-AO')}`;
+          setCouponSuccessMsg(`Cupão ${best.code} aplicado com sucesso! (-${discountStr})`);
+        }
+      }
+    }
+  }, [couponsList, selectedCourse, appliedCoupon, couponError]);
 
   const coursePrice = selectedCourse ? selectedCourse.price : 0;
   const courseTitle = selectedCourse ? selectedCourse.title : 'Formação CFA';
@@ -241,6 +249,11 @@ export default function Checkout() {
 
     if (match.scope === 'course' && match.courseId && match.courseId !== courseId) {
       setCouponError(`Cupão válido apenas para o curso "${match.courseTitle || 'específico'}".`);
+      return;
+    }
+
+    if (match.scope === 'producer' && match.producerId && match.producerId !== selectedCourse?.authorId) {
+      setCouponError('Este cupão não é aplicável a este curso.');
       return;
     }
 
