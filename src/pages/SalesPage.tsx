@@ -218,14 +218,7 @@ export default function SalesPage() {
                 <NotificationCenter userRole={isAdmin ? 'admin' : 'student'} userId={currentUser.uid} />
               )}
 
-              <button
-                onClick={() => setIsAndroidModalOpen(true)}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg sm:rounded-xl text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 hover:bg-[#e9c349]/20 transition-all cursor-pointer shadow-sm"
-                title="Versão App Android"
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>App Android</span>
-              </button>
+              {/* Botão do App Ocultado na versão web */}
 
               {currentUser ? (
                 isAdmin ? (

@@ -300,14 +300,7 @@ export default function StudentPortal() {
         <div className="flex items-center justify-end gap-2 sm:gap-3">
           <NotificationCenter userRole={isAdmin ? 'admin' : 'student'} userId={user?.uid} />
 
-          <button
-            onClick={() => setIsAndroidModalOpen(true)}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 hover:bg-[#e9c349]/20 transition-all cursor-pointer shadow-sm active:scale-95"
-            title="Instalar Aplicação no Telemóvel"
-          >
-            <Smartphone className="w-4 h-4" />
-            <span className="hidden md:inline">Instalar App</span>
-          </button>
+          {/* Botão de Instalar App ocultado na navegação superior web */}
 
           {isAdmin && (
             <button
