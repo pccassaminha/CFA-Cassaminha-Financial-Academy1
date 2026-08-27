@@ -55,32 +55,62 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
   }, []);
 
   const getCourseDiscountInfo = (course: Course) => {
-    if (!course.price || course.price === 0) return { isFree: true, hasDiscount: false, discountedPrice: 0, couponCode: null };
+    if (!course.price || course.price === 0) return { isFree: true, hasDiscount: false, discountedPrice: 0, couponCode: null, discountValue: 0, discountType: 'percentage' };
     
-    // 1. Procurar cupão específico para este curso
-    const specificCoupon = coupons.find(c => c.scope === 'course' && c.courseId === course.id);
-    // 2. Procurar cupão geral (todos os cursos)
-    const generalCoupon = coupons.find(c => c.scope === 'all' || c.scope === 'general' || !c.scope || !c.courseId);
-    
-    const activeCoupon = specificCoupon || generalCoupon;
-    if (!activeCoupon) return { isFree: false, hasDiscount: false, discountedPrice: course.price, couponCode: null };
-    
-    let discountAmount = 0;
-    if (activeCoupon.type === 'percentage') {
-      discountAmount = (course.price * Number(activeCoupon.discountValue)) / 100;
-    } else if (activeCoupon.type === 'fixed') {
-      discountAmount = Number(activeCoupon.discountValue);
+    // Filtrar todos os cupões aplicáveis a este curso
+    const applicableCoupons = coupons.filter(c => {
+      if (c.active === false) return false; // Ignorar inativos
+
+      if (c.scope === 'course') {
+        return c.courseId === course.id;
+      }
+      if (c.scope === 'producer') {
+        return c.producerId === course.authorId;
+      }
+      if (c.scope === 'all' || c.scope === 'general' || !c.scope) {
+        return !c.courseId; // Cupão geral não pode estar atrelado a um ID de curso específico
+      }
+      return false;
+    });
+
+    if (applicableCoupons.length === 0) {
+      return { isFree: false, hasDiscount: false, discountedPrice: course.price, couponCode: null, discountValue: 0, discountType: 'percentage' };
     }
-    if (discountAmount > course.price) discountAmount = course.price;
+
+    // Encontrar o cupão que oferece o MAIOR desconto
+    let bestCoupon = null;
+    let maxDiscountAmount = 0;
+
+    applicableCoupons.forEach(coupon => {
+      let currentDiscountAmount = 0;
+      if (coupon.type === 'percentage') {
+        currentDiscountAmount = (course.price * Number(coupon.discountValue)) / 100;
+      } else if (coupon.type === 'fixed') {
+        currentDiscountAmount = Number(coupon.discountValue);
+      }
+      
+      if (currentDiscountAmount > course.price) {
+        currentDiscountAmount = course.price;
+      }
+
+      if (currentDiscountAmount > maxDiscountAmount) {
+        maxDiscountAmount = currentDiscountAmount;
+        bestCoupon = coupon;
+      }
+    });
+
+    if (!bestCoupon || maxDiscountAmount <= 0) {
+      return { isFree: false, hasDiscount: false, discountedPrice: course.price, couponCode: null, discountValue: 0, discountType: 'percentage' };
+    }
     
-    const discountedPrice = Math.max(0, course.price - discountAmount);
+    const discountedPrice = Math.max(0, course.price - maxDiscountAmount);
     return {
       isFree: false,
       hasDiscount: discountedPrice < course.price,
       discountedPrice,
-      couponCode: activeCoupon.code,
-      discountValue: activeCoupon.discountValue,
-      discountType: activeCoupon.type
+      couponCode: bestCoupon.code,
+      discountValue: bestCoupon.discountValue,
+      discountType: bestCoupon.type
     };
   };
 

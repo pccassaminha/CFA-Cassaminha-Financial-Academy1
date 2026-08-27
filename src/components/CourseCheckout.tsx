@@ -91,13 +91,16 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
     const fetchCheckoutConfig = async () => {
       try {
         // Executa todas as buscas em PARALELO para velocidade máxima
-        const [genSnap, platSnap, paymentSettingsSnap, methodsSnap, couponsSnap] = await Promise.all([
+        const [genSnap, platSnap, paymentSettingsSnap, methodsSnap, couponsSnap, courseSnap] = await Promise.all([
           getDoc(doc(db, 'settings', 'general')).catch(() => null),
           getDoc(doc(db, 'settings', 'platform')).catch(() => null),
           getDoc(doc(db, 'settings', 'payment')).catch(() => null),
           getDocs(collection(db, 'paymentMethods')).catch(() => null),
-          getDoc(doc(db, 'settings', 'coupons')).catch(() => null)
+          getDoc(doc(db, 'settings', 'coupons')).catch(() => null),
+          getDoc(doc(db, 'courses', courseId)).catch(() => null)
         ]);
+        
+        const courseData = courseSnap?.exists() ? courseSnap.data() : null;
 
         // 1. Suporte WhatsApp
         if (genSnap?.exists() && genSnap.data().supportWhatsApp) {
