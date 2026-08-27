@@ -367,14 +367,15 @@ export default function Settings() {
       const coursesSnap = await getDocs(collection(db, 'courses'));
       coursesSnap.forEach(async (cDoc) => {
         const cData = cDoc.data();
-        if (cData.authorId === user.uid) {
+        if (cData.authorId === user.uid || (user.email && cData.authorEmail === user.email)) {
           await updateDoc(doc(db, 'courses', cDoc.id), {
             producerName: producerData.producerName.trim(),
             producerPhone: producerData.producerWhatsApp.trim(),
             producerBankName: producerData.producerBankName.trim(),
             producerHolderName: producerData.producerHolderName.trim(),
             producerIban: producerData.producerIban.trim(),
-            producerExpressPhone: producerData.producerExpressPhone.trim()
+            producerExpressPhone: producerData.producerExpressPhone.trim(),
+            authorEmail: user.email
           }).catch(() => {});
         }
       });
@@ -527,6 +528,7 @@ export default function Settings() {
         }
         if (couponForm.scope === 'producer') {
           base.producerId = currentUserFullProfile?.uid;
+          base.producerEmail = currentUserFullProfile?.email;
         }
         return base;
       });
@@ -2193,6 +2195,19 @@ export default function Settings() {
             <div className="p-6 md:p-8 max-h-[75vh] overflow-y-auto">
               <form onSubmit={handleSaveProducerData} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                      E-mail Vinculado (Identificador Oficial)
+                    </label>
+                    <input
+                      type="email"
+                      value={currentUserFullProfile?.email || auth.currentUser?.email || ''}
+                      readOnly
+                      disabled
+                      className="w-full bg-[#0a0a0a] border border-stone-800 text-stone-500 rounded-xl px-4 py-3 text-xs focus:outline-none cursor-not-allowed font-mono"
+                    />
+                    <p className="text-[10px] text-stone-500 mt-1.5">Todos os seus cursos e cupões estão automaticamente associados a este e-mail.</p>
+                  </div>
                   <div>
                     <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
                       Nome / Marca do Produtor

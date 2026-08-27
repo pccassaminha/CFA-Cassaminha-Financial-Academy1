@@ -6,11 +6,13 @@ export interface Coupon {
   scope: 'general' | 'course' | 'all' | 'producer'; // 'general'/'all' = todos os cursos, 'course' = curso específico, 'producer' = apenas cursos do produtor
   courseId?: string; // ID do curso se for específico
   courseTitle?: string; // Título do curso para exibição
-  producerId?: string; // ID do produtor para o escopo 'producer'
+  producerId?: string;
+  producerEmail?: string; // ID do produtor para o escopo 'producer'
   active: boolean; // Ativo / Inativo
   createdAt?: string;
   usageCount?: number;
-  authorId?: string; // ID do produtor que criou o cupão (se for de produtor)
+  authorId?: string;
+  authorEmail?: string; // ID do produtor que criou o cupão (se for de produtor)
 }
 
 export interface PlatformSettings {
@@ -36,7 +38,8 @@ export interface Transaction {
   status: 'pending' | 'approved' | 'rejected';
   createdAt: any;
   proofUrl?: string;
-  producerId?: string; // ID do produtor recebedor
+  producerId?: string;
+  producerEmail?: string; // ID do produtor recebedor
 }
 
 export interface LessonLink {
@@ -83,7 +86,8 @@ export interface Course {
   singleLessonLinks?: LessonLink[];
   modules: Module[];
   price?: number;
-  authorId?: string; // ID do produtor ou admin autor
+  authorId?: string;
+  authorEmail?: string; // ID do produtor ou admin autor
   producerName?: string; // Nome de exibição do produtor
   producerPhone?: string; // WhatsApp de contacto do produtor
   producerIban?: string; // IBAN específico do produtor

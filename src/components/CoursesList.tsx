@@ -243,6 +243,7 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
       status: newCourseForm.isPublished ? 'published' : 'draft',
       instructor: finalSignature,
       authorId,
+      authorEmail: currentUser?.email,
       producerName: finalSignature,
       producerPhone,
       producerIban,

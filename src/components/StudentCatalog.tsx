@@ -65,7 +65,25 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
         return c.courseId === course.id;
       }
       if (c.scope === 'producer') {
-        return c.producerId === course.authorId;
+        const adminEmails = ['grupocassaminha@gmail.com', 'exportacoes.extras@gmail.com', 'grupocassaminha@gmail.com'];
+        const courseAuthorId = course.authorId;
+        const courseAuthorEmail = course.authorEmail;
+        const couponProducerId = c.producerId;
+        const couponProducerEmail = c.producerEmail;
+        
+        if (couponProducerId && courseAuthorId && couponProducerId === courseAuthorId) return true;
+        if (couponProducerEmail && courseAuthorEmail && couponProducerEmail.toLowerCase() === courseAuthorEmail.toLowerCase()) return true;
+        
+        // Cursos antigos sem owner são do admin
+        const isCourseOldAdmin = !courseAuthorId && !courseAuthorEmail;
+        // Cupões criados pelo admin (ou antes de ter email salvo)
+        const isCouponAdmin = !couponProducerEmail || adminEmails.includes(couponProducerEmail.toLowerCase());
+        
+        if (isCourseOldAdmin && isCouponAdmin) {
+           return true;
+        }
+        
+        return false;
       }
       if (c.scope === 'all' || c.scope === 'general' || !c.scope) {
         return !c.courseId; // Cupão geral não pode estar atrelado a um ID de curso específico
