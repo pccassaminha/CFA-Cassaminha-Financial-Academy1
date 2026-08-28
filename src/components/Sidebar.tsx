@@ -204,10 +204,6 @@ export default function Sidebar() {
             )}
           </Link>
 
-          <div className="hidden lg:flex items-center">
-            <NotificationCenter userRole="admin" userId={auth.currentUser?.uid} />
-          </div>
-
           {/* Botão para fechar no Mobile */}
           <button
             onClick={() => setIsOpenMobile(false)}

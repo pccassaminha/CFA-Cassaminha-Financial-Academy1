@@ -440,7 +440,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
       sendSystemNotification({
         type: 'payment_submitted',
         title: '💳 Pagamento Informado ("Já Paguei")!',
-        message: `O aluno ${finalStudentName} informou pagamento de ${formattedPrice} no curso "${safeTitle}". Referência: ${cleanRef}`,
+        message: `O aluno ${finalStudentName} informou pagamento de ${formattedPrice} no curso "${safeTitle}" (Produtor: ${courseData?.authorEmail || 'CFA Academy'}). Referência: ${cleanRef}`,
         link: '/dashboard',
         targetRole: 'admin',
         metadata: {
@@ -453,19 +453,24 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
         }
       });
 
-      if (courseData && courseData.authorId) {
+const producerId = courseData?.authorId || '';
+      const producerEmail = courseData?.authorEmail || '';
+      const isAdminCourse = !producerId && !producerEmail;
+
+      if (producerId || producerEmail || isAdminCourse) {
         sendSystemNotification({
           type: 'payment_submitted',
           title: '💰 Nova Venda Recebida!',
           message: `O aluno ${finalStudentName} informou pagamento de ${formattedPrice} no seu curso "${safeTitle}". Aceda à plataforma para validar o comprovativo e libertar o acesso do aluno ao curso.`,
           link: '/dashboard',
           targetRole: 'producer',
-          targetUserId: courseData.authorId,
+          targetUserId: producerId || 'admin_default',
           metadata: {
             studentName: finalStudentName,
             courseTitle: safeTitle,
             amount: finalPrice,
-            referenceNumber: cleanRef
+            referenceNumber: cleanRef,
+            targetEmail: producerEmail
           }
         });
       }

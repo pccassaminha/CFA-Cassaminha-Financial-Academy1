@@ -13,7 +13,7 @@ import {
   getDocs,
   where
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 
 export type NotificationType = 
   | 'new_student' 
@@ -418,6 +418,8 @@ export const subscribeToNotifications = (
         const isProducer = targetRole === 'producer';
         const isAdmin = targetRole === 'admin';
         const notifType = data.type;
+        const currentUserEmail = auth.currentUser?.email;
+        const targetEmail = data.metadata?.targetEmail;
         
         let shouldKeep = false;
         
@@ -428,17 +430,29 @@ export const subscribeToNotifications = (
           if (data.targetUserId && data.targetUserId === userId) {
             shouldKeep = true;
           }
-        } else if (isProducer) {
-          if (['new_lesson', 'new_module', 'new_course'].includes(notifType)) {
+        } else if (isProducer || isAdmin) {
+          // Se for admin e a notificação for para admins, mantém
+          if (isAdmin && docRole === 'admin') {
             shouldKeep = true;
           }
-          if (data.targetUserId && data.targetUserId === userId) {
+          
+          // Se for uma notificação de conteúdo para todos
+          if (['new_lesson', 'new_module', 'new_course'].includes(notifType) && docRole === 'all') {
             shouldKeep = true;
           }
-        } else if (isAdmin) {
-          shouldKeep = true;
-          if (data.targetUserId && data.targetUserId !== userId && docRole !== 'admin') {
-            shouldKeep = false;
+          
+          // Se for notificação de produtor (Ex: Venda)
+          if (docRole === 'producer') {
+            let isMine = false;
+            // Match por ID
+            if (data.targetUserId && data.targetUserId === userId) isMine = true;
+            // Match por Email
+            if (targetEmail && currentUserEmail && targetEmail.toLowerCase() === currentUserEmail.toLowerCase()) isMine = true;
+            
+            // Administrador também vê as vendas dos seus próprios cursos antigos
+            if (isAdmin && data.targetUserId === 'admin_default') isMine = true;
+            
+            if (isMine) shouldKeep = true;
           }
         }
         
@@ -472,16 +486,23 @@ export const subscribeToNotifications = (
             const isProducer = targetRole === 'producer';
             const isAdmin = targetRole === 'admin';
             const notifType = data.type;
+            const currentUserEmail = auth.currentUser?.email;
+            const targetEmail = data.metadata?.targetEmail;
             
             if (isStudent) {
               if (['new_lesson', 'new_module', 'new_course'].includes(notifType)) shouldNotify = true;
               if (data.targetUserId && data.targetUserId === userId) shouldNotify = true;
-            } else if (isProducer) {
-              if (['new_lesson', 'new_module', 'new_course'].includes(notifType)) shouldNotify = true;
-              if (data.targetUserId && data.targetUserId === userId) shouldNotify = true;
-            } else if (isAdmin) {
-              shouldNotify = true;
-              if (data.targetUserId && data.targetUserId !== userId && docRole !== 'admin') shouldNotify = false;
+            } else if (isProducer || isAdmin) {
+              if (isAdmin && docRole === 'admin') shouldNotify = true;
+              if (['new_lesson', 'new_module', 'new_course'].includes(notifType) && docRole === 'all') shouldNotify = true;
+              
+              if (docRole === 'producer') {
+                let isMine = false;
+                if (data.targetUserId && data.targetUserId === userId) isMine = true;
+                if (targetEmail && currentUserEmail && targetEmail.toLowerCase() === currentUserEmail.toLowerCase()) isMine = true;
+                if (isAdmin && data.targetUserId === 'admin_default') isMine = true;
+                if (isMine) shouldNotify = true;
+              }
             }
 
             if (shouldNotify) {
