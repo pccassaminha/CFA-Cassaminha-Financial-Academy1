@@ -216,7 +216,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
       {/* Menu Suspenso */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-[#12141a] border border-white/15 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col text-stone-200 animate-fadeIn">
+        <div className="fixed inset-x-2 top-20 sm:absolute sm:inset-auto sm:right-0 sm:mt-3 w-auto sm:w-96 bg-[#12141a] border border-white/15 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col text-stone-200 animate-fadeIn origin-top">
           
           {/* Header */}
           <div className="p-4 bg-[#0a0c10] border-b border-white/10 flex items-center justify-between">

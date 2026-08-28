@@ -453,6 +453,23 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
         }
       });
 
+      if (courseData && courseData.authorId) {
+        sendSystemNotification({
+          type: 'payment_submitted',
+          title: '💰 Nova Venda Recebida!',
+          message: `O aluno ${finalStudentName} informou pagamento de ${formattedPrice} no seu curso "${safeTitle}". Aceda à plataforma para validar o comprovativo e libertar o acesso do aluno ao curso.`,
+          link: '/dashboard',
+          targetRole: 'producer',
+          targetUserId: courseData.authorId,
+          metadata: {
+            studentName: finalStudentName,
+            courseTitle: safeTitle,
+            amount: finalPrice,
+            referenceNumber: cleanRef
+          }
+        });
+      }
+
       // 2. Armazena localmente para persistência de sessão e reenvio
       const localRecord = {
         ...txData,

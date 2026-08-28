@@ -414,25 +414,35 @@ export const subscribeToNotifications = (
         const data = docSnap.data();
         const docRole = data.targetRole || 'all';
 
-        // Filtro por papel do utilizador
-        if (targetRole === 'student') {
-          // Alunos só recebem notificações públicas ('all') ou dirigidas a 'student'
-          if (docRole === 'admin') {
-            return;
+        const isStudent = targetRole === 'student';
+        const isProducer = targetRole === 'producer';
+        const isAdmin = targetRole === 'admin';
+        const notifType = data.type;
+        
+        let shouldKeep = false;
+        
+        if (isStudent) {
+          if (['new_lesson', 'new_module', 'new_course'].includes(notifType)) {
+            shouldKeep = true;
           }
-          // Se for endereçada a um aluno específico, valida o ID
-          if (data.targetUserId && data.targetUserId !== userId) {
-            return;
+          if (data.targetUserId && data.targetUserId === userId) {
+            shouldKeep = true;
           }
-        } else if (targetRole !== 'admin') {
-          // Se for outro papel não-admin, não recebe alertas de admin
-          if (docRole === 'admin') {
-            return;
+        } else if (isProducer) {
+          if (['new_lesson', 'new_module', 'new_course'].includes(notifType)) {
+            shouldKeep = true;
           }
-          if (data.targetUserId && data.targetUserId !== userId) {
-            return;
+          if (data.targetUserId && data.targetUserId === userId) {
+            shouldKeep = true;
+          }
+        } else if (isAdmin) {
+          shouldKeep = true;
+          if (data.targetUserId && data.targetUserId !== userId && docRole !== 'admin') {
+            shouldKeep = false;
           }
         }
+        
+        if (!shouldKeep) return;
 
         notifs.push({
           id: docSnap.id,
@@ -457,13 +467,21 @@ export const subscribeToNotifications = (
             const docRole = data.targetRole || 'all';
 
             // Verifica se o usuário atual deve receber a notificação nativa
-            let shouldNotify = true;
-            if (targetRole === 'student') {
-              if (docRole === 'admin') shouldNotify = false;
-              if (data.targetUserId && data.targetUserId !== userId) shouldNotify = false;
-            } else if (targetRole !== 'admin') {
-              if (docRole === 'admin') shouldNotify = false;
-              if (data.targetUserId && data.targetUserId !== userId) shouldNotify = false;
+            let shouldNotify = false;
+            const isStudent = targetRole === 'student';
+            const isProducer = targetRole === 'producer';
+            const isAdmin = targetRole === 'admin';
+            const notifType = data.type;
+            
+            if (isStudent) {
+              if (['new_lesson', 'new_module', 'new_course'].includes(notifType)) shouldNotify = true;
+              if (data.targetUserId && data.targetUserId === userId) shouldNotify = true;
+            } else if (isProducer) {
+              if (['new_lesson', 'new_module', 'new_course'].includes(notifType)) shouldNotify = true;
+              if (data.targetUserId && data.targetUserId === userId) shouldNotify = true;
+            } else if (isAdmin) {
+              shouldNotify = true;
+              if (data.targetUserId && data.targetUserId !== userId && docRole !== 'admin') shouldNotify = false;
             }
 
             if (shouldNotify) {
