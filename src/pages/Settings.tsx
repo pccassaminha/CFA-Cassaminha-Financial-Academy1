@@ -109,6 +109,7 @@ export default function Settings() {
   });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const certInputRef = useRef<HTMLInputElement | null>(null);
 
   // Logo Link Modal States
   const [logoModalOpen, setLogoModalOpen] = useState(false);
