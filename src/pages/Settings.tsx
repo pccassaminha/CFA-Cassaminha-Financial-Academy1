@@ -5,7 +5,11 @@ import { doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp, q
 import { db, auth } from '../firebase';
 import { PlatformSettings, Coupon } from '../types';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
+import { CertificateModal } from '../components/CertificateModal';
+import { compressImage, compressDataUrl } from '../utils/imageCompressor';
 import { 
+  Award,
+  Eye,
   Building2, 
   Globe, 
   Smartphone, 
@@ -55,6 +59,8 @@ export default function Settings() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentModalTab, setPaymentModalTab] = useState<'channels' | 'coupons'>('channels');
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
+  const [isCertificateModalOpen, setIsCertificateModalOpen] = useState(false);
+  const [isTestCertOpen, setIsTestCertOpen] = useState(false);
 
   // Coupons State
   const [coupons, setCoupons] = useState<Coupon[]>([
@@ -123,6 +129,7 @@ export default function Settings() {
   const [timezone, setTimezone] = useState('WAT (UTC+01:00) Luanda');
   const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
   const [certificateTemplate, setCertificateTemplate] = useState('');
+  const [isUploadingCert, setIsUploadingCert] = useState(false);
 
   // Announcement Bar State
   const [announcementText, setAnnouncementText] = useState('Aproveite desconto de 33% em todos os cursos!');
@@ -585,43 +592,68 @@ export default function Settings() {
   };
 
   // Upload Certificate Template
-  const handleCertificateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCertificateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 3 * 1024 * 1024) {
-      showNotification('O certificado deve ter no máximo 3MB.', 'error');
+    if (file.size > 20 * 1024 * 1024) {
+      showNotification('A imagem deve ter no máximo 20MB.', 'error');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setCertificateTemplate(event.target.result as string);
-        showNotification('Modelo de certificado carregado temporariamente! Salve para aplicar.', 'info');
-      }
-    };
-    reader.readAsDataURL(file);
+    setIsUploadingCert(true);
+    showNotification('A otimizar resolução para gravação no servidor...', 'info');
+
+    try {
+      // Comprime dinamicamente em alta resolução para <= 650KB garantindo conformidade com limite de 1MB do Firestore
+      const compressedBase64 = await compressImage(file, 1920, 1358, 0.85, 650000);
+      setCertificateTemplate(compressedBase64);
+
+      await setDoc(doc(db, 'settings', 'platform'), { 
+        certificateTemplate: compressedBase64,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      showNotification('Molde oficial do certificado gravado com sucesso no servidor!', 'success');
+    } catch (err: any) {
+      console.error('Erro ao gravar molde:', err);
+      showNotification(`Erro ao gravar molde: ${err?.message || 'Falha no processamento'}`, 'error');
+    } finally {
+      setIsUploadingCert(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemoveCertificateTemplate = async () => {
+    setCertificateTemplate('');
+    try {
+      await setDoc(doc(db, 'settings', 'platform'), { certificateTemplate: '' }, { merge: true });
+      showNotification('Molde de certificado removido com sucesso!', 'info');
+    } catch (err) {
+      console.error('Erro ao remover molde:', err);
+    }
   };
 
   // Upload Logo from Device
-  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      showNotification('O arquivo deve ter no máximo 2MB.', 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showNotification('O arquivo deve ter no máximo 10MB.', 'error');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setLogoUrl(event.target.result as string);
-        showNotification('Novo logotipo carregado com sucesso!', 'info');
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Comprime logo para resolução ideal leve e de alta nitidez
+      const compressedLogo = await compressImage(file, 512, 512, 0.9, 250000);
+      setLogoUrl(compressedLogo);
+      showNotification('Novo logotipo carregado com sucesso!', 'info');
+    } catch (err) {
+      console.error('Erro ao processar logotipo:', err);
+      showNotification('Erro ao processar logotipo.', 'error');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
   };
 
   // Save Role Create / Edit inside modal
@@ -1040,6 +1072,86 @@ export default function Settings() {
             <div className="mt-6 pt-4 border-t border-outline-variant/10">
               <div className="w-full py-2.5 px-4 bg-surface-container-highest group-hover:bg-[#e9c349] text-stone-300 group-hover:text-black font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
                 <span>Gerenciar Permissões</span>
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+          </section>
+
+          {/* BUTTON 4: Molde de Certificado Oficial (Aparece exatamente embaixo do Módulo 1) */}
+          <section 
+            id="card-btn-certificates"
+            onClick={() => setIsCertificateModalOpen(true)}
+            className="group relative bg-surface-container-low hover:bg-surface-container rounded-2xl p-6 sm:p-7 border border-outline-variant/10 hover:border-[#e9c349]/50 shadow-lg hover:shadow-[0_8px_30px_rgba(233,195,73,0.15)] transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#e9c349]/10 group-hover:bg-[#e9c349] text-[#e9c349] group-hover:text-black flex items-center justify-center border border-[#e9c349]/20 transition-all">
+                  <Award className="w-6 h-6" />
+                </div>
+                <span className="p-2 rounded-xl bg-surface-container-highest group-hover:bg-[#e9c349]/20 text-stone-400 group-hover:text-[#e9c349] transition-colors">
+                  <ArrowUpRight className="w-4 h-4" />
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#e9c349] block mb-1">Módulo 4</span>
+                <h3 className="font-headline text-xl font-bold text-white group-hover:text-[#e9c349] transition-colors">
+                  Molde de Certificados
+                </h3>
+                <p className="text-xs text-stone-400 mt-1.5 line-clamp-5 leading-relaxed">
+                  Suba a imagem de fundo oficial que servirá de molde para a emissão automática aos alunos.
+                </p>
+              </div>
+
+              {certificateTemplate ? (
+                <div className="mb-4 relative rounded-xl overflow-hidden border border-[#e9c349]/30 aspect-[16/10] bg-black/60 shadow-inner group/thumb">
+                  <img 
+                    src={certificateTemplate} 
+                    alt="Molde Atual" 
+                    className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2.5">
+                    <span className="text-[10px] font-bold text-[#e9c349] bg-black/80 backdrop-blur-sm px-2 py-0.5 rounded border border-[#e9c349]/30">
+                      Molde Ativo Gravado
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-4 p-3 rounded-xl border border-dashed border-outline-variant/30 bg-black/30 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                  <p className="text-[11px] text-stone-400 leading-tight">
+                    Nenhum molde personalizado enviado. Clique para configurar.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2 pt-2 border-t border-outline-variant/10 text-xs">
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Status do Molde:</span>
+                  <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
+                    certificateTemplate 
+                      ? 'text-emerald-400 bg-emerald-400/10' 
+                      : 'text-amber-400 bg-amber-400/10'
+                  }`}>
+                    {certificateTemplate ? 'Ativo & Pronto' : 'Padrão da CFA'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Resolução:</span>
+                  <span className="font-mono text-stone-300 font-medium">A4 Paisagem (Alta)</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-400">
+                  <span>Segurança:</span>
+                  <span className="text-[#e9c349] font-mono font-medium">QR Code + Código Único</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-outline-variant/10">
+              <div className="w-full py-2.5 px-4 bg-surface-container-highest group-hover:bg-[#e9c349] text-stone-300 group-hover:text-black font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                <span>Configurar Molde</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
@@ -2452,6 +2564,191 @@ export default function Settings() {
             </div>
           </div>
         </div>
+      )}
+      {/* ========================================================================= */}
+      {/* POPUP 4: MOLDE OFICIAL DE CERTIFICADOS */}
+      {/* ========================================================================= */}
+      {isCertificateModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#181818] border border-outline-variant/20 rounded-2xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-outline-variant/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#e9c349]/10 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/20">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-headline">Molde Oficial de Certificados</h3>
+                  <p className="text-xs text-stone-400">Defina a imagem de fundo que servirá como diploma oficial emitido aos alunos.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCertificateModalOpen(false)}
+                className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Caixa explicativa */}
+              <div className="p-4 rounded-xl bg-[#e9c349]/5 border border-[#e9c349]/20 flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-[#e9c349] shrink-0 mt-0.5" />
+                <div className="text-xs text-stone-300 leading-relaxed space-y-1">
+                  <p className="font-bold text-white">Como funciona para os formandos:</p>
+                  <p>
+                    Ao subir aqui a imagem de fundo do seu certificado (A4 horizontal), ela fica gravada na base de dados da academia.
+                    Quando o aluno clica em emitir certificado na área de membros, o sistema carimba sobre este seu molde o <strong className="text-[#e9c349]">Nome do Aluno</strong>, o <strong className="text-[#e9c349]">Curso</strong>, a <strong className="text-[#e9c349]">Data</strong>, a <strong className="text-[#e9c349]">Assinatura</strong> e o <strong className="text-[#e9c349]">QR Code de validação</strong> em PDF de alta resolução.
+                  </p>
+                </div>
+              </div>
+
+              {/* Área de Visualização e Upload */}
+              <div>
+                <label className="block text-xs font-label uppercase tracking-widest text-stone-300 font-bold mb-2">
+                  Pré-visualização do Molde Atual
+                </label>
+
+                {certificateTemplate ? (
+                  <div className="relative w-full rounded-xl overflow-hidden border border-[#e9c349]/40 bg-black aspect-[1.414/1] max-h-[360px] shadow-2xl flex items-center justify-center">
+                    <img 
+                      src={certificateTemplate} 
+                      alt="Molde de Certificado" 
+                      className="w-full h-full object-contain"
+                    />
+                    <div className="absolute top-3 right-3 flex items-center gap-2 bg-black/80 backdrop-blur-md p-1.5 rounded-lg border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => certInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-md transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        Trocar Imagem
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCertificateTemplate}
+                        className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold text-xs rounded-md transition-all flex items-center gap-1.5 border border-red-500/30 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    onClick={() => !isUploadingCert && certInputRef.current?.click()}
+                    className="w-full rounded-2xl border-2 border-dashed border-[#e9c349]/30 hover:border-[#e9c349] bg-black/40 hover:bg-[#e9c349]/5 p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all group"
+                  >
+                    {isUploadingCert ? (
+                      <div className="py-4 flex flex-col items-center justify-center">
+                        <div className="w-10 h-10 border-3 border-[#e9c349] border-t-transparent rounded-full animate-spin mb-3"></div>
+                        <h4 className="text-white font-bold text-sm mb-1">
+                          A otimizar e gravar molde no servidor...
+                        </h4>
+                        <p className="text-xs text-stone-400">
+                          Garantindo máxima nitidez e conformidade com o sistema.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-16 h-16 rounded-2xl bg-[#e9c349]/10 group-hover:bg-[#e9c349] text-[#e9c349] group-hover:text-black flex items-center justify-center transition-all mb-3">
+                          <Upload className="w-8 h-8" />
+                        </div>
+                        <h4 className="text-white font-bold text-sm mb-1">
+                          Clique aqui para selecionar a Imagem do Certificado
+                        </h4>
+                        <p className="text-xs text-stone-400 max-w-sm mb-3">
+                          Selecione a imagem do certificado (JPG, PNG ou WebP). Otimizado automaticamente para alta resolução em A4.
+                        </p>
+                        <span className="px-4 py-2 rounded-xl bg-[#e9c349] text-black font-bold text-xs shadow-lg group-hover:scale-105 transition-transform">
+                          Procurar Ficheiro
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Ações inferiores */}
+              <div className="pt-4 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsTestCertOpen(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[#e9c349]/40 bg-[#e9c349]/10 hover:bg-[#e9c349]/20 text-[#e9c349] text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Ver Amostra com Aluno Exemplo
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsCertificateModalOpen(false)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-stone-300 hover:text-white hover:bg-stone-800 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isUploadingCert}
+                    onClick={async () => {
+                      if (!certificateTemplate) {
+                        showNotification('Nenhum molde selecionado.', 'info');
+                        return;
+                      }
+                      setIsUploadingCert(true);
+                      try {
+                        let finalTemplate = certificateTemplate;
+                        // Se o template atual tiver tamanho bruto superior a 650KB, comprime antes de enviar
+                        if (finalTemplate.length > 650000) {
+                          showNotification('Otimizando tamanho do certificado para o servidor...', 'info');
+                          finalTemplate = await compressDataUrl(finalTemplate, 1920, 1358, 0.82, 650000);
+                          setCertificateTemplate(finalTemplate);
+                        }
+                        await setDoc(doc(db, 'settings', 'platform'), { 
+                          certificateTemplate: finalTemplate,
+                          updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                        showNotification('Molde de certificado gravado com sucesso!', 'success');
+                        setIsCertificateModalOpen(false);
+                      } catch (e: any) {
+                        console.error(e);
+                        showNotification(`Erro ao gravar molde: ${e?.message || 'Erro no servidor'}`, 'error');
+                      } finally {
+                        setIsUploadingCert(false);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-[#e9c349] hover:bg-[#d4b03f] text-black font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isUploadingCert ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                        A Gravar...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Salvar Molde Oficial
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Teste da Emissão com o Aluno Exemplo */}
+      {isTestCertOpen && (
+        <CertificateModal
+          isOpen={isTestCertOpen}
+          onClose={() => setIsTestCertOpen(false)}
+          courseTitle="Curso de Análise Técnica e Mercado Financeiro"
+          initialStudentName="Pedro Cassaminha (Aluno Exemplo)"
+        />
       )}
     </div>
   );

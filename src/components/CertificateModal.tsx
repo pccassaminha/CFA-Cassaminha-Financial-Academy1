@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { Download, Upload, XCircle } from 'lucide-react';
+import { Download, Upload, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -18,16 +18,48 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
   const [studentName, setStudentName] = useState(initialStudentName);
   const [isGenerating, setIsGenerating] = useState(false);
   const certificateRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const [bgImage, setBgImage] = useState<string>('/certificado-bg.png'); 
   const [hasCustomUpload, setHasCustomUpload] = useState(false);
   const [isLoadingBg, setIsLoadingBg] = useState(false);
 
+  // Auto-fit & Zoom states
+  const [scale, setScale] = useState<number>(0.85);
+  const [zoomMode, setZoomMode] = useState<'fit' | 'custom'>('fit');
+
   // Generate a random validation code once per modal open
   const validationCode = useRef(`CFA-${Math.random().toString(36).substr(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`);
 
+  // Calculate dynamic scale to fit the 1123x794 certificate 100% visible inside the modal
+  const calculateFitScale = () => {
+    if (!containerRef.current) return 0.85;
+    const { clientWidth, clientHeight } = containerRef.current;
+    const availableW = Math.max(clientWidth - 32, 280);
+    const availableH = Math.max(clientHeight - 32, 240);
+    const scaleW = availableW / 1123;
+    const scaleH = availableH / 794;
+    const fitScale = Math.min(scaleW, scaleH);
+    return Math.min(Math.max(Number(fitScale.toFixed(2)), 0.25), 1.3);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const updateSize = () => {
+      if (zoomMode === 'fit') {
+        setScale(calculateFitScale());
+      }
+    };
+    const timer = setTimeout(updateSize, 40);
+    window.addEventListener('resize', updateSize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateSize);
+    };
+  }, [isOpen, zoomMode]);
+
   // Fetch the certificate template from platform settings when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       const fetchTemplate = async () => {
         setIsLoadingBg(true);
@@ -54,8 +86,11 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
     if (!certificateRef.current) return;
     setIsGenerating(true);
     
+    const element = certificateRef.current;
+    const originalTransform = element.style.transform;
+    
     try {
-      const element = certificateRef.current;
+      element.style.transform = 'none';
       
       const canvas = await html2canvas(element, {
         scale: 2, // High resolution for PDF
@@ -79,174 +114,265 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
     } catch (error) {
       console.error("Erro ao gerar certificado:", error);
     } finally {
+      element.style.transform = originalTransform;
       setIsGenerating(false);
     }
   };
 
+  const handleZoomIn = () => {
+    setZoomMode('custom');
+    setScale((prev) => Math.min(Number((prev + 0.1).toFixed(2)), 1.8));
+  };
+
+  const handleZoomOut = () => {
+    setZoomMode('custom');
+    setScale((prev) => Math.max(Number((prev - 0.1).toFixed(2)), 0.3));
+  };
+
+  const handleResetZoom = () => {
+    setZoomMode('fit');
+    setScale(calculateFitScale());
+  };
+
+  const handle100Percent = () => {
+    setZoomMode('custom');
+    setScale(1.0);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[200] flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/92 backdrop-blur-md z-[200] flex flex-col items-center justify-center p-2 sm:p-4 md:p-6">
       
       {/* Controles do Certificado */}
-      <div className="w-full max-w-5xl flex flex-col sm:flex-row items-end justify-between mb-4 gap-4 bg-[#131313] p-4 rounded-2xl border border-[#353534] shadow-2xl">
-        <div className="flex-1 w-full">
-          <label className="block text-xs font-bold text-gray-400 mb-1">Nome no Certificado</label>
+      <div className="w-full max-w-[96vw] xl:max-w-[1380px] flex flex-col lg:flex-row items-center justify-between mb-3 gap-3 bg-[#131313] px-4 py-3 rounded-2xl border border-[#353534] shadow-2xl">
+        <div className="flex-1 w-full lg:max-w-md">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+            Nome no Certificado
+          </label>
           <input
             type="text"
             value={studentName}
             onChange={(e) => setStudentName(e.target.value)}
-            className="w-full bg-[#0e0e0e] border border-[#353534] rounded-lg px-3 py-2 text-white focus:ring-1 focus:ring-[#e9c349] outline-none"
+            className="w-full bg-[#0e0e0e] border border-[#353534] rounded-lg px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-[#e9c349] outline-none"
+            placeholder="Digite o nome do aluno"
           />
         </div>
-        
-        <div className="flex-1 w-full flex items-center justify-start text-xs text-stone-400">
-          <p>O design do fundo (molde) é gerido automaticamente pela administração da plataforma.</p>
+
+        {/* Ferramentas de Zoom & Ajuste de Tela */}
+        <div className="flex items-center gap-1.5 bg-black/50 p-1 rounded-xl border border-white/10 text-xs">
+          <button
+            type="button"
+            onClick={handleResetZoom}
+            className={`px-2.5 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+              zoomMode === 'fit'
+                ? 'bg-[#e9c349] text-black font-bold shadow'
+                : 'text-stone-300 hover:text-white hover:bg-white/10'
+            }`}
+            title="Ajustar automaticamente para ver o certificado inteiro"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Ajustar à Tela</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handle100Percent}
+            className={`px-2 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+              scale === 1.0 && zoomMode === 'custom'
+                ? 'bg-[#e9c349] text-black font-bold shadow'
+                : 'text-stone-300 hover:text-white hover:bg-white/10'
+            }`}
+            title="Ver em 100% tamanho original"
+          >
+            100%
+          </button>
+
+          <div className="h-4 w-px bg-white/10 mx-1"></div>
+
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Diminuir Zoom"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+
+          <span className="font-mono text-[11px] text-[#e9c349] font-bold px-1 min-w-[42px] text-center">
+            {Math.round(scale * 100)}%
+          </span>
+
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Aumentar Zoom"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        {/* Botões de Ação */}
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
           >
             Fechar
           </button>
           <button
             onClick={handleGeneratePDF}
             disabled={isGenerating}
-            className="px-6 py-2 rounded-lg text-sm font-bold bg-[#e9c349] text-black hover:bg-[#d4b03f] active:scale-95 transition-all flex items-center gap-2 shadow-lg disabled:opacity-50 whitespace-nowrap"
+            className="px-5 py-2 rounded-lg text-xs font-bold bg-[#e9c349] text-black hover:bg-[#d4b03f] active:scale-95 transition-all flex items-center gap-2 shadow-lg disabled:opacity-50 whitespace-nowrap cursor-pointer"
           >
             {isGenerating ? (
               <>
-                <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
                 Gerando PDF...
               </>
             ) : (
               <>
-                <Download className="w-4 h-4" />
-                Baixar PDF
+                <Download className="w-3.5 h-3.5" />
+                Baixar Certificado Oficial
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* Visualização do Certificado */}
-      <div className="relative w-full max-w-5xl overflow-hidden rounded-xl border border-gray-800 shadow-2xl flex-1 max-h-[75vh] bg-stone-900 flex items-center justify-center">
+      {/* Visualização Ampliada e Responsiva do Certificado */}
+      <div 
+        ref={containerRef}
+        className="relative w-full max-w-[96vw] xl:max-w-[1380px] overflow-auto rounded-2xl border border-stone-800 shadow-2xl flex-1 max-h-[82vh] bg-stone-950 flex items-center justify-center p-3 sm:p-6 custom-scrollbar"
+      >
         
-        <div className="overflow-auto w-full h-full flex items-center justify-center p-4 custom-scrollbar">
+        {/* Envelope que espelha exatamente a proporção escalada para centrar sem cortes */}
+        <div 
+          style={{
+            width: `${Math.round(1123 * scale)}px`,
+            height: `${Math.round(794 * scale)}px`,
+            position: 'relative',
+            flexShrink: 0,
+            margin: 'auto',
+            transition: 'width 0.12s ease-out, height 0.12s ease-out',
+          }}
+        >
+          {/* O Elemento Exato do Certificado para Captura (A4 Landscape = 1123x794 px) */}
+          <div 
+            ref={certificateRef}
+            style={{
+              width: '1123px',
+              height: '794px',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              backgroundImage: `url(${bgImage})`,
+              backgroundSize: '100% 100%',
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'center',
+              backgroundColor: '#fff',
+              fontFamily: 'serif',
+              color: '#1a1a1a',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.7)',
+              flexShrink: 0,
+              userSelect: 'none',
+            }}
+          >
             
-            {/* O Elemento Exato do Certificado para Captura (A4 Landscape = 1123x794 px) */}
-            <div 
-              ref={certificateRef}
-              style={{
-                width: '1123px',
-                height: '794px',
-                position: 'relative',
-                backgroundImage: `url(${bgImage})`,
-                backgroundSize: '100% 100%',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-                backgroundColor: '#fff',
-                fontFamily: 'serif',
-                color: '#1a1a1a',
-                boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-                flexShrink: 0,
-                transformOrigin: 'center center',
-              }}
-            >
-              
-              {/* DATA (Canto Superior Direito) */}
-              <div style={{
-                position: 'absolute',
-                top: '110px',
-                right: '70px',
-                width: '260px',
-                textAlign: 'center',
-                fontSize: '18px',
-                color: '#ffffff', // Cor branca para contraste na fita preta
-                fontFamily: 'sans-serif',
-                fontWeight: '500',
-                letterSpacing: '1px'
-              }}>
-                {new Date().toLocaleDateString('pt-PT')}
-              </div>
-
-              {/* NOME DO ALUNO */}
-              <div style={{
-                position: 'absolute',
-                top: '47.5%',
-                left: '0',
-                width: '100%',
-                textAlign: 'center',
-                fontSize: '44px',
-                fontStyle: 'italic',
-                fontWeight: 'bold',
-                color: '#1a1a1a',
-                padding: '0 80px',
-                fontFamily: '"Georgia", serif'
-              }}>
-                {studentName}
-              </div>
-
-              {/* NOME DO CURSO */}
-              <div style={{
-                position: 'absolute',
-                top: '61.5%',
-                left: '0',
-                width: '100%',
-                textAlign: 'center',
-                fontSize: '30px',
-                fontWeight: '600',
-                color: '#b08d3e', // Tom dourado para combinar com o layout
-                padding: '0 100px',
-                fontFamily: '"Georgia", serif'
-              }}>
-                {courseTitle}
-              </div>
-
-              {/* NOME DO AUTOR (Assinatura) */}
-              <div style={{
-                position: 'absolute',
-                bottom: '128px',
-                left: '180px',
-                width: '320px',
-                textAlign: 'center',
-                fontSize: '22px',
-                fontWeight: 'bold',
-                color: '#1a1a1a',
-                fontFamily: '"Georgia", serif'
-              }}>
-                {instructorName}
-              </div>
-
-              {/* CÓDIGO QR & VALIDAÇÃO */}
-              <div style={{
-                position: 'absolute',
-                bottom: '75px',
-                right: '90px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                backgroundColor: 'rgba(255,255,255,0.85)',
-                padding: '12px',
-                borderRadius: '8px'
-              }}>
-                <QRCodeSVG 
-                  value={`https://cfa-academy.site/validar?code=${validationCode.current}`} 
-                  size={90}
-                  level="M"
-                />
-                <div style={{
-                  marginTop: '8px',
-                  fontSize: '11px',
-                  fontFamily: 'monospace',
-                  color: '#1a1a1a',
-                  fontWeight: 'bold'
-                }}>
-                  {validationCode.current}
-                </div>
-              </div>
-
+            {/* DATA (Canto Superior Direito - Centralizado sob a linha dourada) */}
+            <div style={{
+              position: 'absolute',
+              top: '94px',
+              right: '18px',
+              width: '236px',
+              textAlign: 'center',
+              fontSize: '13px',
+              color: '#ffffff', // Contraste nítido sobre o fundo preto sob a linha dourada
+              fontFamily: 'sans-serif',
+              fontWeight: '600',
+              letterSpacing: '0.5px'
+            }}>
+              {new Date().toLocaleDateString('pt-PT')}
             </div>
+
+            {/* NOME DO ALUNO */}
+            <div style={{
+              position: 'absolute',
+              top: '44.5%',
+              left: '0',
+              width: '100%',
+              textAlign: 'center',
+              fontSize: '44px',
+              fontStyle: 'italic',
+              fontWeight: 'bold',
+              color: '#1a1a1a',
+              padding: '0 80px',
+              fontFamily: '"Georgia", serif'
+            }}>
+              {studentName}
+            </div>
+
+            {/* NOME DO CURSO */}
+            <div style={{
+              position: 'absolute',
+              top: '60.5%',
+              left: '0',
+              width: '100%',
+              textAlign: 'center',
+              fontSize: '30px',
+              fontWeight: '600',
+              color: '#b08d3e', // Tom dourado para combinar com o layout
+              padding: '0 100px',
+              fontFamily: '"Georgia", serif'
+            }}>
+              {courseTitle}
+            </div>
+
+            {/* NOME DO AUTOR (Assinatura) */}
+            <div style={{
+              position: 'absolute',
+              bottom: '90px',
+              left: '140px',
+              width: '320px',
+              textAlign: 'center',
+              fontSize: '22px',
+              fontWeight: 'bold',
+              color: '#1a1a1a',
+              fontFamily: '"Georgia", serif'
+            }}>
+              {instructorName}
+            </div>
+
+            {/* CÓDIGO QR & VALIDAÇÃO */}
+            <div style={{
+              position: 'absolute',
+              bottom: '75px',
+              right: '90px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              backgroundColor: 'rgba(255,255,255,0.85)',
+              padding: '12px',
+              borderRadius: '8px'
+            }}>
+              <QRCodeSVG 
+                value={`https://cfa-academy.site/validar?code=${validationCode.current}`} 
+                size={90}
+                level="M"
+              />
+              <div style={{
+                marginTop: '8px',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                color: '#1a1a1a',
+                fontWeight: 'bold'
+              }}>
+                {validationCode.current}
+              </div>
+            </div>
+
+          </div>
         </div>
         
         {/* Alerta caso o fundo não esteja carregado ainda */}
