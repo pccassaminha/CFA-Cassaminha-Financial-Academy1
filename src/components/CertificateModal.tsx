@@ -316,7 +316,7 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
             {/* NOME DO CURSO */}
             <div style={{
               position: 'absolute',
-              top: '60.5%',
+              top: '58.5%',
               left: '0',
               width: '100%',
               textAlign: 'center',
