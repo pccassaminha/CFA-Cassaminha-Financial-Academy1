@@ -121,6 +121,7 @@ export default function Settings() {
   const [defaultCurrency, setDefaultCurrency] = useState('Kz');
   const [timezone, setTimezone] = useState('WAT (UTC+01:00) Luanda');
   const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
+  const [certificateTemplate, setCertificateTemplate] = useState('');
 
   // Announcement Bar State
   const [announcementText, setAnnouncementText] = useState('Aproveite desconto de 33% em todos os cursos!');
@@ -240,6 +241,7 @@ export default function Settings() {
         if (pData.platformName) setPlatformName(pData.platformName);
         if (pData.logoUrl) setLogoUrl(getValidLogoUrl(pData.logoUrl));
         if (pData.defaultCurrency) setDefaultCurrency(pData.defaultCurrency);
+        if (pData.certificateTemplate) setCertificateTemplate(pData.certificateTemplate);
       }
 
       // 4. Roles doc
@@ -581,6 +583,26 @@ export default function Settings() {
     }
   };
 
+  // Upload Certificate Template
+  const handleCertificateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 3 * 1024 * 1024) {
+      showNotification('O certificado deve ter no máximo 3MB.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setCertificateTemplate(event.target.result as string);
+        showNotification('Modelo de certificado carregado temporariamente! Salve para aplicar.', 'info');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Upload Logo from Device
   const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -672,6 +694,15 @@ export default function Settings() {
             <span className="text-sm font-bold">{toastMessage}</span>
           </div>
         )}
+
+        {/* Hidden File Input for Certificate */}
+        <input 
+          type="file" 
+          ref={certInputRef} 
+          onChange={handleCertificateUpload} 
+          accept="image/png, image/jpeg, image/webp" 
+          className="hidden" 
+        />
 
         {/* Hidden File Input for Logo Upload */}
         <input 

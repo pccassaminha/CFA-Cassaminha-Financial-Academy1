@@ -3,6 +3,8 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Download, Upload, XCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface CertificateModalProps {
   isOpen: boolean;
@@ -17,29 +19,36 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
   const [isGenerating, setIsGenerating] = useState(false);
   const certificateRef = useRef<HTMLDivElement>(null);
   
-  // Default background image (should be in public folder)
   const [bgImage, setBgImage] = useState<string>('/certificado-bg.png'); 
   const [hasCustomUpload, setHasCustomUpload] = useState(false);
+  const [isLoadingBg, setIsLoadingBg] = useState(false);
 
   // Generate a random validation code once per modal open
   const validationCode = useRef(`CFA-${Math.random().toString(36).substr(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`);
 
-  if (!isOpen) return null;
-
-  // Handle local background upload for quick testing
-  const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setBgImage(event.target.result as string);
-          setHasCustomUpload(true);
+  // Fetch the certificate template from platform settings when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      const fetchTemplate = async () => {
+        setIsLoadingBg(true);
+        try {
+          const docRef = doc(db, 'settings', 'platform');
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists() && docSnap.data().certificateTemplate) {
+            setBgImage(docSnap.data().certificateTemplate);
+            setHasCustomUpload(true);
+          }
+        } catch (error) {
+          console.error("Erro ao buscar template do certificado:", error);
+        } finally {
+          setIsLoadingBg(false);
         }
       };
-      reader.readAsDataURL(file);
+      fetchTemplate();
     }
-  };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const handleGeneratePDF = async () => {
     if (!certificateRef.current) return;
@@ -89,20 +98,8 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
           />
         </div>
         
-        <div className="flex-1 w-full">
-          <label className="block text-xs font-bold text-gray-400 mb-1">Upload Fundo (Testar Imagem)</label>
-          <div className="relative">
-            <input 
-              type="file" 
-              accept="image/*"
-              onChange={handleBgUpload}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-            <div className="w-full bg-[#0e0e0e] border border-[#353534] rounded-lg px-3 py-2 text-gray-400 hover:text-white hover:border-[#e9c349] transition-colors flex items-center gap-2">
-              <Upload className="w-4 h-4 text-[#e9c349]" />
-              <span className="text-sm truncate">Selecione a imagem do certificado</span>
-            </div>
-          </div>
+        <div className="flex-1 w-full flex items-center justify-start text-xs text-stone-400">
+          <p>O design do fundo (molde) é gerido automaticamente pela administração da plataforma.</p>
         </div>
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -253,15 +250,21 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
         </div>
         
         {/* Alerta caso o fundo não esteja carregado ainda */}
-        {!hasCustomUpload && (
+        {!hasCustomUpload && !isLoadingBg && (
           <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10 p-6 text-center">
              <div className="bg-[#131313] p-6 rounded-2xl border border-[#353534] max-w-md shadow-2xl pointer-events-auto">
-               <Upload className="w-12 h-12 text-[#e9c349] mx-auto mb-4" />
-               <h3 className="text-white font-bold text-lg mb-2">Adicione a Imagem de Fundo</h3>
+               <h3 className="text-white font-bold text-lg mb-2">A aguardar Molde Oficial</h3>
                <p className="text-gray-400 text-sm mb-4">
-                 Para ver como fica, faça o upload da imagem do certificado que me enviou usando o botão "Upload Fundo" lá em cima!
+                 O molde padrão do certificado ainda não foi configurado pela administração na aba "Configurações".
                </p>
              </div>
+          </div>
+        )}
+        
+        {isLoadingBg && (
+          <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10 p-6 text-center">
+             <div className="w-8 h-8 border-2 border-[#e9c349] border-t-transparent rounded-full animate-spin mb-3"></div>
+             <p className="text-[#e9c349] text-sm font-bold">A carregar molde do certificado...</p>
           </div>
         )}
 

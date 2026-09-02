@@ -20,6 +20,7 @@ export interface PlatformSettings {
   platformName?: string;
   defaultCurrency?: string;
   logoUrl?: string;
+  certificateTemplate?: string;
 }
 
 export interface Transaction {
