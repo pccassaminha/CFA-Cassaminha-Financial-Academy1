@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign } from 'lucide-react';
+import { Plus, Edit, Trash2, MoreVertical, Copy, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign } from 'lucide-react';
 import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { notifyNewCourse } from '../services/notificationService';
@@ -25,6 +25,7 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
   const [loading, setLoading] = useState(true);
 
   // Estados dos Modais
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deletingCourse, setDeletingCourse] = useState<CourseItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -139,6 +140,15 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
   };
 
   // Abrir Modal de Edição Rápida
+  
+  const handleCopyLink = (courseId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const link = `${window.location.origin}/checkout?courseId=${courseId}`;
+    navigator.clipboard.writeText(link);
+    setToastMessage({ text: 'Link copiado com sucesso!', type: 'success' });
+    setOpenMenuId(null);
+  };
+
   const handleOpenEditModal = (course: CourseItem, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingCourse(course);
@@ -367,24 +377,49 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                     {course.status === 'published' ? 'PUBLICADO' : 'RASCUNHO'}
                   </span>
                   
-                  {/* Botões de Ação do Card: Editar e Eliminar */}
-                  <div className="flex gap-1.5 text-gray-400">
+                  {/* Menu de Ações (Copiar, Editar, Eliminar) */}
+                  <div className="relative">
                     <button 
-                      id={`btn-edit-course-${course.id}`}
-                      onClick={(e) => handleOpenEditModal(course, e)}
-                      className="hover:text-[#e9c349] p-2 rounded-lg hover:bg-gray-800 border border-transparent hover:border-gray-700 transition-all cursor-pointer text-gray-300"
-                      title="Editar Configurações do Curso"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(openMenuId === course.id ? null : course.id);
+                      }}
+                      className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 transition-all cursor-pointer focus:outline-none"
                     >
-                      <Edit className="w-4 h-4" />
+                      <MoreVertical className="w-5 h-5" />
                     </button>
-                    <button 
-                      id={`btn-delete-course-${course.id}`}
-                      onClick={(e) => handleOpenDeleteModal(course, e)}
-                      className="hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all cursor-pointer text-gray-300"
-                      title="Excluir Curso"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    
+                    {openMenuId === course.id && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-30" 
+                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} 
+                        />
+                        <div className="absolute right-0 mt-2 w-48 bg-[#181818] border border-gray-800 rounded-xl shadow-2xl py-1 z-40 overflow-hidden animate-in fade-in zoom-in-95">
+                          <button 
+                            onClick={(e) => handleCopyLink(course.id, e)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copiar Link
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleOpenEditModal(course, e); }}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer"
+                          >
+                            <Edit className="w-4 h-4" />
+                            Editar Curso
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleOpenDeleteModal(course, e); }}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Excluir
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
