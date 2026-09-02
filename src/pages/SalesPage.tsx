@@ -34,6 +34,7 @@ interface Course {
   isPublished: boolean;
   structureType?: 'modules' | 'single_lesson' | 'direct_link';
   authorId?: string;
+  authorEmail?: string;
 }
 
 export default function SalesPage() {

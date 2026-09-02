@@ -39,6 +39,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
   const [producerWhatsApp, setProducerWhatsApp] = useState<string | null>(null);
   const [producerName, setProducerName] = useState<string | null>(null);
   const [courseAuthorId, setCourseAuthorId] = useState<string | null>(null);
+  const [courseAuthorEmail, setCourseAuthorEmail] = useState<string | null>(null);
   const [bankReference, setBankReference] = useState(''); 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -218,6 +219,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
             if (courseSnap.exists()) {
               const cData = courseSnap.data();
               if (cData.authorId) setCourseAuthorId(cData.authorId);
+              if (cData.authorEmail) setCourseAuthorEmail(cData.authorEmail);
               
               let pIban = cData.producerIban;
               let pHolder = cData.producerHolderName;
@@ -440,7 +442,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
       sendSystemNotification({
         type: 'payment_submitted',
         title: '💳 Pagamento Informado ("Já Paguei")!',
-        message: `O aluno ${finalStudentName} informou pagamento de ${formattedPrice} no curso "${safeTitle}" (Produtor: ${courseData?.authorEmail || 'CFA Academy'}). Referência: ${cleanRef}`,
+        message: `O aluno ${finalStudentName} informou pagamento de ${formattedPrice} no curso "${safeTitle}" (Produtor: ${courseAuthorEmail || 'CFA Academy'}). Referência: ${cleanRef}`,
         link: '/dashboard',
         targetRole: 'admin',
         metadata: {
@@ -453,8 +455,8 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
         }
       });
 
-const producerId = courseData?.authorId || '';
-      const producerEmail = courseData?.authorEmail || '';
+      const producerId = courseAuthorId || '';
+      const producerEmail = courseAuthorEmail || '';
       const isAdminCourse = !producerId && !producerEmail;
 
       if (producerId || producerEmail || isAdminCourse) {

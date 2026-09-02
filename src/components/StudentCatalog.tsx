@@ -16,6 +16,8 @@ export interface Course {
   isPublished: boolean;
   producerName?: string;
   instructor?: string;
+  authorId?: string;
+  authorEmail?: string;
 }
 
 export interface StudentCatalogProps {

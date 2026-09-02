@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Mail, Shield, CheckCircle2, Key, Phone, BookOpen, Lock, AlertCircle, Hash, RefreshCw, Send, Edit2, Save, X, MessageCircle } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 
 export default function StudentProfile() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [supportWhatsApp, setSupportWhatsApp] = useState<string>('244923456789');
   const [loading, setLoading] = useState(true);
