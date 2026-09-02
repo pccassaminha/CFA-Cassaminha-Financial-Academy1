@@ -11,6 +11,7 @@ import { parseVideoUrlOrIframe } from '../utils/videoParser';
 
 import { LessonLink } from '../types';
 import NotificationCenter from '../components/NotificationCenter';
+import { CertificateModal } from '../components/CertificateModal';
 
 interface Lesson {
   id: string;
@@ -76,6 +77,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
 
   // Active Lesson state
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
 
   // Interface controls
@@ -619,6 +621,15 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                   style={{ width: `${getCourseProgress()}%` }}
                 />
               </div>
+              {getCourseProgress() === 100 && (
+                <button
+                  onClick={() => setShowCertificateModal(true)}
+                  className="w-full mt-4 flex items-center justify-center gap-2 bg-[#e9c349]/10 border border-[#e9c349] text-[#e9c349] font-bold py-2.5 rounded-xl hover:bg-[#e9c349] hover:text-black transition-all active:scale-95 shadow-[0_0_15px_rgba(233,195,73,0.1)]"
+                >
+                  <span className="material-symbols-outlined text-[20px]">workspace_premium</span>
+                  Emitir Certificado
+                </button>
+              )}
             </div>
           </div>
 
@@ -798,6 +809,15 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
                     <div className="bg-[#e9c349] h-full rounded-full transition-all" style={{ width: `${getCourseProgress()}%` }} />
                   </div>
                 </div>
+                {getCourseProgress() === 100 && (
+                  <button
+                    onClick={() => setShowCertificateModal(true)}
+                    className="w-full mt-4 flex items-center justify-center gap-2 bg-[#e9c349] text-black font-bold py-2.5 rounded-xl hover:bg-[#e9c349]/90 transition-all active:scale-95 shadow-[0_0_15px_rgba(233,195,73,0.3)]"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">workspace_premium</span>
+                    Emitir Certificado
+                  </button>
+                )}
               </div>
 
               <nav className="flex-1 px-4 space-y-3 overflow-y-auto pb-6">
@@ -1196,6 +1216,12 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
           )}
         </main>
       </div>
+      <CertificateModal 
+        isOpen={showCertificateModal} 
+        onClose={() => setShowCertificateModal(false)}
+        courseTitle={course?.title || 'Curso de Especialização'}
+        initialStudentName={userProfile?.name || auth.currentUser?.displayName || 'Nome do Aluno'}
+      />
     </div>
   );
 }
