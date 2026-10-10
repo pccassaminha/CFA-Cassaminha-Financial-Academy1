@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { db } from '../firebase';
 import { Transaction } from '../types';
 
 export default function PurchaseConfirmation() {
+  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [transaction, setTransaction] = useState<Partial<Transaction> & { supportWhatsApp?: string } | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<string>('kwik');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [paymentSettings, setPaymentSettings] = useState({
     iban: 'AO06 0040 0000 7829 1048 1018 2',
     ibanActive: true,
     bankName: 'BFA (Banco de Fomento Angola)',
+    ibanAccountName: 'GRUPO CASSAMINHA LDA',
     expressPhone: '923 456 789',
     expressActive: true,
     expressName: 'GRUPO CASSAMINHA LDA',
@@ -23,10 +29,23 @@ export default function PurchaseConfirmation() {
   });
 
   useEffect(() => {
+    const auth = getAuth();
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setCurrentUser(u);
+    });
+
     try {
       const stored = localStorage.getItem('cfa_last_transaction');
       if (stored) {
-        setTransaction(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        setTransaction(parsed);
+        if (parsed.paymentMethod) {
+          const pm = parsed.paymentMethod.toLowerCase();
+          if (pm.includes('kwik')) setSelectedMethod('kwik');
+          else if (pm.includes('express')) setSelectedMethod('express');
+          else if (pm.includes('multi')) setSelectedMethod('multicaixa');
+          else if (pm.includes('iban') || pm.includes('trans')) setSelectedMethod('transfer');
+        }
       }
     } catch (e) {
       console.error("Failed to parse stored transaction", e);
@@ -43,7 +62,25 @@ export default function PurchaseConfirmation() {
       }
     };
     loadPaymentSettings();
+
+    return () => unsub();
   }, []);
+
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleWatchCourse = () => {
+    const auth = getAuth();
+    const courseId = transaction?.courseId || '';
+    if (!auth.currentUser && !currentUser) {
+      navigate(`/entrar?redirect=${encodeURIComponent(courseId ? `/classroom?courseId=${courseId}` : '/library')}`);
+    } else {
+      navigate(courseId ? `/classroom?courseId=${courseId}` : '/library');
+    }
+  };
 
   const whatsappNumber = transaction?.supportWhatsApp?.replace(/[^0-9]/g, '') || '244923456789';
   const refNum = transaction?.referenceNumber || 'REF-CFA-2024';
@@ -82,58 +119,211 @@ export default function PurchaseConfirmation() {
         <h1 className="text-3xl md:text-4xl font-extrabold tracking-tighter font-headline mb-2">Métodos e Coordenadas de Pagamento</h1>
         <p className="text-on-surface-variant text-sm md:text-base mb-6">Efetue o pagamento através de um dos métodos ativos abaixo e envie o número de referência/comprovativo para o WhatsApp.</p>
         
-        {/* Active Payment Methods Coordinates */}
-        <div className="mb-8 p-6 bg-surface-container-lowest rounded-xl border border-[#e9c349]/30 text-left">
-          <h3 className="text-sm font-bold text-[#e9c349] mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-base">payments</span>
-            Coordenadas Oficiais Ativas na Plataforma
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {paymentSettings.multicaixaActive && (
-              <div className="p-3.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/20">
-                <p className="font-bold text-on-surface mb-2 flex items-center gap-1.5 text-xs uppercase">
-                  <span className="material-symbols-outlined text-primary text-base">credit_card</span> Multicaixa (Referência)
-                </p>
-                <div className="space-y-1 font-mono text-xs">
-                  <p><span className="text-stone-400">Entidade:</span> <strong className="text-[#e9c349]">{paymentSettings.multicaixaEntity}</strong></p>
-                  <p><span className="text-stone-400">Referência:</span> <strong className="text-[#e9c349]">{paymentSettings.multicaixaReference}</strong></p>
-                  <p><span className="text-stone-400">Titular:</span> <span className="text-on-surface font-sans">{paymentSettings.multicaixaName || 'GRUPO CASSAMINHA LDA'}</span></p>
-                </div>
-              </div>
-            )}
+        {/* Active Payment Methods Coordinates - Exclusive View */}
+        <div className="mb-8 p-6 bg-surface-container-lowest rounded-2xl border border-[#e9c349]/30 text-left">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-[#e9c349] flex items-center gap-2">
+              <span className="material-symbols-outlined text-base">payments</span>
+              Coordenadas de Pagamento Oficiais
+            </h3>
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider font-mono">
+              Selecione para ver os dados
+            </span>
+          </div>
 
-            {paymentSettings.ibanActive && (
-              <div className="p-3.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/20">
-                <p className="font-bold text-on-surface mb-2 flex items-center gap-1.5 text-xs uppercase">
-                  <span className="material-symbols-outlined text-primary text-base">account_balance</span> Transferência (IBAN)
-                </p>
-                <div className="space-y-1 font-mono text-xs">
-                  <p><span className="text-stone-400">Banco:</span> <span className="text-on-surface font-sans font-bold">{paymentSettings.bankName}</span></p>
-                  <p className="break-all"><span className="text-stone-400">IBAN:</span> <strong className="text-[#e9c349] select-all">{paymentSettings.iban}</strong></p>
-                </div>
-              </div>
+          {/* Abas dos Métodos */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            {paymentSettings.kwikActive && (
+              <button
+                type="button"
+                onClick={() => setSelectedMethod('kwik')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                  selectedMethod === 'kwik'
+                    ? 'bg-[#e9c349]/20 border-[#e9c349] text-[#e9c349]'
+                    : 'bg-surface-container-high/40 border-outline-variant/20 text-stone-400 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">qr_code_2</span> KWIK
+              </button>
             )}
 
             {paymentSettings.expressActive && (
-              <div className="p-3.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/20">
-                <p className="font-bold text-on-surface mb-2 flex items-center gap-1.5 text-xs uppercase">
-                  <span className="material-symbols-outlined text-primary text-base">speed</span> Multicaixa Express
-                </p>
-                <div className="space-y-1 font-mono text-xs">
-                  <p><span className="text-stone-400">Telemóvel:</span> <strong className="text-[#e9c349]">{paymentSettings.expressPhone}</strong></p>
-                  <p><span className="text-stone-400">Titular:</span> <span className="text-on-surface font-sans">{paymentSettings.expressName}</span></p>
+              <button
+                type="button"
+                onClick={() => setSelectedMethod('express')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                  selectedMethod === 'express'
+                    ? 'bg-[#e9c349]/20 border-[#e9c349] text-[#e9c349]'
+                    : 'bg-surface-container-high/40 border-outline-variant/20 text-stone-400 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">speed</span> Express
+              </button>
+            )}
+
+            {paymentSettings.multicaixaActive && (
+              <button
+                type="button"
+                onClick={() => setSelectedMethod('multicaixa')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                  selectedMethod === 'multicaixa'
+                    ? 'bg-[#e9c349]/20 border-[#e9c349] text-[#e9c349]'
+                    : 'bg-surface-container-high/40 border-outline-variant/20 text-stone-400 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">payments</span> Multicaixa
+              </button>
+            )}
+
+            {paymentSettings.ibanActive && (
+              <button
+                type="button"
+                onClick={() => setSelectedMethod('transfer')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                  selectedMethod === 'transfer'
+                    ? 'bg-[#e9c349]/20 border-[#e9c349] text-[#e9c349]'
+                    : 'bg-surface-container-high/40 border-outline-variant/20 text-stone-400 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">account_balance</span> IBAN
+              </button>
+            )}
+          </div>
+
+          {/* Exibição Única do Método Selecionado */}
+          <div className="bg-[#131313] p-4 sm:p-5 rounded-xl border border-gray-800">
+            {selectedMethod === 'kwik' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[#e9c349] text-base">qr_code_2</span>
+                    Transferência KWIK
+                  </span>
+                  <span className="text-[10px] text-[#e9c349] font-mono font-bold">Pagamento Instantâneo</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/60 p-3 rounded-lg border border-gray-800/80">
+                  <div>
+                    <span className="text-[10px] text-stone-400 uppercase font-mono block">Chave KWIK:</span>
+                    <strong className="text-base sm:text-lg font-mono text-[#e9c349] select-all">{paymentSettings.kwikPhone}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(paymentSettings.kwikPhone, 'kwik_conf')}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-medium text-white flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-sm">{copiedKey === 'kwik_conf' ? 'check' : 'content_copy'}</span>
+                    <span>{copiedKey === 'kwik_conf' ? 'Copiado!' : 'Copiar Chave'}</span>
+                  </button>
+                </div>
+                <div className="flex justify-between text-xs text-stone-300">
+                  <span className="text-stone-400">Beneficiário:</span>
+                  <strong className="text-white">{paymentSettings.kwikName}</strong>
                 </div>
               </div>
             )}
 
-            {paymentSettings.kwikActive && (
-              <div className="p-3.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/20">
-                <p className="font-bold text-on-surface mb-2 flex items-center gap-1.5 text-xs uppercase">
-                  <span className="material-symbols-outlined text-primary text-base">qr_code_2</span> Transferência KWIK
-                </p>
-                <div className="space-y-1 font-mono text-xs">
-                  <p><span className="text-stone-400">Chave KWIK:</span> <strong className="text-[#e9c349] select-all">{paymentSettings.kwikPhone}</strong></p>
-                  <p><span className="text-stone-400">Beneficiário:</span> <span className="text-on-surface font-sans">{paymentSettings.kwikName}</span></p>
+            {selectedMethod === 'express' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[#e9c349] text-base">speed</span>
+                    Multicaixa Express
+                  </span>
+                  <span className="text-[10px] text-[#e9c349] font-mono font-bold">Via Telemóvel</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/60 p-3 rounded-lg border border-gray-800/80">
+                  <div>
+                    <span className="text-[10px] text-stone-400 uppercase font-mono block">Telemóvel Express:</span>
+                    <strong className="text-base sm:text-lg font-mono text-[#e9c349] select-all">{paymentSettings.expressPhone}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(paymentSettings.expressPhone, 'express_conf')}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-medium text-white flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-sm">{copiedKey === 'express_conf' ? 'check' : 'content_copy'}</span>
+                    <span>{copiedKey === 'express_conf' ? 'Copiado!' : 'Copiar Telemóvel'}</span>
+                  </button>
+                </div>
+                <div className="flex justify-between text-xs text-stone-300">
+                  <span className="text-stone-400">Titular da Conta:</span>
+                  <strong className="text-white">{paymentSettings.expressName || 'GRUPO CASSAMINHA LDA'}</strong>
+                </div>
+              </div>
+            )}
+
+            {selectedMethod === 'multicaixa' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[#e9c349] text-base">payments</span>
+                    Multicaixa por Referência
+                  </span>
+                  <span className="text-[10px] text-[#e9c349] font-mono font-bold">ATM / Multicaixa</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-black/60 p-3 rounded-lg border border-gray-800/80">
+                    <span className="text-[10px] text-stone-400 uppercase font-mono block">Entidade:</span>
+                    <div className="flex justify-between items-center">
+                      <strong className="text-base font-mono text-[#e9c349] select-all">{paymentSettings.multicaixaEntity}</strong>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(paymentSettings.multicaixaEntity, 'mc_ent_conf')}
+                        className="text-stone-400 hover:text-white p-1 cursor-pointer"
+                        title="Copiar Entidade"
+                      >
+                        <span className="material-symbols-outlined text-sm">{copiedKey === 'mc_ent_conf' ? 'check' : 'content_copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="bg-black/60 p-3 rounded-lg border border-gray-800/80">
+                    <span className="text-[10px] text-stone-400 uppercase font-mono block">Referência:</span>
+                    <div className="flex justify-between items-center">
+                      <strong className="text-base font-mono text-[#e9c349] select-all">{paymentSettings.multicaixaReference}</strong>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(paymentSettings.multicaixaReference, 'mc_ref_conf')}
+                        className="text-stone-400 hover:text-white p-1 cursor-pointer"
+                        title="Copiar Referência"
+                      >
+                        <span className="material-symbols-outlined text-sm">{copiedKey === 'mc_ref_conf' ? 'check' : 'content_copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-stone-300">
+                  <span className="text-stone-400">Beneficiário:</span>
+                  <strong className="text-white">{paymentSettings.multicaixaName || 'GRUPO CASSAMINHA LDA'}</strong>
+                </div>
+              </div>
+            )}
+
+            {selectedMethod === 'transfer' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[#e9c349] text-base">account_balance</span>
+                    Transferência Bancária (IBAN)
+                  </span>
+                  <span className="text-[10px] text-[#e9c349] font-mono font-bold">{paymentSettings.bankName}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/60 p-3 rounded-lg border border-gray-800/80">
+                  <div>
+                    <span className="text-[10px] text-stone-400 uppercase font-mono block">IBAN:</span>
+                    <strong className="text-xs sm:text-sm font-mono text-[#e9c349] select-all break-all">{paymentSettings.iban}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(paymentSettings.iban, 'iban_conf')}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-medium text-white flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-sm">{copiedKey === 'iban_conf' ? 'check' : 'content_copy'}</span>
+                    <span>{copiedKey === 'iban_conf' ? 'Copiado!' : 'Copiar IBAN'}</span>
+                  </button>
+                </div>
+                <div className="flex justify-between text-xs text-stone-300">
+                  <span className="text-stone-400">Titular da Conta:</span>
+                  <strong className="text-white">{paymentSettings.ibanAccountName || paymentSettings.expressName || 'GRUPO CASSAMINHA LDA'}</strong>
                 </div>
               </div>
             )}
@@ -194,11 +384,20 @@ export default function PurchaseConfirmation() {
           </a>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/library" className="inline-flex items-center justify-center gap-2 bg-primary text-on-primary px-8 py-3.5 rounded-xl font-bold text-base hover:opacity-90 transition-all">
-            Acessar Videoteca do Curso
+        <div className="flex flex-col items-center gap-2 justify-center">
+          <button
+            type="button"
+            onClick={handleWatchCourse}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary text-on-primary px-8 py-4 rounded-xl font-bold text-base hover:opacity-90 transition-all cursor-pointer shadow-lg active:scale-95"
+          >
+            Assistir Curso Agora
             <span className="material-symbols-outlined text-lg">arrow_forward</span>
-          </Link>
+          </button>
+          {!currentUser && (
+            <p className="text-xs text-stone-400 text-center">
+              * Se ainda não tiver sessão iniciada, será direcionado para iniciar sessão ou criar a sua conta.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -223,9 +223,14 @@ export default function Login() {
       }
     }
     
+    const searchParams = new URLSearchParams(location.search);
+    const redirectUrl = searchParams.get('redirect');
+
     // Roteamento
     if (isAdminEmail || ((role === 'admin' || role === 'producer') && isApproved)) {
       navigate('/dashboard');
+    } else if (redirectUrl) {
+      navigate(redirectUrl, { replace: true });
     } else {
       // Aluno acessa o catálogo da academia
       const postRegSlug = sessionStorage.getItem('post_register_slug');

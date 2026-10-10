@@ -874,20 +874,36 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
                     </p>
                   </div>
 
-                  {/* Nome Completo */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 font-mono">
-                      Nome Completo do Aluno (Obrigatório)
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={studentNameInput}
-                      onChange={(e) => setStudentNameInput(e.target.value)}
-                      placeholder="Ex: João Baptista Silva"
-                      className="w-full bg-black/80 border border-gray-700 text-white rounded-xl p-3 focus:border-[#e9c349] outline-none text-sm placeholder:text-gray-600 transition-all"
-                    />
-                  </div>
+                  {/* Identificação / Sessão do Aluno */}
+                  {user ? (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
+                          ✓
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-white block">{user.name || user.email}</span>
+                          <span className="text-[10px] text-stone-400">Sessão iniciada • Acesso vinculado automaticamente</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded shrink-0">
+                        Sessão Ativa
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 font-mono">
+                        Nome do Aluno (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={studentNameInput}
+                        onChange={(e) => setStudentNameInput(e.target.value)}
+                        placeholder="Ex: Seu Nome / Visitante"
+                        className="w-full bg-black/80 border border-gray-700 text-white rounded-xl p-3 focus:border-[#e9c349] outline-none text-sm placeholder:text-gray-600 transition-all"
+                      />
+                    </div>
+                  )}
 
                   {/* Contacto / WhatsApp */}
                   <div>

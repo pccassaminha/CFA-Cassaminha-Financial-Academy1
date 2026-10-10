@@ -203,12 +203,14 @@ export default function App() {
           <Route 
             path="/classroom" 
             element={
-              user && (
+              user ? (
                 effectiveRole === 'admin' || 
                 effectiveRole === 'producer' || 
                 (userProfile?.enrolledCourses && userProfile.enrolledCourses.length > 0) || 
-                effectiveStatus === 'active'
-              ) ? <VideoLibrary /> : <Navigate to="/library" replace />
+                effectiveStatus === 'active' ? <VideoLibrary /> : <Navigate to="/library" replace />
+              ) : (
+                <Navigate to="/entrar" replace />
+              )
             } 
           />
           <Route 
