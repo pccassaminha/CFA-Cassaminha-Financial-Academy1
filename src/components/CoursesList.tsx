@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, MoreVertical, Copy, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign } from 'lucide-react';
+import { Plus, Edit, Trash2, MoreVertical, Copy, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign, ClipboardPaste } from 'lucide-react';
 import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { notifyNewCourse } from '../services/notificationService';
@@ -54,11 +54,114 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
   // Notificações Toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
+  // Informações do Módulo na Área de Transferência
+  const [copiedModuleInfo, setCopiedModuleInfo] = useState<{
+    id: string;
+    title: string;
+    sourceCourseTitle?: string;
+    lessonsCount: number;
+  } | null>(null);
+
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
     }, 4000);
+  };
+
+  // Ler módulo copiado do localStorage
+  useEffect(() => {
+    const checkCopied = () => {
+      try {
+        const raw = localStorage.getItem('cfa_copied_module');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setCopiedModuleInfo({
+            id: parsed.id,
+            title: parsed.title,
+            sourceCourseTitle: parsed.sourceCourseTitle,
+            lessonsCount: Array.isArray(parsed.lessons) ? parsed.lessons.length : 0
+          });
+        } else {
+          setCopiedModuleInfo(null);
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    };
+    checkCopied();
+    window.addEventListener('storage', checkCopied);
+    return () => window.removeEventListener('storage', checkCopied);
+  }, []);
+
+  // Colar Módulo Direto em um Curso pelo Card
+  const handleQuickPasteModuleToCourse = async (course: CourseItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const raw = localStorage.getItem('cfa_copied_module');
+      if (!raw) {
+        showToast('Nenhum módulo copiado na memória.', 'error');
+        return;
+      }
+      const src = JSON.parse(raw);
+      
+      const courseDocRef = doc(db, 'courses', course.id);
+      const courseSnap = await getDoc(courseDocRef);
+      if (!courseSnap.exists()) {
+        showToast('Curso de destino não encontrado.', 'error');
+        return;
+      }
+
+      const cData = courseSnap.data();
+      const currentModules = Array.isArray(cData.modules) ? [...cData.modules] : [];
+
+      const newModuleId = `m_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      const clonedLessons = (src.lessons || []).map((l: any, idx: number) => ({
+        id: `l_${Date.now()}_${idx}_${Math.floor(Math.random() * 10000)}`,
+        moduleId: newModuleId,
+        courseId: course.id,
+        title: l.title || `Aula ${idx + 1}`,
+        duration: l.duration || '00:00',
+        order: idx + 1,
+        videoSource: l.videoSource || 'youtube',
+        videoData: l.videoData || l.videoUrl || '',
+        videoUrl: l.videoUrl || l.videoData || '',
+        materials: l.materials || '',
+        description: l.description || '',
+        links: Array.isArray(l.links) ? JSON.parse(JSON.stringify(l.links)) : []
+      }));
+
+      // Ajustar número do título conforme a quantidade existente
+      const newIndex = currentModules.length + 1;
+      let cleanTitle = src.title || 'Módulo Clonado';
+      const regex = /^(M[óo]dulo\s+)\d+([:\s\-].*|$)/i;
+      if (regex.test(cleanTitle)) {
+        cleanTitle = cleanTitle.replace(regex, `$1${newIndex}$2`);
+      } else {
+        cleanTitle = `Módulo ${newIndex}: ${cleanTitle}`;
+      }
+
+      const newModule = {
+        id: newModuleId,
+        courseId: course.id,
+        title: cleanTitle,
+        status: src.status || 'published',
+        lessons: clonedLessons
+      };
+
+      currentModules.push(newModule);
+
+      await updateDoc(courseDocRef, {
+        modules: currentModules,
+        updatedAt: serverTimestamp()
+      });
+
+      showToast(`Módulo "${cleanTitle}" colado com sucesso no curso "${course.title}"! (${clonedLessons.length} aulas clonadas)`, 'success');
+      setOpenMenuId(null);
+    } catch (err: any) {
+      console.error("Erro ao colar módulo no curso:", err);
+      showToast('Erro ao colar módulo neste curso.', 'error');
+    }
   };
 
   useEffect(() => {
@@ -403,6 +506,16 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                             <Copy className="w-4 h-4" />
                             Copiar Link
                           </button>
+                          {copiedModuleInfo && (
+                            <button 
+                              onClick={(e) => handleQuickPasteModuleToCourse(course, e)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#e9c349] bg-[#e9c349]/10 hover:bg-[#e9c349]/20 transition-colors cursor-pointer font-semibold border-y border-[#e9c349]/20"
+                              title={`Colar módulo "${copiedModuleInfo.title}" neste curso`}
+                            >
+                              <ClipboardPaste className="w-4 h-4 text-[#e9c349]" />
+                              <span>Colar Módulo Aqui</span>
+                            </button>
+                          )}
                           <button 
                             onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleOpenEditModal(course, e); }}
                             className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer"

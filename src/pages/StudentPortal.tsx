@@ -99,8 +99,8 @@ export default function StudentPortal() {
         try {
           const q = query(collection(db, 'courses'), where('isPublished', '==', true));
           const snapshot = await getDocs(q);
-          const courses = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          const matchedCourse = courses.find((c: any) => slugify(c.title) === slug);
+          const courses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+          const matchedCourse: any = courses.find((c: any) => slugify(c.title) === slug);
           
           if (matchedCourse) {
             setSelectedCourse(matchedCourse);
@@ -109,12 +109,35 @@ export default function StudentPortal() {
             const postRegAction = sessionStorage.getItem('post_register_action');
             const postRegId = sessionStorage.getItem('post_register_course_id');
             
-            if (postRegId === matchedCourse.id && (postRegAction === 'checkout' || postRegAction === 'enroll')) {
-              setCurrentView('checkout');
-              // Clear these items so they don't loop
-              sessionStorage.removeItem('post_register_action');
-              sessionStorage.removeItem('post_register_course_id');
-              sessionStorage.removeItem('post_register_slug');
+            if (postRegId === matchedCourse.id) {
+              if (postRegAction === 'enroll' && (!matchedCourse.price || matchedCourse.price === 0)) {
+                // Se for curso gratuito pós-cadastro/login, adiciona a matrícula e vai para a sala de aula
+                const activeUser = auth.currentUser || user;
+                if (activeUser) {
+                  try {
+                    const { addCourseToUser } = await import('../services/enrollmentService');
+                    await addCourseToUser(activeUser.uid, activeUser.email, matchedCourse.id);
+                  } catch (e) {
+                    console.warn("Auto-enroll error:", e);
+                  }
+                }
+                sessionStorage.removeItem('post_register_action');
+                sessionStorage.removeItem('post_register_course_id');
+                sessionStorage.removeItem('post_register_slug');
+                navigate(`/classroom?courseId=${matchedCourse.id}`, { replace: true });
+                return;
+              } else if (postRegAction === 'checkout') {
+                setCurrentView('checkout');
+                sessionStorage.removeItem('post_register_action');
+                sessionStorage.removeItem('post_register_course_id');
+                sessionStorage.removeItem('post_register_slug');
+              } else {
+                // postRegAction === 'preview'
+                setCurrentView('preview');
+                sessionStorage.removeItem('post_register_action');
+                sessionStorage.removeItem('post_register_course_id');
+                sessionStorage.removeItem('post_register_slug');
+              }
             } else if (currentView !== 'checkout') {
               setCurrentView('preview');
             }

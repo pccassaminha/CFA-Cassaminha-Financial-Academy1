@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
-import { Play, SearchX, Plus, Check, BookmarkCheck, Sparkles } from 'lucide-react';
+import { Play, SearchX, Plus, Check, BookmarkCheck, Sparkles, CheckCircle2 } from 'lucide-react';
 import ExpandableSearch from './ExpandableSearch';
 import { Coupon } from '../types';
 import { EcosystemFooter } from './EcosystemFooter';
@@ -25,10 +27,14 @@ export interface StudentCatalogProps {
 }
 
 export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
   const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -134,16 +140,87 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
     };
   };
 
-  useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
+  const isMasterEmail = (email?: string | null) => {
+    if (!email) return false;
+    const clean = email.trim().toLowerCase();
+    return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
+  };
 
-    const unsub = subscribeUserEnrollments(currentUser, (enrollData) => {
-      setEnrolledCourseIds(enrollData.enrolledCourses);
+  useEffect(() => {
+    let unsubEnroll = () => {};
+    let unsubTx = () => {};
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      unsubEnroll();
+      unsubTx();
+
+      if (user) {
+        const isMaster = isMasterEmail(user.email);
+
+        // Escuta perfil e matrículas do aluno em tempo real
+        unsubEnroll = subscribeUserEnrollments(user, (enrollData) => {
+          const profile = enrollData.userProfile || {};
+          const isUserAdmin = isMaster || profile.role === 'admin';
+          setIsAdmin(isUserAdmin);
+          setUserProfile(profile);
+
+          const list = Array.isArray(enrollData.enrolledCourses) ? [...enrollData.enrolledCourses] : [];
+          setEnrolledCourseIds(prev => Array.from(new Set([...prev, ...list])));
+        });
+
+        // Escuta transações aprovadas do usuário caso tenha acabado de pagar
+        try {
+          const cleanEmail = user.email ? user.email.trim().toLowerCase() : '';
+          const txQuery = query(
+            collection(db, 'transactions'),
+            where('status', '==', 'approved')
+          );
+          unsubTx = onSnapshot(txQuery, (txSnap) => {
+            const approvedIds: string[] = [];
+            txSnap.docs.forEach((docSnap) => {
+              const data = docSnap.data();
+              const isUser = (data.userId && data.userId === user.uid) ||
+                             (data.studentEmail && data.studentEmail.trim().toLowerCase() === cleanEmail) ||
+                             (data.email && data.email.trim().toLowerCase() === cleanEmail);
+              if (isUser && data.courseId) {
+                approvedIds.push(data.courseId);
+              }
+            });
+            if (approvedIds.length > 0) {
+              setEnrolledCourseIds(prev => Array.from(new Set([...prev, ...approvedIds])));
+            }
+          }, (err) => console.warn('Aviso ao escutar transações:', err));
+        } catch (err) {
+          console.warn('Erro ao configurar listener de transações:', err);
+        }
+      } else {
+        setIsAdmin(false);
+        setUserProfile(null);
+        setEnrolledCourseIds([]);
+      }
     });
 
-    return () => unsub();
+    return () => {
+      unsubAuth();
+      unsubEnroll();
+      unsubTx();
+    };
   }, []);
+
+  const checkUserHasAccess = (course: Course) => {
+    if (!currentUser) return false;
+    // 1. Já matriculado explicitamente na conta (compra individual aprovada ou adicionado)
+    if (enrolledCourseIds.includes(course.id)) return true;
+    // 2. Administrador da plataforma (tem acesso completo a todos os cursos para suporte)
+    if (isAdmin) return true;
+    // 3. Instrutor / Produtor que cadastrou o curso
+    if (course.authorId && course.authorId === currentUser.uid) return true;
+    if (course.authorEmail && currentUser.email && course.authorEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    // 4. Assinatura ativa global
+    if (userProfile?.subscriptionStatus === 'active' && userProfile?.hasAllAccess) return true;
+    return false;
+  };
 
   useEffect(() => {
     const unsub = onSnapshot(query(collection(db, 'courses'), where("isPublished", "==", true)), (snapshot) => {
@@ -231,39 +308,55 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
           <p className="text-gray-300 text-[11px] xs:text-xs sm:text-sm lg:text-base max-w-xl mb-3 sm:mb-5 line-clamp-4 leading-relaxed opacity-90">{currentCourse.description}</p>
 
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
-            <button 
-              onClick={() => onSelectCourse(currentCourse)}
-              className="w-full sm:w-auto bg-[#e9c349] text-black font-extrabold px-4 py-2.5 sm:px-6 sm:py-3.5 text-xs sm:text-sm rounded-lg sm:rounded-xl flex items-center justify-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
-            >
-              <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black" /> {enrolledCourseIds.includes(currentCourse.id) ? 'Acessar Treinamento' : 'Aprender Agora'}
-            </button>
-            {(() => {
-              const discountInfo = getCourseDiscountInfo(currentCourse);
-              if (discountInfo.isFree) {
-                return (
-                  <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto text-emerald-400">
-                    GRÁTIS
-                  </span>
-                );
-              }
-              if (discountInfo.hasDiscount) {
-                return (
-                  <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto flex items-center justify-center gap-2.5">
-                    <span className="text-[#e9c349]">
-                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
-                    </span>
-                    <span className="text-xs line-through text-stone-500 font-bold font-mono">
+            {checkUserHasAccess(currentCourse) ? (
+              <>
+                <button 
+                  onClick={() => navigate(`/classroom?courseId=${currentCourse.id}`)}
+                  className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold px-4 py-2.5 sm:px-6 sm:py-3.5 text-xs sm:text-sm rounded-lg sm:rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-95"
+                >
+                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black" /> Assistir Aulas Agora
+                </button>
+                <span className="text-xs sm:text-sm font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-emerald-500/20 text-emerald-400 rounded-lg sm:rounded-xl border border-emerald-500/30 flex items-center gap-1.5">
+                  <Check className="w-4 h-4 stroke-[3]" /> Na sua conta (Acesso Liberado)
+                </span>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => onSelectCourse(currentCourse)}
+                  className="w-full sm:w-auto bg-[#e9c349] text-black font-extrabold px-4 py-2.5 sm:px-6 sm:py-3.5 text-xs sm:text-sm rounded-lg sm:rounded-xl flex items-center justify-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
+                >
+                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black" /> Aprender Agora
+                </button>
+                {(() => {
+                  const discountInfo = getCourseDiscountInfo(currentCourse);
+                  if (discountInfo.isFree) {
+                    return (
+                      <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto text-emerald-400">
+                        GRÁTIS
+                      </span>
+                    );
+                  }
+                  if (discountInfo.hasDiscount) {
+                    return (
+                      <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto flex items-center justify-center gap-2.5">
+                        <span className="text-[#e9c349]">
+                          {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
+                        </span>
+                        <span className="text-xs line-through text-stone-500 font-bold font-mono">
+                          {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(currentCourse.price)}
+                        </span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto text-[#e9c349]">
                       {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(currentCourse.price)}
                     </span>
-                  </span>
-                );
-              }
-              return (
-                <span className="text-xs sm:text-base md:text-lg font-extrabold px-3 py-2 sm:px-4 sm:py-2.5 bg-black/70 backdrop-blur-md rounded-lg sm:rounded-xl border border-gray-800 text-center w-full sm:w-auto text-[#e9c349]">
-                  {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(currentCourse.price)}
-                </span>
-              );
-            })()}
+                  );
+                })()}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -281,20 +374,30 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {filteredCourses.length > 0 ? (
             filteredCourses.map((course) => {
-              const isEnrolled = enrolledCourseIds.includes(course.id);
+              const hasAccess = checkUserHasAccess(course);
               const isFree = !course.price || course.price === 0;
 
               return (
-                <div key={course.id} onClick={() => onSelectCourse(course)} className="bg-[#131313] border border-gray-800/80 rounded-xl sm:rounded-2xl overflow-hidden hover:border-[#e9c349]/50 transition-all cursor-pointer flex flex-col shadow-lg active:scale-[0.99] group">
+                <div 
+                  key={course.id} 
+                  onClick={() => {
+                    if (hasAccess) {
+                      navigate(`/classroom?courseId=${course.id}`);
+                    } else {
+                      onSelectCourse(course);
+                    }
+                  }} 
+                  className="bg-[#131313] border border-gray-800/80 rounded-xl sm:rounded-2xl overflow-hidden hover:border-[#e9c349]/50 transition-all cursor-pointer flex flex-col shadow-lg active:scale-[0.99] group"
+                >
                   <div className="h-36 sm:h-48 md:h-52 overflow-hidden relative">
                     {course.coverImage ? (
                       <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <div className="w-full h-full bg-gray-800 flex items-center justify-center text-gray-500 text-xs">Sem Capa</div>
                     )}
-                    {isEnrolled ? (
-                      <div className="absolute top-2.5 right-2.5 bg-emerald-500/90 text-black px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono shadow-md flex items-center gap-1 backdrop-blur-md">
-                        <Check className="w-3 h-3 stroke-[3]" /> Na sua conta
+                    {hasAccess ? (
+                      <div className="absolute top-2.5 right-2.5 bg-emerald-500 text-black px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-black font-mono shadow-md flex items-center gap-1 backdrop-blur-md">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" /> Na sua conta
                       </div>
                     ) : isFree ? (
                       <div className="absolute top-2.5 right-2.5 bg-emerald-500/80 text-black px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-extrabold font-mono shadow-md backdrop-blur-md">
@@ -310,52 +413,73 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
                       <h3 className="text-sm sm:text-base md:text-lg font-bold text-white mb-1.5 sm:mb-2 line-clamp-2">{course.title}</h3>
                       <p className="text-gray-400 text-[11px] sm:text-xs md:text-sm line-clamp-4 leading-relaxed mb-3 sm:mb-5">{course.description}</p>
                     </div>
+
                     <div className="flex items-center justify-between pt-3 border-t border-gray-800/60 mt-auto">
-                      {(() => {
-                        const discountInfo = getCourseDiscountInfo(course);
-                        if (discountInfo.isFree) {
-                          return <span className="font-extrabold text-sm sm:text-base md:text-lg text-emerald-400">GRÁTIS</span>;
-                        }
-                        if (discountInfo.hasDiscount) {
-                          return (
-                            <div className="flex flex-col items-start leading-none py-1">
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <span className="text-[10px] sm:text-xs text-stone-500 line-through font-bold font-mono">
-                                  {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                                </span>
-                                <span className="text-[9px] font-extrabold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/20 px-1 py-0.2 rounded-md font-mono scale-90 origin-left">
-                                  -{discountInfo.discountType === 'percentage' ? `${discountInfo.discountValue}%` : 'Desconto'}
-                                </span>
-                              </div>
-                              <span className="font-black text-sm sm:text-base md:text-lg text-[#e9c349] tracking-tight">
-                                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
-                              </span>
-                            </div>
-                          );
-                        }
-                        return (
-                          <span className="font-bold text-sm sm:text-base md:text-lg text-[#e9c349]">
-                            {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                          </span>
-                        );
-                      })()}
-                      {isEnrolled ? (
-                        <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1">
-                          <BookmarkCheck className="w-3.5 h-3.5" /> Acessar Curso
-                        </span>
-                      ) : isFree ? (
-                        <button
-                          onClick={(e) => handleQuickAddFreeCourse(e, course)}
-                          disabled={enrollingCourseId === course.id}
-                          className="bg-emerald-500 text-black px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold hover:bg-emerald-400 active:scale-95 transition-all flex items-center gap-1 shadow-md disabled:opacity-50 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          {enrollingCourseId === course.id ? 'Adicionando...' : 'Adicionar aos Meus Cursos'}
-                        </button>
+                      {hasAccess ? (
+                        <>
+                          <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs sm:text-sm">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span>Acesso Liberado</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/classroom?courseId=${course.id}`);
+                            }}
+                            className="bg-emerald-500 hover:bg-emerald-400 text-black px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-black" />
+                            <span>Assistir Aulas</span>
+                          </button>
+                        </>
                       ) : (
-                        <span className="bg-[#e9c349] text-black px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold hover:bg-[#d4b03f] transition-all">
-                          Ver Detalhes / Comprar
-                        </span>
+                        <>
+                          {(() => {
+                            const discountInfo = getCourseDiscountInfo(course);
+                            if (discountInfo.isFree) {
+                              return <span className="font-extrabold text-sm sm:text-base md:text-lg text-emerald-400">GRÁTIS</span>;
+                            }
+                            if (discountInfo.hasDiscount) {
+                              return (
+                                <div className="flex flex-col items-start leading-none py-1">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <span className="text-[10px] sm:text-xs text-stone-500 line-through font-bold font-mono">
+                                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                                    </span>
+                                    <span className="text-[9px] font-extrabold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/20 px-1 py-0.2 rounded-md font-mono scale-90 origin-left">
+                                      -{discountInfo.discountType === 'percentage' ? `${discountInfo.discountValue}%` : 'Desconto'}
+                                    </span>
+                                  </div>
+                                  <span className="font-black text-sm sm:text-base md:text-lg text-[#e9c349] tracking-tight">
+                                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <span className="font-bold text-sm sm:text-base md:text-lg text-[#e9c349]">
+                                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                              </span>
+                            );
+                          })()}
+
+                          {isFree ? (
+                            <button
+                              type="button"
+                              onClick={(e) => handleQuickAddFreeCourse(e, course)}
+                              disabled={enrollingCourseId === course.id}
+                              className="bg-emerald-500 text-black px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold hover:bg-emerald-400 active:scale-95 transition-all flex items-center gap-1 shadow-md disabled:opacity-50 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              {enrollingCourseId === course.id ? 'Adicionando...' : 'Adicionar aos Meus Cursos'}
+                            </button>
+                          ) : (
+                            <span className="bg-[#e9c349] text-black px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold hover:bg-[#d4b03f] transition-all">
+                              Ver Detalhes / Comprar
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

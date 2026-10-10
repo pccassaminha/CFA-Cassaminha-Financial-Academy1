@@ -12,10 +12,20 @@ interface CertificateModalProps {
   courseTitle: string;
   initialStudentName: string;
   instructorName?: string;
+  courseId?: string;
 }
 
-export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentName, instructorName = "Pedro Cassaminha" }: CertificateModalProps) {
+export function CertificateModal({ 
+  isOpen, 
+  onClose, 
+  courseTitle, 
+  initialStudentName, 
+  instructorName = "Pedro Cassaminha",
+  courseId 
+}: CertificateModalProps) {
   const [studentName, setStudentName] = useState(initialStudentName);
+  const [instructor, setInstructor] = useState(instructorName);
+  const [isDetectingAuthor, setIsDetectingAuthor] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const certificateRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +40,60 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
 
   // Generate a random validation code once per modal open
   const validationCode = useRef(`CFA-${Math.random().toString(36).substr(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`);
+
+  // Detectar inteligentemente o Autor / Formador do Curso
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setStudentName(initialStudentName);
+
+    const resolveInstructor = async () => {
+      // 1. Se já recebemos um nome de instrutor customizado explícito
+      if (instructorName && instructorName !== "Pedro Cassaminha" && instructorName !== "Instrutor CFA") {
+        setInstructor(instructorName);
+        return;
+      }
+
+      // 2. Detecção inteligente via Firestore através do ID do curso
+      if (courseId) {
+        setIsDetectingAuthor(true);
+        try {
+          const courseDocRef = doc(db, 'courses', courseId);
+          const courseSnap = await getDoc(courseDocRef);
+          
+          if (courseSnap.exists()) {
+            const cData = courseSnap.data();
+            let detected = cData.producerName || cData.instructor || '';
+
+            // Se não estiver preenchido diretamente no curso, busca no perfil do autor
+            if ((!detected || detected === 'Instrutor CFA') && cData.authorId) {
+              const authorSnap = await getDoc(doc(db, 'users', cData.authorId));
+              if (authorSnap.exists()) {
+                const uData = authorSnap.data();
+                const fullName = `${uData.firstName || ''} ${uData.lastName || ''}`.trim();
+                detected = uData.producerName || uData.name || fullName || uData.displayName || '';
+              }
+            }
+
+            if (detected && detected.trim().length > 0) {
+              setInstructor(detected.trim());
+              setIsDetectingAuthor(false);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn("Erro ao detetar autor do curso para o certificado:", error);
+        } finally {
+          setIsDetectingAuthor(false);
+        }
+      }
+
+      // 3. Padrão institucional da CFA
+      setInstructor(instructorName || "Pedro Cassaminha");
+    };
+
+    resolveInstructor();
+  }, [isOpen, courseId, instructorName, initialStudentName]);
 
   // Calculate dynamic scale to fit the 1123x794 certificate 100% visible inside the modal
   const calculateFitScale = () => {
@@ -144,17 +208,40 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
       
       {/* Controles do Certificado */}
       <div className="w-full max-w-[96vw] xl:max-w-[1380px] flex flex-col lg:flex-row items-center justify-between mb-3 gap-3 bg-[#131313] px-4 py-3 rounded-2xl border border-[#353534] shadow-2xl">
-        <div className="flex-1 w-full lg:max-w-md">
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-            Nome no Certificado
-          </label>
-          <input
-            type="text"
-            value={studentName}
-            onChange={(e) => setStudentName(e.target.value)}
-            className="w-full bg-[#0e0e0e] border border-[#353534] rounded-lg px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-[#e9c349] outline-none"
-            placeholder="Digite o nome do aluno"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:max-w-xl">
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+              Nome do Aluno
+            </label>
+            <input
+              type="text"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              className="w-full bg-[#0e0e0e] border border-[#353534] rounded-lg px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-[#e9c349] outline-none"
+              placeholder="Digite o nome do aluno"
+            />
+          </div>
+
+          <div>
+            <label className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+              <span>Formador / Autor</span>
+              {isDetectingAuthor ? (
+                <span className="text-[#e9c349] text-[10px] font-normal lowercase animate-pulse">a detetar autor...</span>
+              ) : (
+                <span className="text-emerald-400 text-[10px] font-normal lowercase flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  detetado automaticamente
+                </span>
+              )}
+            </label>
+            <input
+              type="text"
+              value={instructor}
+              onChange={(e) => setInstructor(e.target.value)}
+              className="w-full bg-[#0e0e0e] border border-[#353534] rounded-lg px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-[#e9c349] outline-none"
+              placeholder="Nome do formador do curso"
+            />
+          </div>
         </div>
 
         {/* Ferramentas de Zoom & Ajuste de Tela */}
@@ -341,7 +428,7 @@ export function CertificateModal({ isOpen, onClose, courseTitle, initialStudentN
               color: '#1a1a1a',
               fontFamily: '"Georgia", serif'
             }}>
-              {instructorName}
+              {instructor}
             </div>
 
             {/* CÓDIGO QR & VALIDAÇÃO */}

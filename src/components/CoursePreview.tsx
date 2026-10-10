@@ -92,11 +92,19 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   }, [courseId]);
 
   useEffect(() => {
+    const isMasterEmail = (email?: string | null) => {
+      if (!email) return false;
+      const clean = email.trim().toLowerCase();
+      return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
+    };
+
     const user = auth.currentUser;
     if (!user) return;
 
     const unsub = subscribeUserEnrollments(user, (enrollData) => {
-      const isEnrolled = enrollData.enrolledCourses.includes(courseId);
+      const isMaster = isMasterEmail(user.email);
+      const isAdmin = isMaster || enrollData.userProfile?.role === 'admin';
+      const isEnrolled = enrollData.enrolledCourses.includes(courseId) || isAdmin;
       setIsAlreadyEnrolled(isEnrolled);
     });
 

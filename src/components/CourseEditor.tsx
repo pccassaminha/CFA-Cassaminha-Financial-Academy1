@@ -484,14 +484,208 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   };
 
 
-  // Funções para copiar e colar aula
+  // Estado do Módulo Copiado (Clipboard de Módulos)
+  const [copiedModuleInfo, setCopiedModuleInfo] = useState<{
+    id: string;
+    title: string;
+    sourceCourseTitle?: string;
+    lessonsCount: number;
+    copiedAt: number;
+  } | null>(null);
+
+  // Modal para colar módulo com escolha de posição e título
+  const [pasteModal, setPasteModal] = useState<{
+    isOpen: boolean;
+    moduleToPaste: any | null;
+    customTitle: string;
+    targetPosition: 'end' | 'start' | 'specific';
+    targetIndex: number;
+  }>({
+    isOpen: false,
+    moduleToPaste: null,
+    customTitle: '',
+    targetPosition: 'end',
+    targetIndex: 0
+  });
+
+  // Notificação Toast Local do Editor
+  const [editorToast, setEditorToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const showEditorToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setEditorToast({ text, type });
+    setTimeout(() => {
+      setEditorToast(null);
+    }, 4000);
+  };
+
+  // Carregar dados de módulo copiado do localStorage na montagem ou quando mudar
+  useEffect(() => {
+    const checkCopiedModule = () => {
+      try {
+        const raw = localStorage.getItem('cfa_copied_module');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setCopiedModuleInfo({
+            id: parsed.id,
+            title: parsed.title,
+            sourceCourseTitle: parsed.sourceCourseTitle,
+            lessonsCount: Array.isArray(parsed.lessons) ? parsed.lessons.length : 0,
+            copiedAt: parsed.copiedAt || Date.now()
+          });
+        } else {
+          setCopiedModuleInfo(null);
+        }
+      } catch (e) {
+        console.warn('Erro ao ler cfa_copied_module:', e);
+      }
+    };
+
+    checkCopiedModule();
+    window.addEventListener('storage', checkCopiedModule);
+    return () => window.removeEventListener('storage', checkCopiedModule);
+  }, []);
+
+  // 1. Copiar Módulo Completo (Deep copy para localStorage)
+  const handleCopyModule = (moduleToCopy: Module) => {
+    try {
+      const payload = {
+        id: moduleToCopy.id,
+        title: moduleToCopy.title,
+        status: moduleToCopy.status || 'published',
+        sourceCourseId: courseId,
+        sourceCourseTitle: title || 'Curso de Origem',
+        copiedAt: Date.now(),
+        lessons: (moduleToCopy.lessons || []).map((l, i) => ({
+          title: l.title || `Aula ${i + 1}`,
+          duration: l.duration || '00:00',
+          videoSource: l.videoSource || 'youtube',
+          videoData: l.videoData || l.videoUrl || '',
+          videoUrl: l.videoUrl || l.videoData || '',
+          materials: l.materials || '',
+          description: l.description || '',
+          links: l.links ? JSON.parse(JSON.stringify(l.links)) : []
+        }))
+      };
+
+      localStorage.setItem('cfa_copied_module', JSON.stringify(payload));
+      setCopiedModuleInfo({
+        id: payload.id,
+        title: payload.title,
+        sourceCourseTitle: payload.sourceCourseTitle,
+        lessonsCount: payload.lessons.length,
+        copiedAt: payload.copiedAt
+      });
+
+      showEditorToast(`Módulo "${moduleToCopy.title}" copiado com ${payload.lessons.length} aula(s)! Agora você pode colá-lo aqui ou em qualquer outro curso.`, 'success');
+    } catch (e) {
+      console.error(e);
+      showEditorToast('Erro ao copiar módulo.', 'error');
+    }
+  };
+
+  // 2. Abrir Modal de Colar Módulo
+  const handleOpenPasteModuleModal = () => {
+    try {
+      const raw = localStorage.getItem('cfa_copied_module');
+      if (!raw) {
+        showEditorToast('Nenhum módulo foi copiado ainda. Clique em "Copiar" num módulo existente primeiro.', 'info');
+        return;
+      }
+      const data = JSON.parse(raw);
+      setPasteModal({
+        isOpen: true,
+        moduleToPaste: data,
+        customTitle: data.title || 'Módulo Clonado',
+        targetPosition: 'end',
+        targetIndex: modules.length
+      });
+    } catch (e) {
+      console.error(e);
+      showEditorToast('Falha ao ler dados do módulo copiado.', 'error');
+    }
+  };
+
+  // 3. Confirmar Colagem do Módulo com Clonagem Profunda e Novos IDs
+  const handleConfirmPasteModule = () => {
+    if (!pasteModal.moduleToPaste) return;
+    const src = pasteModal.moduleToPaste;
+
+    // Gerar novo ID exclusivo para o módulo colado
+    const newModuleId = `m_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+    // Clonar profundamente todas as aulas com IDs únicos e referências ao novo módulo e curso
+    const clonedLessons: Lesson[] = (src.lessons || []).map((l: any, idx: number) => ({
+      id: `l_${Date.now()}_${idx}_${Math.floor(Math.random() * 10000)}`,
+      moduleId: newModuleId,
+      courseId,
+      title: l.title || `Aula ${idx + 1}`,
+      duration: l.duration || '00:00',
+      order: idx + 1,
+      videoSource: l.videoSource || 'youtube',
+      videoData: l.videoData || l.videoUrl || '',
+      videoUrl: l.videoUrl || l.videoData || '',
+      materials: l.materials || '',
+      description: l.description || '',
+      links: Array.isArray(l.links) ? l.links.map((link: any) => ({
+        id: `lnk_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        label: link.label || '',
+        url: link.url || ''
+      })) : []
+    }));
+
+    const newModule: Module = {
+      id: newModuleId,
+      courseId,
+      title: pasteModal.customTitle.trim() || src.title || 'Módulo Clonado',
+      status: src.status || 'published',
+      lessons: clonedLessons
+    };
+
+    let updatedModules = [...modules];
+
+    if (pasteModal.targetPosition === 'start') {
+      updatedModules.unshift(newModule);
+    } else if (pasteModal.targetPosition === 'specific') {
+      const idx = Math.max(0, Math.min(pasteModal.targetIndex, updatedModules.length));
+      updatedModules.splice(idx, 0, newModule);
+    } else {
+      // Default: 'end'
+      updatedModules.push(newModule);
+    }
+
+    // Renumerar e persistir no estado
+    const finalModules = renumberModules(updatedModules);
+    setModules(finalModules);
+
+    // Fechar modal
+    setPasteModal({
+      isOpen: false,
+      moduleToPaste: null,
+      customTitle: '',
+      targetPosition: 'end',
+      targetIndex: 0
+    });
+
+    showEditorToast(`Módulo "${newModule.title}" colado com sucesso com ${clonedLessons.length} aula(s)!`, 'success');
+
+    // Notificar se o curso estiver publicado
+    if (isPublished) {
+      notifyNewModule({
+        courseId,
+        courseTitle: title || 'Curso CFA Academy',
+        moduleTitle: newModule.title
+      }).catch(err => console.warn('Erro ao disparar notificação de módulo colado:', err));
+    }
+  };
+
+  // Funções para copiar e colar aula com Toast suave
   const handleCopyLesson = (lesson: Lesson) => {
     try {
       localStorage.setItem('copied_lesson', JSON.stringify(lesson));
-      alert(`Aula "${lesson.title}" copiada! Pode colá-la em qualquer módulo.`);
+      showEditorToast(`Aula "${lesson.title}" copiada! Agora você pode colá-la em qualquer módulo.`, 'success');
     } catch (e) {
       console.error(e);
-      alert('Erro ao copiar aula.');
+      showEditorToast('Erro ao copiar aula.', 'error');
     }
   };
 
@@ -499,7 +693,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     try {
       const copiedRaw = localStorage.getItem('copied_lesson');
       if (!copiedRaw) {
-        alert('Nenhuma aula copiada.');
+        showEditorToast('Nenhuma aula foi copiada ainda.', 'info');
         return;
       }
       const copiedLesson = JSON.parse(copiedRaw) as Lesson;
@@ -521,9 +715,10 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
         }
         return mod;
       }));
+      showEditorToast(`Aula "${copiedLesson.title}" colada com sucesso neste módulo!`, 'success');
     } catch (e) {
       console.error(e);
-      alert('Erro ao colar aula.');
+      showEditorToast('Erro ao colar aula.', 'error');
     }
   };
 
@@ -1145,22 +1340,83 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
       {/* Seção de Módulos e Aulas */}
       {structureType === 'modules' ? (
         <>
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-bold font-headline flex items-center gap-2">
                 <BookOpen className="w-6 h-6 text-[#e9c349]" />
                 Módulos e Aulas
               </h2>
-              <p className="text-xs text-gray-400 mt-1">Organize os tópicos e gerencie os vídeos hospedados no YouTube ou Wistia.</p>
+              <p className="text-xs text-gray-400 mt-1">Organize os tópicos, copie/cole módulos entre cursos e gerencie as aulas.</p>
             </div>
-            <button
-              id="btn-add-module"
-              onClick={handleOpenCreateModule}
-              className="bg-[#e9c349] text-black px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
-            >
-              <Plus className="w-4 h-4" /> Novo Módulo
-            </button>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {copiedModuleInfo && (
+                <button
+                  type="button"
+                  id="btn-paste-module"
+                  onClick={handleOpenPasteModuleModal}
+                  className="bg-[#1a1a1a] hover:bg-[#252525] text-[#e9c349] border border-[#e9c349]/40 hover:border-[#e9c349] px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer shadow-lg active:scale-95 group"
+                  title={`Colar módulo copiado: ${copiedModuleInfo.title}`}
+                >
+                  <ClipboardPaste className="w-4 h-4 text-[#e9c349] group-hover:scale-110 transition-transform" />
+                  <span>Colar Módulo</span>
+                  <span className="text-[10px] bg-[#e9c349]/20 text-[#e9c349] px-2 py-0.5 rounded-full font-mono">
+                    {copiedModuleInfo.lessonsCount} {copiedModuleInfo.lessonsCount === 1 ? 'aula' : 'aulas'}
+                  </span>
+                </button>
+              )}
+              <button
+                id="btn-add-module"
+                onClick={handleOpenCreateModule}
+                className="bg-[#e9c349] text-black px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
+              >
+                <Plus className="w-4 h-4" /> Novo Módulo
+              </button>
+            </div>
           </div>
+
+          {/* Banner discreto avisando sobre módulo pronto na área de transferência */}
+          {copiedModuleInfo && (
+            <div className="mb-6 bg-gradient-to-r from-[#e9c349]/15 via-[#1a1a1a] to-[#121212] border border-[#e9c349]/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#e9c349]/20 text-[#e9c349] flex items-center justify-center shrink-0 border border-[#e9c349]/30">
+                  <Copy className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold text-[#e9c349] tracking-wider">Módulo na Área de Transferência</span>
+                    <span className="text-[10px] text-gray-500 font-mono">· Pronto para clonar</span>
+                  </div>
+                  <p className="text-xs text-white font-semibold">
+                    "{copiedModuleInfo.title}" <span className="text-gray-400 font-normal">({copiedModuleInfo.lessonsCount} {copiedModuleInfo.lessonsCount === 1 ? 'aula incluída' : 'aulas incluídas'})</span>
+                  </p>
+                  {copiedModuleInfo.sourceCourseTitle && (
+                    <p className="text-[11px] text-gray-400">Origem: <span className="text-gray-300 font-medium">{copiedModuleInfo.sourceCourseTitle}</span></p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={handleOpenPasteModuleModal}
+                  className="px-4 py-2 bg-[#e9c349] text-black font-bold text-xs rounded-xl hover:bg-[#d4b03f] transition-all flex items-center gap-1.5 shadow cursor-pointer active:scale-95"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5" /> Colar Neste Curso
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('cfa_copied_module');
+                    setCopiedModuleInfo(null);
+                    showEditorToast('Módulo removido da área de transferência.', 'info');
+                  }}
+                  className="p-2 text-gray-500 hover:text-gray-300 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Limpar módulo copiado"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-6">
             {modules.length > 0 && (
@@ -1277,12 +1533,24 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                           </button>
                         </div>
 
+                        {/* Botão Copiar Módulo */}
+                        <button
+                          type="button"
+                          id={`btn-copy-mod-${mod.id}`}
+                          onClick={() => handleCopyModule(mod)}
+                          className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer group"
+                          title="Copiar este módulo completo com todas as suas aulas para colar noutro curso"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#e9c349] transition-colors" />
+                          <span>Copiar Módulo</span>
+                        </button>
+
                         <button
                           onClick={() => handlePasteLesson(mod.id)}
-                          className="px-3 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          className="px-2.5 py-1.5 bg-[#1a1a1a] border border-gray-700 hover:border-[#e9c349] text-gray-300 hover:text-[#e9c349] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                           title="Colar aula previamente copiada"
                         >
-                          <ClipboardPaste className="w-3.5 h-3.5" /> Colar
+                          <ClipboardPaste className="w-3.5 h-3.5" /> Colar Aula
                         </button>
                         <button
                           id={`btn-add-lesson-mod-${mod.id}`}
@@ -1535,6 +1803,160 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação e Configuração para Colar Módulo */}
+      {pasteModal.isOpen && pasteModal.moduleToPaste && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181818] border border-[#e9c349]/40 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#e9c349]/20 text-[#e9c349] flex items-center justify-center border border-[#e9c349]/30">
+                  <ClipboardPaste className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white font-headline">Colar e Clonar Módulo</h3>
+                  <p className="text-xs text-gray-400">Insira este módulo com todas as aulas no curso atual</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPasteModal({ ...pasteModal, isOpen: false })}
+                className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Resumo do Conteúdo Clonado */}
+              <div className="bg-black/60 border border-gray-800 rounded-xl p-3.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-[#e9c349] uppercase tracking-wider">Origem do Módulo</span>
+                  <span className="text-[10px] bg-[#e9c349]/15 text-[#e9c349] px-2 py-0.5 rounded-full font-bold">
+                    {Array.isArray(pasteModal.moduleToPaste.lessons) ? pasteModal.moduleToPaste.lessons.length : 0} Aulas
+                  </span>
+                </div>
+                <p className="text-xs text-white font-semibold">{pasteModal.moduleToPaste.title}</p>
+                {pasteModal.moduleToPaste.sourceCourseTitle && (
+                  <p className="text-[11px] text-gray-400">Curso de Origem: {pasteModal.moduleToPaste.sourceCourseTitle}</p>
+                )}
+                <p className="text-[10px] text-emerald-400 flex items-center gap-1 pt-1 border-t border-gray-800/80">
+                  <span>✓</span> Todos os vídeos, descrições, durações e materiais anexados serão preservados.
+                </p>
+              </div>
+
+              {/* Título do Módulo Clonado */}
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                  Título do Módulo no Novo Curso
+                </label>
+                <input
+                  type="text"
+                  value={pasteModal.customTitle}
+                  onChange={(e) => setPasteModal({ ...pasteModal, customTitle: e.target.value })}
+                  placeholder="Ex: Módulo 3: Estratégias Avançadas"
+                  className="w-full bg-black border border-gray-700 text-white rounded-xl p-3 text-sm focus:border-[#e9c349] outline-none font-medium"
+                />
+                <p className="text-[11px] text-gray-500 mt-1">A numeração ("Módulo X:") será ajustada automaticamente pela ordem.</p>
+              </div>
+
+              {/* Escolha da Posição do Módulo */}
+              <div>
+                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                  Onde posicionar o módulo neste curso?
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPasteModal({ ...pasteModal, targetPosition: 'end' })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                      pasteModal.targetPosition === 'end'
+                        ? 'bg-[#e9c349] text-black border-[#e9c349] shadow-md'
+                        : 'bg-black text-gray-300 border-gray-800 hover:border-gray-700'
+                    }`}
+                  >
+                    No Final (Padrão)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPasteModal({ ...pasteModal, targetPosition: 'start' })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                      pasteModal.targetPosition === 'start'
+                        ? 'bg-[#e9c349] text-black border-[#e9c349] shadow-md'
+                        : 'bg-black text-gray-300 border-gray-800 hover:border-gray-700'
+                    }`}
+                  >
+                    No Início (1º Módulo)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPasteModal({ ...pasteModal, targetPosition: 'specific' })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                      pasteModal.targetPosition === 'specific'
+                        ? 'bg-[#e9c349] text-black border-[#e9c349] shadow-md'
+                        : 'bg-black text-gray-300 border-gray-800 hover:border-gray-700'
+                    }`}
+                  >
+                    Posição Específica
+                  </button>
+                </div>
+
+                {pasteModal.targetPosition === 'specific' && (
+                  <div className="mt-3 bg-black/40 border border-gray-800 rounded-xl p-3 flex items-center justify-between gap-3">
+                    <span className="text-xs text-gray-300 font-medium">Inserir antes do Módulo:</span>
+                    <select
+                      value={pasteModal.targetIndex}
+                      onChange={(e) => setPasteModal({ ...pasteModal, targetIndex: Number(e.target.value) })}
+                      className="bg-black border border-gray-700 text-white rounded-lg px-3 py-1.5 text-xs focus:border-[#e9c349] outline-none"
+                    >
+                      {modules.map((m, idx) => (
+                        <option key={m.id} value={idx}>
+                          #{idx + 1} - {m.title}
+                        </option>
+                      ))}
+                      <option value={modules.length}>No Final (após todos)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 justify-end mt-6 pt-4 border-t border-gray-800">
+              <button
+                type="button"
+                onClick={() => setPasteModal({ ...pasteModal, isOpen: false })}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-gray-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPasteModule}
+                className="bg-[#e9c349] hover:bg-[#d4b03f] text-black px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <ClipboardPaste className="w-4 h-4" />
+                <span>Confirmar e Colar Módulo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Discreto */}
+      {editorToast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-5 duration-300 max-w-md ${
+          editorToast.type === 'error'
+            ? 'bg-red-950/90 text-red-200 border-red-500/50'
+            : editorToast.type === 'info'
+            ? 'bg-blue-950/90 text-blue-200 border-blue-500/50'
+            : 'bg-[#181818]/95 text-[#e9c349] border-[#e9c349]/50'
+        }`}>
+          <span className="text-base">
+            {editorToast.type === 'error' ? '❌' : editorToast.type === 'info' ? 'ℹ️' : '✅'}
+          </span>
+          <p className="text-xs font-medium text-white">{editorToast.text}</p>
         </div>
       )}
 

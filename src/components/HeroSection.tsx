@@ -31,10 +31,6 @@ export default function HeroSection({ currentUser }: HeroSectionProps) {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 w-full">
         <div className="flex flex-col items-start space-y-3.5 sm:space-y-6 text-left max-w-xl sm:max-w-2xl lg:max-w-3xl">
           
-          <span className="bg-black/70 backdrop-blur-md border border-[#e9c349]/30 text-[#e9c349] text-[10px] sm:text-xs font-bold px-3 sm:px-4 py-1 sm:py-1.5 rounded-full uppercase tracking-wider sm:tracking-widest font-mono shadow-md">
-            Cassaminha Financial Academy
-          </span>
-
           <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight sm:leading-[1.1] font-headline drop-shadow-md">
             Aprenda as Habilidades <span className="text-[#e9c349]">Que Geram Resultados</span>
           </h1>

@@ -22,8 +22,11 @@ import {
   X,
   HelpCircle,
   Users,
-  Smartphone
+  Smartphone,
+  ExternalLink
 } from 'lucide-react';
+import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
+import { slugify } from '../utils/slugify';
 
 interface Course {
   id: string;
@@ -129,9 +132,13 @@ export default function SalesPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [modalType, setModalType] = useState<'free' | 'paid'>('free');
   const [selectedCourseName, setSelectedCourseName] = useState('');
+  const [selectedCourseForAuth, setSelectedCourseForAuth] = useState<Course | null>(null);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
 
-  // Track auth state
+  // Track auth state and enrollments in real-time
   useEffect(() => {
+    let unsubEnroll = () => {};
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
@@ -150,11 +157,21 @@ export default function SalesPage() {
         } catch (err) {
           console.warn("Could not check user role from Firestore:", err);
         }
+
+        // Subscribe to user enrollments in real time
+        unsubEnroll = subscribeUserEnrollments(user, (enrollData) => {
+          setEnrolledCourseIds(enrollData.enrolledCourses || []);
+        });
       } else {
         setIsAdmin(false);
+        setEnrolledCourseIds([]);
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      unsubEnroll();
+    };
   }, []);
 
   // Fetch logo settings
@@ -216,23 +233,58 @@ export default function SalesPage() {
   }, []);
 
   // Handler for course CTA button clicks
-  const handleCourseAction = (course: Course) => {
+  const handleCourseAction = async (course: Course) => {
     const isFree = !course.price || course.price === 0;
+    const isAlreadyEnrolled = enrolledCourseIds.includes(course.id) || isAdmin;
+    const courseSlug = slugify(course.title);
 
+    // 1. Visitante SEM Sessão Iniciada
     if (!currentUser) {
-      // User is not logged in, trigger our high-end auth warning modal
       setSelectedCourseName(course.title);
+      setSelectedCourseForAuth(course);
       setModalType(isFree ? 'free' : 'paid');
+      // Guarda nos session storage para garantir a continuidade imediata pós cadastro/login
+      sessionStorage.setItem('post_register_course_id', course.id);
+      sessionStorage.setItem('post_register_action', isFree ? 'enroll' : 'preview');
+      sessionStorage.setItem('post_register_slug', courseSlug);
       setShowAuthModal(true);
-    } else {
-      // User is logged in, navigate straight to library/checkout
-      if (isFree) {
-        navigate('/library');
-      } else {
-        // Redirect to portal which handles checkout previews
-        navigate('/library');
-      }
+      return;
     }
+
+    // 2. Aluno já comprou / matriculado (ou Administrador da plataforma)
+    if (isAlreadyEnrolled) {
+      // Direciona imediatamente para a sala de aula do curso, pulando vitrine e checkout
+      navigate(`/classroom?courseId=${course.id}`);
+      return;
+    }
+
+    // 3. Curso Gratuito com sessão iniciada
+    if (isFree) {
+      try {
+        // Assegura matrícula imediata caso ainda não esteja na lista
+        await addCourseToUser(currentUser.uid, currentUser.email, course.id);
+      } catch (err) {
+        console.warn("Aviso ao matricular automaticamente em curso grátis:", err);
+      }
+      // Direciona diretamente à sala de aula
+      navigate(`/classroom?courseId=${course.id}`);
+      return;
+    }
+
+    // 4. Curso Pago ainda não adquirido por aluno logado
+    // Direciona diretamente para a página de apresentação do curso (preview/apresentação)
+    navigate(`/library/${courseSlug}`);
+  };
+
+  const handleModalAuthNavigate = (path: '/criar-conta' | '/entrar') => {
+    if (selectedCourseForAuth) {
+      const isFree = !selectedCourseForAuth.price || selectedCourseForAuth.price === 0;
+      sessionStorage.setItem('post_register_course_id', selectedCourseForAuth.id);
+      sessionStorage.setItem('post_register_action', isFree ? 'enroll' : 'preview');
+      sessionStorage.setItem('post_register_slug', slugify(selectedCourseForAuth.title));
+    }
+    setShowAuthModal(false);
+    navigate(path);
   };
 
   return (
@@ -328,6 +380,7 @@ export default function SalesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {courses.map((course) => {
                 const isFree = !course.price || course.price === 0;
+                const isAlreadyEnrolled = enrolledCourseIds.includes(course.id) || isAdmin;
                 
                 return (
                   <div 
@@ -349,11 +402,13 @@ export default function SalesPage() {
                       )}
                       <div className="absolute top-4 left-4">
                         <span className={`text-[10px] uppercase font-black px-2.5 py-1 rounded-lg border tracking-wider shadow-lg ${
-                          isFree 
+                          isAlreadyEnrolled
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                            : isFree 
                             ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' 
                             : 'bg-[#e9c349]/15 text-[#e9c349] border-[#e9c349]/30'
                         }`}>
-                          {isFree ? 'Conteúdo Grátis' : 'Inscrição Premium'}
+                          {isAlreadyEnrolled ? '✓ Na sua conta' : isFree ? 'Conteúdo Grátis' : 'Inscrição Premium'}
                         </span>
                       </div>
                     </div>
@@ -387,64 +442,96 @@ export default function SalesPage() {
                       </div>
 
                       <div className="space-y-4">
-                        {/* Price Badge */}
+                        {/* Price Badge or Enrolled Status */}
                         <div className="flex items-center justify-between border-t border-white/5 pt-4">
-                          <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest font-headline">Valor do Curso</span>
-                          {(() => {
-                            const discountInfo = getCourseDiscountInfo(course);
-                            if (discountInfo.isFree) {
-                              return (
-                                <span className="text-lg font-black text-emerald-400 font-headline">
-                                  GRÁTIS
-                                </span>
-                              );
-                            }
-                            if (discountInfo.hasDiscount) {
-                              return (
-                                <div className="flex flex-col items-end leading-none">
-                                  <div className="flex items-center gap-1.5 mb-1 justify-end">
-                                    <span className="text-[10px] text-stone-500 line-through font-bold font-mono">
-                                      {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                                    </span>
-                                    <span className="text-[9px] font-extrabold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/20 px-1 py-0.2 rounded-md font-mono scale-90 origin-right">
-                                      -{discountInfo.discountType === 'percentage' ? `${discountInfo.discountValue}%` : 'Desconto'}
-                                    </span>
-                                  </div>
-                                  <span className="text-lg font-black text-[#e9c349] font-headline tracking-tight">
-                                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
-                                  </span>
-                                </div>
-                              );
-                            }
-                            return (
-                              <span className="text-lg font-black text-[#e9c349] font-headline">
-                                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
-                              </span>
-                            );
-                          })()}
-                        </div>
-
-                        {/* Direct Call to Action buttons */}
-                        <button
-                          onClick={() => handleCourseAction(course)}
-                          className={`w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                            isFree 
-                              ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-900/10' 
-                              : 'bg-[#e9c349] hover:bg-[#d8b33c] text-stone-900 shadow-lg shadow-[#e9c349]/10'
-                          }`}
-                        >
-                          {isFree ? (
+                          {isAlreadyEnrolled ? (
                             <>
-                              <Play className="w-4 h-4 fill-white" />
-                              <span>Assistir Grátis</span>
+                              <span className="text-[10px] text-emerald-400/90 font-bold uppercase tracking-widest font-headline">Status do Acesso</span>
+                              <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-headline">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                Já Adquirido / Liberado
+                              </span>
                             </>
                           ) : (
                             <>
-                              <ShoppingBag className="w-4 h-4" />
-                              <span>Comprar Curso</span>
+                              <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest font-headline">Valor do Curso</span>
+                              {(() => {
+                                const discountInfo = getCourseDiscountInfo(course);
+                                if (discountInfo.isFree) {
+                                  return (
+                                    <span className="text-lg font-black text-emerald-400 font-headline">
+                                      GRÁTIS
+                                    </span>
+                                  );
+                                }
+                                if (discountInfo.hasDiscount) {
+                                  return (
+                                    <div className="flex flex-col items-end leading-none">
+                                      <div className="flex items-center gap-1.5 mb-1 justify-end">
+                                        <span className="text-[10px] text-stone-500 line-through font-bold font-mono">
+                                          {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                                        </span>
+                                        <span className="text-[9px] font-extrabold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/20 px-1 py-0.2 rounded-md font-mono scale-90 origin-right">
+                                          -{discountInfo.discountType === 'percentage' ? `${discountInfo.discountValue}%` : 'Desconto'}
+                                        </span>
+                                      </div>
+                                      <span className="text-lg font-black text-[#e9c349] font-headline tracking-tight">
+                                        {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(discountInfo.discountedPrice)}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <span className="text-lg font-black text-[#e9c349] font-headline">
+                                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(course.price)}
+                                  </span>
+                                );
+                              })()}
                             </>
                           )}
-                        </button>
+                        </div>
+
+                        {/* Direct Call to Action buttons */}
+                        {(() => {
+                          const isAlreadyEnrolled = enrolledCourseIds.includes(course.id) || isAdmin;
+
+                          if (isAlreadyEnrolled) {
+                            return (
+                              <button
+                                onClick={() => handleCourseAction(course)}
+                                className="w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-900/20 group-hover:scale-[1.01]"
+                                title="Acessar sala de aula imediatamente"
+                              >
+                                <Play className="w-4 h-4 fill-white" />
+                                <span>Assistir Curso (Acesso Liberado)</span>
+                              </button>
+                            );
+                          }
+
+                          if (isFree) {
+                            return (
+                              <button
+                                onClick={() => handleCourseAction(course)}
+                                className="w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-900/10 group-hover:scale-[1.01]"
+                                title="Acessar conteúdo gratuito"
+                              >
+                                <Play className="w-4 h-4 fill-white" />
+                                <span>Assistir Grátis</span>
+                              </button>
+                            );
+                          }
+
+                          return (
+                            <button
+                              onClick={() => handleCourseAction(course)}
+                              className="w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-[#e9c349] hover:bg-[#d8b33c] text-stone-900 shadow-lg shadow-[#e9c349]/10 group-hover:scale-[1.01]"
+                              title="Ver apresentação e adquirir curso"
+                            >
+                              <ShoppingBag className="w-4 h-4" />
+                              <span>Comprar Curso</span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -507,8 +594,30 @@ export default function SalesPage() {
           </div>
         </section>
 
+        {/* Final Registration CTA Section */}
+        <section className="max-w-4xl mx-auto px-6 py-20 text-center">
+          <div className="bg-[#181818] p-8 md:p-12 rounded-[2rem] border border-white/5 relative overflow-hidden">
+            <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-[#e9c349]/5 blur-[100px] rounded-full"></div>
+            <h3 className="font-headline text-3xl md:text-4xl font-black text-white mb-3">Inicie sua Formação na CFA</h3>
+            <p className="text-stone-400 mb-8 max-w-lg mx-auto text-sm">Cadastre-se hoje mesmo para ter acesso instantâneo ao nosso catálogo e começar a assistir às aulas gratuitas.</p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto justify-center mb-6">
+              <Link to="/criar-conta" className="w-full sm:w-auto px-8 bg-[#e9c349] text-stone-900 py-4 rounded-xl font-bold text-base hover:opacity-90 transition-all shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
+                Criar Minha Conta de Aluno
+              </Link>
+              <Link to="/entrar" className="w-full sm:w-auto px-8 bg-stone-800 text-stone-200 border border-stone-700 py-4 rounded-xl font-bold text-base hover:bg-stone-700 transition-all">
+                Entrar na Conta
+              </Link>
+            </div>
+            
+            <p className="text-stone-500 text-xs flex items-center justify-center gap-1.5">
+              <Lock className="w-3.5 h-3.5" /> Acesso 100% criptografado e seguro.
+            </p>
+          </div>
+        </section>
+
         {/* Section: Seja um Produtor */}
-        <section className="max-w-6xl mx-auto px-6 py-16">
+        <section className="max-w-6xl mx-auto px-6 py-12 mb-12">
           <div className="bg-gradient-to-br from-[#1c180e] via-[#121212] to-[#0a0a0a] border border-[#e9c349]/30 rounded-[2.5rem] p-8 md:p-14 relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 right-0 w-96 h-96 bg-[#e9c349]/10 blur-[120px] rounded-full pointer-events-none" />
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
@@ -561,28 +670,6 @@ export default function SalesPage() {
                 </Link>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* Final Registration CTA Section */}
-        <section className="max-w-4xl mx-auto px-6 py-24 text-center">
-          <div className="bg-[#181818] p-8 md:p-12 rounded-[2rem] border border-white/5 relative overflow-hidden">
-            <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-[#e9c349]/5 blur-[100px] rounded-full"></div>
-            <h3 className="font-headline text-3xl md:text-4xl font-black text-white mb-3">Inicie sua Formação na CFA</h3>
-            <p className="text-stone-400 mb-8 max-w-lg mx-auto text-sm">Cadastre-se hoje mesmo para ter acesso instantâneo ao nosso catálogo e começar a assistir às aulas gratuitas.</p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto justify-center mb-6">
-              <Link to="/criar-conta" className="w-full sm:w-auto px-8 bg-[#e9c349] text-stone-900 py-4 rounded-xl font-bold text-base hover:opacity-90 transition-all shadow-[0_4px_16px_rgba(233,195,115,0.25)]">
-                Criar Minha Conta de Aluno
-              </Link>
-              <Link to="/entrar" className="w-full sm:w-auto px-8 bg-stone-800 text-stone-200 border border-stone-700 py-4 rounded-xl font-bold text-base hover:bg-stone-700 transition-all">
-                Entrar na Conta
-              </Link>
-            </div>
-            
-            <p className="text-stone-500 text-xs flex items-center justify-center gap-1.5">
-              <Lock className="w-3.5 h-3.5" /> Acesso 100% criptografado e seguro.
-            </p>
           </div>
         </section>
 
@@ -658,18 +745,20 @@ export default function SalesPage() {
             </div>
 
             <div className="space-y-3 pt-2">
-              <Link 
-                to="/criar-conta" 
-                className="w-full py-3 bg-[#e9c349] text-stone-900 rounded-xl font-bold text-sm block hover:opacity-90 transition-all shadow-md shadow-[#e9c349]/10"
+              <button 
+                type="button"
+                onClick={() => handleModalAuthNavigate('/criar-conta')} 
+                className="w-full py-3 bg-[#e9c349] text-stone-900 rounded-xl font-bold text-sm block hover:opacity-90 transition-all shadow-md shadow-[#e9c349]/10 cursor-pointer text-center"
               >
                 Criar Minha Conta Grátis
-              </Link>
-              <Link 
-                to="/entrar" 
-                className="w-full py-3 bg-stone-800 text-stone-200 border border-stone-700 rounded-xl font-semibold text-sm block hover:bg-stone-700 transition-all"
+              </button>
+              <button 
+                type="button"
+                onClick={() => handleModalAuthNavigate('/entrar')} 
+                className="w-full py-3 bg-stone-800 text-stone-200 border border-stone-700 rounded-xl font-semibold text-sm block hover:bg-stone-700 transition-all cursor-pointer text-center"
               >
                 Já tenho conta (Entrar)
-              </Link>
+              </button>
             </div>
 
             <p className="text-[10px] text-stone-500 font-medium">O cadastro leva menos de 1 minuto e é totalmente gratuito.</p>

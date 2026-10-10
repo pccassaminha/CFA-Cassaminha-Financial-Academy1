@@ -48,6 +48,10 @@ interface Course {
   singleLessonDescription?: string;
   singleLessonLinks?: LessonLink[];
   modules: Module[];
+  instructor?: string;
+  producerName?: string;
+  authorId?: string;
+  authorEmail?: string;
 }
 
 interface UserProfile {
@@ -156,6 +160,27 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
             return;
           }
 
+          let prodName = (data as any).producerName || (data as any).instructor || '';
+          let instName = (data as any).instructor || (data as any).producerName || '';
+
+          // Se tiver authorId mas o nome não estiver no curso, busca no perfil do autor
+          if (!prodName && !instName && (data as any).authorId) {
+            getDoc(doc(db, 'users', (data as any).authorId)).then((uSnap) => {
+              if (uSnap.exists()) {
+                const uData = uSnap.data();
+                const fullName = `${uData.firstName || ''} ${uData.lastName || ''}`.trim();
+                const resolved = uData.producerName || uData.name || fullName || uData.displayName || '';
+                if (resolved) {
+                  setCourse(prev => ({
+                    ...prev,
+                    instructor: resolved,
+                    producerName: resolved
+                  }));
+                }
+              }
+            }).catch(() => {});
+          }
+
           setCourse({
             id: snap.id,
             title: data.title || 'Curso CFA',
@@ -167,7 +192,11 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
             singleLessonVideoData: data.singleLessonVideoData || '',
             singleLessonMaterials: data.singleLessonMaterials || '',
             singleLessonDescription: data.singleLessonDescription || '',
-            modules: Array.isArray(data.modules) ? data.modules : []
+            modules: Array.isArray(data.modules) ? data.modules : [],
+            instructor: instName,
+            producerName: prodName,
+            authorId: (data as any).authorId || '',
+            authorEmail: (data as any).authorEmail || ''
           });
           
           if (sType === 'single_lesson') {
@@ -1220,7 +1249,9 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
         isOpen={showCertificateModal} 
         onClose={() => setShowCertificateModal(false)}
         courseTitle={course?.title || 'Curso de Especialização'}
-        initialStudentName={userProfile?.name || auth.currentUser?.displayName || 'Nome do Aluno'}
+        initialStudentName={userProfile?.name || ((userProfile as any)?.firstName ? `${(userProfile as any).firstName} ${(userProfile as any).lastName || ''}`.trim() : '') || auth.currentUser?.displayName || 'Nome do Aluno'}
+        courseId={activeCourseId || course?.id}
+        instructorName={course?.producerName || course?.instructor}
       />
     </div>
   );
