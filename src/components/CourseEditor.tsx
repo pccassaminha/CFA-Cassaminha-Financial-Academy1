@@ -43,7 +43,7 @@ import {
 import LessonModal from './LessonModal';
 
 import { LessonLink, Coupon } from '../types';
-import { subscribeCoupons, getCourseDiscountInfo } from '../utils/discountUtils';
+import { subscribeCoupons, getCourseDiscountInfo, DEFAULT_PLATFORM_COUPONS } from '../utils/discountUtils';
 
 interface Lesson {
   id: string;
@@ -84,7 +84,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [modules, setModules] = useState<Module[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [authorId, setAuthorId] = useState<string>('');
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>(DEFAULT_PLATFORM_COUPONS);
 
   // NOVOS ESTADOS DE ESTRUTURA DO CURSO
   const [structureType, setStructureType] = useState<'modules' | 'single_lesson' | 'direct_link'>('modules');
@@ -188,7 +188,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   // Carregar e sincronizar cupons ativos da plataforma
   useEffect(() => {
     const unsubCoupons = subscribeCoupons((loadedCoupons) => {
-      setCoupons(loadedCoupons);
+      setCoupons(loadedCoupons && loadedCoupons.length > 0 ? loadedCoupons : DEFAULT_PLATFORM_COUPONS);
     });
     return () => unsubCoupons();
   }, []);
@@ -1323,39 +1323,75 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             </div>
 
             {priceType === 'paid' ? (
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preço do Curso (Kz)</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
-                    placeholder="50000"
-                    className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-2xl font-bold font-mono text-[#e9c349]"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">
-                    Kz
-                  </span>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Preço do Curso (Kz)
+                    </label>
+                    {discountInfo.hasDiscount && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30">
+                        <Tag className="w-3 h-3" />
+                        Cupom: <span className="font-mono text-white">{discountInfo.couponCode}</span> ({discountInfo.discountBadge})
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(Number(e.target.value))}
+                      placeholder="50000"
+                      className="w-full bg-black border border-gray-700 text-white rounded-xl p-3.5 focus:border-[#e9c349] outline-none text-2xl font-bold font-mono text-[#e9c349]"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">
+                      Kz
+                    </span>
+                  </div>
                 </div>
 
                 {/* Exibição Dinâmica do Preço com Desconto com base no Cupom Ativo */}
-                {discountInfo.hasDiscount && (
-                  <div className="mt-3 p-3.5 rounded-xl bg-[#e9c349]/10 border border-[#e9c349]/30 text-xs animate-in fade-in duration-300">
-                    <div className="flex items-center justify-between text-stone-300 mb-1.5">
-                      <span className="flex items-center gap-1.5 font-bold text-[#e9c349]">
-                        <Tag className="w-3.5 h-3.5" />
-                        Cupom Ativo: <span className="font-mono bg-[#e9c349]/20 px-1.5 py-0.5 rounded text-white">{discountInfo.couponCode}</span> ({discountInfo.discountBadge})
-                      </span>
+                {discountInfo.hasDiscount ? (
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-[#1a1810] to-[#121212] border border-[#e9c349]/40 shadow-lg text-xs space-y-2.5 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between text-stone-300">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-[#e9c349]/20 flex items-center justify-center text-[#e9c349]">
+                          <Tag className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-white flex items-center gap-1.5">
+                            Cupom Ativo: <span className="font-mono text-[#e9c349] bg-[#e9c349]/15 px-1.5 py-0.5 rounded border border-[#e9c349]/30">{discountInfo.couponCode}</span>
+                          </div>
+                          <div className="text-[10px] text-stone-400">
+                            Desconto de {discountInfo.discountBadge} aplicado automaticamente na compra
+                          </div>
+                        </div>
+                      </div>
                       <span className="line-through text-stone-500 font-mono text-xs">
                         {Number(discountInfo.originalPrice).toLocaleString('pt-AO')} Kz
                       </span>
                     </div>
-                    <div className="flex items-baseline justify-between pt-1.5 border-t border-[#e9c349]/20">
-                      <span className="text-[11px] text-stone-400 font-medium">Preço com desconto no checkout:</span>
-                      <span className="text-base font-extrabold text-emerald-400 font-mono">
-                        {Number(discountInfo.discountedPrice).toLocaleString('pt-AO')} Kz
-                      </span>
+
+                    <div className="pt-2.5 border-t border-gray-800 flex items-baseline justify-between">
+                      <div>
+                        <span className="text-[11px] text-gray-400 font-medium block">Preço final com desconto:</span>
+                        <span className="text-[10px] text-emerald-400 font-medium">
+                          Economia: {Number(discountInfo.savingsAmount).toLocaleString('pt-AO')} Kz
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xl font-extrabold text-emerald-400 font-mono tracking-tight">
+                          {Number(discountInfo.discountedPrice).toLocaleString('pt-AO')} Kz
+                        </span>
+                      </div>
                     </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-black/40 border border-gray-800 text-xs text-gray-400 flex items-center justify-between">
+                    <span>Preço regular único:</span>
+                    <span className="font-mono font-bold text-white text-sm">
+                      {Number(price).toLocaleString('pt-AO')} Kz
+                    </span>
                   </div>
                 )}
               </div>

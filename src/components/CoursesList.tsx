@@ -4,7 +4,7 @@ import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, getDoc, serv
 import { db, auth } from '../firebase';
 import { notifyNewCourse } from '../services/notificationService';
 import { Coupon } from '../types';
-import { subscribeCoupons, getCourseDiscountInfo } from '../utils/discountUtils';
+import { subscribeCoupons, getCourseDiscountInfo, DEFAULT_PLATFORM_COUPONS } from '../utils/discountUtils';
 
 interface CourseItem {
   id: string;
@@ -25,7 +25,7 @@ interface CoursesListProps {
 
 export default function CoursesList({ onSelectCourse }: CoursesListProps) {
   const [courses, setCourses] = useState<CourseItem[]>([]);
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>(DEFAULT_PLATFORM_COUPONS);
   const [loading, setLoading] = useState(true);
 
   // Estados dos Modais
@@ -228,7 +228,7 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
   // Escutar cupons ativos em tempo real
   useEffect(() => {
     const unsub = subscribeCoupons((loadedCoupons) => {
-      setCoupons(loadedCoupons);
+      setCoupons(loadedCoupons && loadedCoupons.length > 0 ? loadedCoupons : DEFAULT_PLATFORM_COUPONS);
     });
     return () => unsub();
   }, []);

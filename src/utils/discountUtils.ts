@@ -13,13 +13,32 @@ export interface CourseDiscountInfo {
 }
 
 /**
+ * Cupom padrão ativo da plataforma (CFA10 com 10% de desconto geral)
+ */
+export const DEFAULT_PLATFORM_COUPONS: Coupon[] = [
+  {
+    id: 'cp_cfa10',
+    code: 'CFA10',
+    type: 'percentage',
+    discountValue: 10,
+    scope: 'general',
+    active: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
+/**
  * Busca a lista de cupões cadastrados no Firebase Firestore
  */
 export async function getActiveCoupons(): Promise<Coupon[]> {
   try {
     const couponsDoc = await getDoc(doc(db, 'settings', 'coupons')).catch(() => null);
     if (couponsDoc?.exists() && Array.isArray(couponsDoc.data().list)) {
-      return (couponsDoc.data().list as Coupon[]).filter(c => c && c.active !== false);
+      const list = couponsDoc.data().list as Coupon[];
+      if (list.length > 0) {
+        return list.filter(c => c && c.active !== false);
+      }
+      return [];
     }
 
     const cSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
@@ -31,7 +50,7 @@ export async function getActiveCoupons(): Promise<Coupon[]> {
   } catch (err) {
     console.error("Erro ao carregar cupões ativos:", err);
   }
-  return [];
+  return DEFAULT_PLATFORM_COUPONS;
 }
 
 /**
@@ -41,24 +60,31 @@ export function subscribeCoupons(onUpdate: (coupons: Coupon[]) => void): () => v
   try {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'coupons'), (docSnap) => {
       if (docSnap.exists() && Array.isArray(docSnap.data().list)) {
-        onUpdate(docSnap.data().list.filter((c: any) => c && c.active !== false));
+        const list = docSnap.data().list;
+        if (list.length > 0) {
+          onUpdate(list.filter((c: any) => c && c.active !== false));
+        } else {
+          onUpdate([]);
+        }
       } else {
-        // Fallback para coleção
+        // Fallback para coleção ou cupom padrão da plataforma
         getDocs(collection(db, 'coupons')).then(cSnap => {
           if (!cSnap.empty) {
             onUpdate(cSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon)).filter(c => c && c.active !== false));
           } else {
-            onUpdate([]);
+            onUpdate(DEFAULT_PLATFORM_COUPONS);
           }
-        }).catch(() => onUpdate([]));
+        }).catch(() => onUpdate(DEFAULT_PLATFORM_COUPONS));
       }
     }, (error) => {
-      console.warn("Erro no listener de cupões:", error);
+      console.warn("Erro no listener de cupões, usando padrão:", error);
+      onUpdate(DEFAULT_PLATFORM_COUPONS);
     });
 
     return unsubscribe;
   } catch (e) {
-    console.warn("Erro ao iniciar listener de cupões:", e);
+    console.warn("Erro ao iniciar listener de cupões, usando padrão:", e);
+    onUpdate(DEFAULT_PLATFORM_COUPONS);
     return () => {};
   }
 }
@@ -68,7 +94,7 @@ export function subscribeCoupons(onUpdate: (coupons: Coupon[]) => void): () => v
  */
 export function getCourseDiscountInfo(
   priceOrCourse: number | { price?: number; id?: string; authorId?: string },
-  coupons: Coupon[],
+  coupons?: Coupon[],
   courseIdParam?: string,
   authorIdParam?: string
 ): CourseDiscountInfo {
@@ -94,56 +120,75 @@ export function getCourseDiscountInfo(
     savingsAmount: 0
   };
 
-  if (originalPrice <= 0 || !coupons || coupons.length === 0) {
+  if (originalPrice <= 0) {
     return defaultNoDiscount;
   }
 
-  const activeCoupons = coupons.filter(c => c && c.active !== false);
+  // Se a lista de cupons não foi carregada ainda ou estiver vazia, utiliza os cupons ativos padrão da plataforma
+  const sourceCoupons = (coupons && coupons.length > 0) ? coupons : DEFAULT_PLATFORM_COUPONS;
+  const activeCoupons = sourceCoupons.filter(c => c && c.active !== false);
+
   if (activeCoupons.length === 0) {
     return defaultNoDiscount;
   }
 
-  // 1. Cupom específico para o curso
-  const courseSpecific = courseId ? activeCoupons.find(c => c.scope === 'course' && c.courseId === courseId) : undefined;
-  // 2. Cupom específico do produtor
-  const producerSpecific = authorId ? activeCoupons.find(c => c.scope === 'producer' && (c.producerId === authorId || c.authorId === authorId)) : undefined;
-  // 3. Cupom geral aplicável a todos os cursos
-  const generalCoupon = activeCoupons.find(c => c.scope === 'general' || c.scope === 'all');
+  // Filtra cupons aplicáveis ao curso / autor / geral
+  const candidates = activeCoupons.filter(c => {
+    const scope = c.scope || 'general';
+    if (scope === 'course') {
+      return courseId && (c.courseId === courseId || (c as any).targetCourseId === courseId);
+    }
+    if (scope === 'producer') {
+      return authorId && (c.producerId === authorId || c.authorId === authorId);
+    }
+    // general ou all
+    return true;
+  });
 
-  const selectedCoupon = courseSpecific || producerSpecific || generalCoupon;
-
-  if (!selectedCoupon) {
+  if (candidates.length === 0) {
     return defaultNoDiscount;
   }
 
-  let savings = 0;
-  let badge = '';
+  // Avalia o melhor cupom (maior economia)
+  let bestCoupon: Coupon | null = null;
+  let maxSavings = 0;
+  let bestBadge = '';
 
-  if (selectedCoupon.type === 'percentage') {
-    const pct = Math.min(100, Math.max(0, Number(selectedCoupon.discountValue) || 0));
-    savings = Math.round((originalPrice * pct) / 100);
-    badge = `-${pct}%`;
-  } else {
-    // Valor fixo em Kz
-    const fixedVal = Math.max(0, Number(selectedCoupon.discountValue) || 0);
-    savings = Math.min(originalPrice, fixedVal);
-    badge = `-${Number(fixedVal).toLocaleString('pt-AO')} Kz`;
+  for (const cp of candidates) {
+    let savings = 0;
+    let badge = '';
+    const discountVal = Number(cp.discountValue) || 0;
+
+    if (cp.type === 'percentage') {
+      const pct = Math.min(100, Math.max(0, discountVal));
+      savings = Math.round((originalPrice * pct) / 100);
+      badge = `-${pct}%`;
+    } else {
+      // Valor fixo em Kz
+      savings = Math.min(originalPrice, Math.max(0, discountVal));
+      badge = `-${savings.toLocaleString('pt-AO')} Kz`;
+    }
+
+    if (savings > maxSavings) {
+      maxSavings = savings;
+      bestCoupon = cp;
+      bestBadge = badge;
+    }
   }
 
-  const discountedPrice = Math.max(0, originalPrice - savings);
-
-  // Se o desconto resultar em 0 de poupança (ex: valor fixo 0 ou pct 0), não considera
-  if (savings <= 0) {
+  if (!bestCoupon || maxSavings <= 0) {
     return defaultNoDiscount;
   }
+
+  const discountedPrice = Math.max(0, originalPrice - maxSavings);
 
   return {
     hasDiscount: true,
     originalPrice,
     discountedPrice,
-    appliedCoupon: selectedCoupon,
-    couponCode: selectedCoupon.code,
-    discountBadge: badge,
-    savingsAmount: savings
+    appliedCoupon: bestCoupon,
+    couponCode: bestCoupon.code,
+    discountBadge: bestBadge,
+    savingsAmount: maxSavings
   };
 }
