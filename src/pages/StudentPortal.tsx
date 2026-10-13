@@ -241,7 +241,7 @@ export default function StudentPortal() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col font-sans">
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col font-sans overflow-x-hidden w-full max-w-full">
       {/* TOP NAVIGATION BAR / HEADER WITH CENTERED NAV & TRANSLUCENT GLASS */}
       <header className="sticky top-0 z-40 bg-black/60 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between shadow-lg shadow-black/20">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleSetView('catalog')}>
@@ -375,7 +375,7 @@ export default function StudentPortal() {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 pt-4 max-w-7xl mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 pt-4 pb-12 max-w-7xl mx-auto w-full overflow-x-hidden">
         <PushSubscriptionBanner userRole="student" />
 
         {currentView === 'catalog' && (

@@ -543,37 +543,37 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
   const activeMethod = paymentMethods[activeMethodIndex] || paymentMethods[0];
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 -m-6 md:-m-10 overflow-hidden font-body">
+    <div className="relative w-full max-w-6xl mx-auto py-2 sm:py-6 text-white font-body overflow-x-hidden">
       {/* CAPA DO CURSO NO FUNDO COM CONTRASTE PREMIUM */}
       {effectiveCover && (
-        <div className="absolute top-0 left-0 right-0 h-[520px] overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-0 left-0 right-0 h-[360px] sm:h-[480px] overflow-hidden pointer-events-none z-0 rounded-3xl">
           <img 
             src={effectiveCover} 
             alt={safeTitle} 
-            className="w-full h-full object-cover opacity-45 scale-105 filter brightness-90 saturate-125 transition-all duration-1000" 
+            className="w-full h-full object-cover opacity-35 filter brightness-90 saturate-125 transition-all duration-1000" 
             referrerPolicy="no-referrer"
           />
           {/* Gradients de Contraste Premium */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/60 via-[#0a0a0a]/85 to-[#0a0a0a]"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/50 via-[#0a0a0a]/80 to-[#0a0a0a]"></div>
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-transparent to-[#0a0a0a]"></div>
         </div>
       )}
 
-      <div className="relative z-10 max-w-6xl mx-auto">
+      <div className="relative z-10 max-w-6xl mx-auto w-full px-1 sm:px-2">
         
         <button 
           onClick={onBack} 
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-black/60 border border-gray-800/80 text-gray-300 hover:text-[#e9c349] hover:border-[#e9c349]/50 mb-8 transition-all text-sm font-medium cursor-pointer backdrop-blur-md shadow-lg"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-black/60 border border-gray-800/80 text-gray-300 hover:text-[#e9c349] hover:border-[#e9c349]/50 mb-6 sm:mb-8 transition-all text-xs sm:text-sm font-medium cursor-pointer backdrop-blur-md shadow-lg"
         >
           <ArrowLeft className="w-4 h-4" /> Voltar aos detalhes do curso
         </button>
 
-        <div className="flex flex-col lg:flex-row gap-8 items-start w-full">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full">
           
           {/* LADO ESQUERDO: Abas e Coordenadas Oficiais Ativas */}
-          <div className="w-full lg:w-3/5 bg-[#131313] border border-gray-800 rounded-3xl p-6 md:p-10 shadow-2xl">
-            <h1 className="text-3xl font-extrabold mb-3 font-headline">Finalizar Matrícula</h1>
-            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+          <div className="w-full lg:w-3/5 min-w-0 bg-[#131313] border border-gray-800 rounded-3xl p-5 sm:p-7 md:p-9 shadow-2xl">
+            <h1 className="text-2xl sm:text-3xl font-extrabold mb-2.5 sm:mb-3 font-headline">Finalizar Matrícula</h1>
+            <p className="text-gray-400 text-xs sm:text-sm mb-6 sm:mb-8 leading-relaxed">
               1. Selecione abaixo o método de pagamento oficial ativo.<br/>
               2. Efetue a transferência ou depósito correspondente.<br/>
               3. Insira o número de referência/talão no campo ao lado para envio automático.
@@ -610,7 +610,7 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#131313] p-4 rounded-xl border border-gray-800 gap-4">
-                  <span className="font-mono text-white font-bold text-sm md:text-base break-words w-full select-all">
+                  <span className="font-mono text-white font-bold text-sm md:text-base break-words break-all w-full select-all">
                     {activeMethod.type === 'multicaixa' ? 'Entidade & Referência acima (Pronto para copiar)' : activeMethod.accountNumber}
                   </span>
                   <button 
@@ -627,8 +627,8 @@ export default function CourseCheckout({ courseId, courseTitle, coursePrice, cou
           </div>
 
           {/* LADO DIREITO: Resumo e Formulário de Envio */}
-          <div className="w-full lg:w-2/5">
-            <div className="bg-[#131313] border border-gray-800 rounded-3xl p-6 md:p-8 sticky top-8 shadow-2xl">
+          <div className="w-full lg:w-2/5 min-w-0">
+            <div className="bg-[#131313] border border-gray-800 rounded-3xl p-5 sm:p-7 md:p-8 sticky top-8 shadow-2xl">
               <h3 className="text-xl font-bold mb-6 pb-4 border-b border-gray-800 font-headline">Resumo da Inscrição</h3>
               
               <div className="space-y-4 mb-6">

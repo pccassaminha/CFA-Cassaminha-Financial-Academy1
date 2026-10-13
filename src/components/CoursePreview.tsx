@@ -108,7 +108,8 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   const handleFreeEnroll = async () => {
     const user = auth.currentUser;
     if (!user) {
-      alert('Por favor, faça login para acessar o curso gratuito.');
+      setAuthModalType('enroll');
+      setShowAuthModal(true);
       return;
     }
     try {
@@ -125,6 +126,20 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
       setIsEnrolling(false);
     }
   };
+
+  // Se o aluno acabou de se cadastrar ou entrar vindo da ação de matricular grátis, conclui a matrícula
+  useEffect(() => {
+    const postRegAction = sessionStorage.getItem('post_register_action');
+    const postRegCourseId = sessionStorage.getItem('post_register_course_id');
+    const user = auth.currentUser;
+
+    if (user && postRegAction === 'enroll' && postRegCourseId === courseId && !isAlreadyEnrolled && !isEnrolling && !enrolledSuccess) {
+      sessionStorage.removeItem('post_register_action');
+      sessionStorage.removeItem('post_register_course_id');
+      sessionStorage.removeItem('post_register_slug');
+      handleFreeEnroll();
+    }
+  }, [courseId, isAlreadyEnrolled]);
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -188,23 +203,23 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   }
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0a] text-white p-4 sm:p-6 md:p-10 -m-4 sm:-m-6 md:-m-10 overflow-hidden">
+    <div className="relative w-full max-w-7xl mx-auto py-2 sm:py-4 text-white font-body overflow-x-hidden">
       {/* CAPA DO CURSO NO FUNDO COM CONTRASTE PREMIUM */}
       {course.image && (
-        <div className="absolute top-0 left-0 right-0 h-[300px] sm:h-[400px] md:h-[520px] overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-0 left-0 right-0 h-[280px] sm:h-[380px] md:h-[480px] overflow-hidden pointer-events-none z-0 rounded-3xl">
           <img 
             src={course.image} 
             alt={course.title} 
-            className="w-full h-full object-cover opacity-45 scale-105 filter brightness-90 saturate-125 transition-all duration-1000" 
+            className="w-full h-full object-cover opacity-35 filter brightness-90 saturate-125 transition-all duration-1000" 
             referrerPolicy="no-referrer"
           />
           {/* Gradients de Contraste Premium */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/60 via-[#0a0a0a]/85 to-[#0a0a0a]"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/50 via-[#0a0a0a]/80 to-[#0a0a0a]"></div>
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-transparent to-[#0a0a0a]"></div>
         </div>
       )}
 
-      <div className="relative z-10 max-w-5xl mx-auto">
+      <div className="relative z-10 max-w-5xl mx-auto w-full px-1 sm:px-2">
         <button 
           id="btn-back-marketplace"
           onClick={onBack} 
@@ -413,32 +428,15 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
                   <PlayCircle className="w-5 h-5" /> Assistir Aulas Agora
                 </button>
               ) : !course.price || course.price === 0 ? (
-                <div className="space-y-3">
-                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-stone-300 space-y-1.5 text-center">
-                    <div className="flex items-center justify-center gap-1.5 text-amber-400 font-headline font-bold text-xs uppercase tracking-wider">
-                      <ShieldAlert className="w-4 h-4" />
-                      <span>Liberação pelo Administrador</span>
-                    </div>
-                    <p className="text-xs text-stone-300 leading-relaxed">
-                      Este conteúdo é gratuito, porém a matrícula precisa ser vinculada à sua conta pelo administrador da plataforma.
-                    </p>
-                  </div>
-                  {(course.producerWhatsApp || course.producerPhone) ? (
-                    <a
-                      href={`https://wa.me/${(course.producerWhatsApp || course.producerPhone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Olá, gostaria de solicitar a liberação do curso gratuito "${course.title}" na minha conta da CFA Academy.`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3.5 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-sm flex items-center justify-center gap-2"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>Solicitar Liberação com o Produtor</span>
-                    </a>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-stone-900 border border-white/5 text-center text-xs text-stone-400">
-                      Entre em contato com o suporte ou aguarde a aprovação administrativa.
-                    </div>
-                  )}
-                </div>
+                <button 
+                  id="btn-free-enroll-preview"
+                  onClick={handleFreeEnroll}
+                  disabled={isEnrolling}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-4 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base flex items-center justify-center gap-2"
+                >
+                  <Check className="w-5 h-5 stroke-[2.5]" />
+                  <span>{isEnrolling ? 'Liberando Matrícula...' : 'Matricular-se Gratuitamente'}</span>
+                </button>
               ) : (
                 <button 
                   id="btn-buy-course-preview"
@@ -462,7 +460,7 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
                 {isAlreadyEnrolled || enrolledSuccess 
                   ? 'Acesso total e vitalício às aulas e aos materiais de apoio.' 
                   : (!course.price || course.price === 0 
-                      ? 'Inscrição sob liberação do administrador. Após aprovado, as aulas são desbloqueadas.' 
+                      ? 'Inscrição 100% gratuita. Matrícula instantânea e acesso imediato na sua conta.' 
                       : 'Acesso liberado imediatamente após validação do comprovativo pelo suporte.')}
               </p>
             </div>
@@ -474,10 +472,14 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <div className="bg-[#121212] border border-[#e9c349]/30 rounded-3xl max-w-lg w-full p-6 sm:p-8 relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <h3 className="text-xl sm:text-2xl font-black font-headline text-white text-center mb-2 tracking-wide">
-              Aceder ao Treinamento
+              {authModalType === 'enroll' ? 'Matrícula Gratuita' : 'Aceder ao Treinamento'}
             </h3>
             <p className="text-gray-400 text-xs sm:text-sm text-center mb-6 leading-relaxed max-w-md mx-auto">
-              Para prosseguir com o curso <strong className="text-white">"{course?.title}"</strong>, identifica-te para continuar.
+              {authModalType === 'enroll' ? (
+                <>Para se matricular gratuitamente no curso <strong className="text-white">"{course?.title}"</strong>, identifica-te ou cria uma conta gratuita.</>
+              ) : (
+                <>Para prosseguir com o curso <strong className="text-white">"{course?.title}"</strong>, identifica-te para continuar.</>
+              )}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">

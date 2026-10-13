@@ -1,63 +1,49 @@
-# Blindagem e Controle Rigoroso de Acesso aos Cursos
+# Plano de Implementação: Redirecionamento Direto e Exibição de Desconto por Cupom Ativo
 
-Este plano estabelece a correção definitiva do controle de acesso a cursos na plataforma CFA Academy, garantindo que **nenhuma conta** (seja de aluno, visitante ou outro produtor) tenha passe livre ou acesso automático a cursos nos quais não possua matrícula explicitamente ativa e aprovada.
-
----
-
-### Decisões Críticas Alinhadas com o Usuário
-
-> [!IMPORTANT]
-> As seguintes regras estritas foram confirmadas para guiar a implementação:
-> 1. **Cursos Gratuitos**: Ter uma conta ou clicar no curso gratuito **não** libera o acesso automaticamente. Apenas o administrador tem autorização para vincular o curso à conta do usuário.
-> 2. **Tentativa de Acesso Direto à Sala de Aula (`/classroom`)**: Usuários sem matrícula registrada para o curso específico terão o acesso bloqueado imediatamente e serão redirecionados para a página do curso com aviso claro de acesso não autorizado.
-> 3. **Isenção de Perfis**: **Nenhum perfil** tem passe livre para assistir cursos sem matrícula registrada na conta. Produtores não têm acesso aos cursos de outros produtores.
+## 1. Visão Geral
+Este plano atende a dois objetivos solicitados:
+1. **Redirecionamento Direto e Silencioso da Sala de Aula**: Quando um usuário tentar acessar diretamente a sala de aula (`/classroom?courseId=...`) de um curso que não possui matriculado na sua conta, a plataforma eliminará a tela de aviso de acesso restrito e o contador regressivo de 5 segundos, redirecionando-o imediatamente e de forma silenciosa para a página de apresentação do curso (`/library/:slug`), onde poderá efetuar a compra ou inscrição.
+2. **Exibição Dinâmica do Preço com Desconto na Área Administrativa**: Na área administrativa (tanto no editor de cursos como na listagem/cards de cursos e modais de criação), ao precificar um curso, o sistema verificará se existe um cupom de desconto ativo (global ou específico para o curso). Se houver cupom ativo, será exibido o preço com desconto aplicado juntamente com o código do cupom. Caso não haja cupom ativo, será exibido apenas o preço único original.
 
 ---
 
-### 1. Diagnóstico das Vulnerabilidades Identificadas
+## 2. Modificações Propostas
 
-1. **Vulnerabilidade em `SalesPage.tsx`**:
-   - O código verificava `isUserAdmin = userProfile?.role === 'admin' || userProfile?.role === 'producer'`. Isso fazia com que qualquer conta com role `producer` recebesse passe de admin global, exibindo `"Assistir Curso (Acesso Liberado)"` em todos os cursos do catálogo.
-   - O botão em cursos com preço zero ou marcados como livres permitia abrir imediatamente a sala de aula sem verificação de matrícula no banco de dados.
+### A. Utilitário Compartilhado de Desconto (`src/utils/discountUtils.ts`)
+- Criar/centralizar a função utilitária `getCourseDiscountInfo(courseOrPrice, coupons, courseId?)` para calcular descontos baseados nos cupons ativos do Firestore (`settings/coupons` ou `coupons`).
+- Retornar:
+  - `hasDiscount: boolean`
+  - `originalPrice: number`
+  - `discountedPrice: number`
+  - `couponCode: string | null`
+  - `discountValue: number`
+  - `discountType: 'percentage' | 'fixed'`
 
-2. **Vulnerabilidade em `StudentCatalog.tsx`**:
-   - A função `checkUserHasAccess` continha regras frouxas (incluindo checagem de preço zero e auto-inclusão via `handleQuickAddFreeCourse`), exibindo botões de assistir sem que houvesse matrícula confirmada pelo administrador.
+### B. Sala de Aula (`src/pages/VideoLibrary.tsx`)
+- **Remover Tela de Acesso Restrito e Contador de 5s**: Eliminar o bloco visual que mostrava "Acesso Restrito - Curso Não Associado à Sua Conta" com contagem regressiva e botões manuais.
+- **Redirecionamento Instantâneo**: No `useEffect`, assim que o status de matrícula for carregado e constatar que o usuário não possui o curso, executar `navigate('/library/' + courseSlug, { replace: true })` imediatamente.
+- **Estado de Transição**: Exibir apenas um spinner discreto durante o milissegundo de transição, levando o usuário diretamente à página do produto para compra.
 
-3. **Vulnerabilidade em `VideoLibrary.tsx` (Sala de Aulas `/classroom`)**:
-   - A página de reprodução carregava o curso a partir do ID da URL (`?courseId=...`) sem verificar se o usuário autenticado possuía uma matrícula válida (`enrollment`) para aquele curso específico, permitindo que qualquer usuário autenticado assistisse a qualquer aula se soubesse ou recebesse o link.
+### C. Editor de Cursos Administrativo (`src/components/CourseEditor.tsx`)
+- Carregar os cupons ativos no carregamento do editor.
+- Na caixa **"Tipo de Acesso & Preço"**:
+  - Quando o curso for pago (`priceType === 'paid'`), ao lado ou abaixo do campo de entrada de preço, exibir um indicador dinâmico caso haja cupom ativo:
+    - *Com cupom ativo*: Exibe o badge informativo com o código do cupom, porcentagem/valor de desconto e o valor final com desconto (ex: `🏷️ Preço com Cupom Ativo (CFA75 • -75%): 12.500 Kz`).
+    - *Sem cupom ativo*: Exibe apenas o campo de preço único padrão sem poluição visual.
 
----
-
-### 2. Especificação das Mudanças
-
-#### A. Refatoração do `SalesPage.tsx` (Página Inicial & Vitrine de Cursos)
-- **Remoção do bypass de produtor**: Produtores não são considerados administradores com acesso livre aos cursos de outros instrutores.
-- **Checagem estrita de matrícula**: O status de "Acesso Liberado" só será exibido se o `course.id` estiver presente na lista de matrículas ativas do usuário (`enrolledCourseIds`).
-- **Tratamento de Cursos Gratuitos**:
-  - Se o usuário não tiver matrícula registrada, o botão exibirá **"Saiba Mais"** ou direcionará para a página de detalhes do curso, indicando que a matrícula requer liberação pelo administrador.
-  - Nunca exibirá "Assistir Curso (Acesso Liberado)" sem matrícula confirmada no banco.
-
-#### B. Refatoração do `StudentCatalog.tsx` (Catálogo do Aluno)
-- Atualizar `checkUserHasAccess` para validar estritamente a existência de um documento na coleção `enrollments` com status `active` associado ao `userId` e `courseId`.
-- Desativar a auto-matrícula irrestrita para cursos gratuitos, exibindo mensagem informando que o curso necessita de vinculação administrativa ou inscrição formal.
-
-#### C. Guarda de Segurança na Sala de Aula (`VideoLibrary.tsx`)
-- Implementar verificação imediata de acesso assim que o `activeCourse` for carregado:
-  - Consultar a coleção `enrollments` para o `currentUser.uid` e `activeCourse.id`.
-  - Se não houver matrícula ativa:
-    1. Bloquear a renderização dos vídeos e materiais.
-    2. Disparar notificação visual de alerta: *"Acesso restrito: este curso não está associado à sua conta. Entre em contato com o suporte ou adquira o curso."*
-    3. Redirecionar o usuário para a página de vendas/detalhes do curso (`/course/${activeCourse.id}` ou `/`).
-
-#### D. Ajustes no `enrollmentService.ts`
-- Padronizar a consulta `checkCourseEnrollment(userId, courseId)` para validação rápida e assíncrona, com cache local por sessão para evitar requisições redundantes no Firestore.
+### D. Listagem e Modais de Cursos (`src/components/CoursesList.tsx`)
+- Carregar cupons ativos em `CoursesList`.
+- **Nos Cards de Cursos**:
+  - Se o curso tiver cupom ativo, exibir o preço original tachado ao lado do preço com desconto destacado com badge do cupom.
+  - Se não houver cupom ativo, exibir apenas o preço normal em Kz.
+- **No Modal de Criação / Edição Rápida de Curso**:
+  - Logo abaixo do campo *"Preço da Matrícula"*, calcular em tempo real e exibir o preço com desconto resultante do cupom ativo.
 
 ---
 
-### 3. Plano de Verificação e Testes
-
-- [ ] **Teste de Conta de Produtor**: Logar com conta de produtor e verificar que a Home Page **não** exibe "Acesso Liberado" em cursos de outros produtores.
-- [ ] **Teste de Curso Gratuito**: Acessar um curso gratuito com usuário autenticado sem matrícula e garantir que ele não entra diretamente na sala de aula.
-- [ ] **Teste de Acesso Direto por URL**: Tentar navegar diretamente para `/classroom?courseId=[ID_DE_CURSO_NAO_MATRICULADO]` e verificar o bloqueio com redirecionamento e mensagem de aviso.
-- [ ] **Teste de Aluno com Matrícula Válida**: Confirmar que alunos com matrícula ativa no Firestore continuam acessando seus cursos normalmente.
-- [ ] **Compilação e Linter**: Executar `compile_applet` para assegurar integridade sintática e ausência de regressões.
+## 3. Critérios de Verificação
+- [ ] Tentar acessar `/classroom?courseId=ID_NAO_MATRICULADO` e verificar que o redirecionamento para `/library/slug` ocorre imediatamente, sem tela de bloqueio nem contagem regressiva.
+- [ ] No painel administrativo (`/content`), abrir o editor de curso pago e verificar o cálculo em tempo real do preço com desconto caso haja cupom ativo.
+- [ ] Criar/editar preço na lista de cursos e verificar o preço com desconto exibido nos cards e no modal.
+- [ ] Desativar temporariamente o cupom ou testar sem cupom para confirmar que apenas o preço único é exibido.
+- [ ] Compilação (`compile_applet`) e verificação de linter (`lint_applet`) sem erros.

@@ -457,9 +457,9 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
                           })()}
 
                           {isFree ? (
-                            <span className="bg-stone-800 text-[#e9c349] border border-[#e9c349]/30 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold hover:bg-stone-700 transition-all flex items-center gap-1">
+                            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center gap-1">
                               <BookOpen className="w-3.5 h-3.5" />
-                              Ver Detalhes (Grátis)
+                              Matricular Grátis
                             </span>
                           ) : (
                             <span className="bg-[#e9c349] text-black px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold hover:bg-[#d4b03f] transition-all">

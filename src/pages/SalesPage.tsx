@@ -245,7 +245,7 @@ export default function SalesPage() {
       setModalType(isFree ? 'free' : 'paid');
       // Guarda nos session storage para garantir a continuidade pós cadastro/login
       sessionStorage.setItem('post_register_course_id', course.id);
-      sessionStorage.setItem('post_register_action', 'preview');
+      sessionStorage.setItem('post_register_action', isFree ? 'enroll' : 'preview');
       sessionStorage.setItem('post_register_slug', courseSlug);
       setShowAuthModal(true);
       return;
@@ -259,8 +259,7 @@ export default function SalesPage() {
     }
 
     // 3. Curso NÃO matriculado na conta (gratuito ou pago):
-    // Cursos gratuitos não são liberados automaticamente por ter conta; requerem vínculo pelo administrador.
-    // Direciona diretamente para a página de apresentação do curso (preview/detalhes)
+    // Direciona diretamente para a página de apresentação do curso (preview/detalhes) para ver os detalhes, matricular-se gratuitamente ou adquirir.
     navigate(`/library/${courseSlug}`);
   };
 
@@ -275,7 +274,7 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="antialiased selection:bg-primary/30 selection:text-primary bg-[#131313] text-[#e5e2e1] font-body min-h-screen relative">
+    <div className="antialiased selection:bg-primary/30 selection:text-primary bg-[#131313] text-[#e5e2e1] font-body min-h-screen relative overflow-x-hidden w-full max-w-full">
       {/* Delicate background grids & glows */}
       <div className="absolute inset-0 pointer-events-none z-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }}></div>
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#e9c349]/5 blur-[150px] rounded-full pointer-events-none"></div>
@@ -499,11 +498,11 @@ export default function SalesPage() {
                             return (
                               <button
                                 onClick={() => handleCourseAction(course)}
-                                className="w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-stone-800 hover:bg-stone-700 text-[#e9c349] border border-[#e9c349]/30 shadow-lg group-hover:scale-[1.01]"
-                                title="Ver apresentação do curso gratuito"
+                                className="w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 shadow-lg group-hover:scale-[1.01]"
+                                title="Ver apresentação e matricular-se gratuitamente"
                               >
                                 <BookOpen className="w-4 h-4" />
-                                <span>Ver Detalhes do Curso (Grátis)</span>
+                                <span>Matricular Grátis / Detalhes</span>
                               </button>
                             );
                           }

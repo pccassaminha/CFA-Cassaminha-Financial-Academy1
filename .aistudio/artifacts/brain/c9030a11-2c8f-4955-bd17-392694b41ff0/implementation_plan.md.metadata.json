@@ -1,6 +1,6 @@
 {
-  "summary": "Plano detalhado de implementação para o fechamento e blindagem rigorosa do controle de acesso aos cursos na Home Page, Catálogo e Sala de Aulas. Elimina acessos indevidos por perfil de produtor, remove liberação automática de cursos gratuitos sem matrícula prévia pelo administrador, e adiciona bloqueio e redirecionamento seguro na sala de aula.",
-  "updatedAt": "2026-10-13T01:54:33.328643600Z",
+  "summary": "Plano de implementação para redirecionamento imediato da sala de aula para a página do curso (sem tela de restrição) e exibição do preço com desconto do cupom ativo na área administrativa (no editor de cursos e na listagem de cursos).",
+  "updatedAt": "2026-10-13T03:04:47.230183217Z",
   "requestFeedback": true,
   "userFacing": true
 }

@@ -600,7 +600,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
             </p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-stone-400">
               <li>Cursos Pagos: requerem aquisição ou aprovação de comprovativo.</li>
-              <li>Cursos Gratuitos: requerem liberação pelo administrador da plataforma.</li>
+              <li>Cursos Gratuitos: requerem inscrição prévia (matrícula gratuita na página do curso).</li>
             </ul>
           </div>
 
