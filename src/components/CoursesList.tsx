@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, MoreVertical, Copy, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign, ClipboardPaste } from 'lucide-react';
+import { Plus, Edit, Trash2, MoreVertical, Copy, BookOpen, Layers, X, Check, Globe, Lock, AlertTriangle, ExternalLink, Image as ImageIcon, DollarSign, ClipboardPaste, Tag } from 'lucide-react';
 import { collection, onSnapshot, doc, deleteDoc, setDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { notifyNewCourse } from '../services/notificationService';
+import { Coupon } from '../types';
+import { subscribeCoupons, getCourseDiscountInfo } from '../utils/discountUtils';
 
 interface CourseItem {
   id: string;
@@ -14,6 +16,7 @@ interface CourseItem {
   coverImage?: string;
   producerName?: string;
   instructor?: string;
+  authorId?: string;
 }
 
 interface CoursesListProps {
@@ -22,6 +25,7 @@ interface CoursesListProps {
 
 export default function CoursesList({ onSelectCourse }: CoursesListProps) {
   const [courses, setCourses] = useState<CourseItem[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Estados dos Modais
@@ -207,7 +211,8 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
           description: data.description || '',
           coverImage: data.coverImage || data.imageUrl || data.image || '',
           producerName: data.producerName || data.instructor || '',
-          instructor: data.instructor || data.producerName || ''
+          instructor: data.instructor || data.producerName || '',
+          authorId: data.authorId || ''
         });
       });
       setCourses(list);
@@ -218,6 +223,14 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
     });
 
     return () => unsubCourses();
+  }, []);
+
+  // Escutar cupons ativos em tempo real
+  useEffect(() => {
+    const unsub = subscribeCoupons((loadedCoupons) => {
+      setCoupons(loadedCoupons);
+    });
+    return () => unsub();
   }, []);
 
   // Abrir Modal de Exclusão
@@ -561,12 +574,45 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                   </p>
                 )}
                 
-                <div className="flex items-baseline gap-1 mt-3">
-                  <span className="text-lg font-bold text-[#e9c349] font-mono">
-                    {Number(course.price || 0).toLocaleString('pt-AO')}
-                  </span>
-                  <span className="text-xs text-[#e9c349]/80 font-bold">Kz</span>
-                </div>
+                {(() => {
+                  if (course.price === 0) {
+                    return (
+                      <div className="flex items-center gap-1.5 mt-3">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                          🎁 Gratuito
+                        </span>
+                      </div>
+                    );
+                  }
+                  const dInfo = getCourseDiscountInfo(course.price, coupons, course.id, course.authorId);
+                  if (dInfo.hasDiscount) {
+                    return (
+                      <div className="mt-3 space-y-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-lg font-bold text-emerald-400 font-mono">
+                            {Number(dInfo.discountedPrice).toLocaleString('pt-AO')}
+                          </span>
+                          <span className="text-xs text-emerald-400/80 font-bold">Kz</span>
+                          <span className="text-xs text-gray-500 line-through font-mono">
+                            {Number(dInfo.originalPrice).toLocaleString('pt-AO')} Kz
+                          </span>
+                        </div>
+                        <div className="inline-flex items-center gap-1 text-[11px] font-bold text-[#e9c349] bg-[#e9c349]/10 border border-[#e9c349]/30 px-2 py-0.5 rounded-md">
+                          <Tag className="w-3 h-3" />
+                          <span>Cupom: {dInfo.couponCode} ({dInfo.discountBadge})</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="flex items-baseline gap-1 mt-3">
+                      <span className="text-lg font-bold text-[#e9c349] font-mono">
+                        {Number(course.price || 0).toLocaleString('pt-AO')}
+                      </span>
+                      <span className="text-xs text-[#e9c349]/80 font-bold">Kz</span>
+                    </div>
+                  );
+                })()}
               </div>
               
               <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-800/80 text-xs">
@@ -736,6 +782,23 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                     ✓ Este curso será disponibilizado gratuitamente para todos os alunos.
                   </p>
                 )}
+                {editForm.price > 0 && (() => {
+                  const editDInfo = getCourseDiscountInfo(editForm.price, coupons, editingCourse?.id, editingCourse?.authorId);
+                  if (!editDInfo.hasDiscount) return null;
+                  return (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-[#e9c349]/10 border border-[#e9c349]/30 text-xs">
+                      <div className="flex items-center justify-between text-stone-300">
+                        <span className="flex items-center gap-1 font-bold text-[#e9c349]">
+                          <Tag className="w-3.5 h-3.5" />
+                          Cupom Ativo: <span className="font-mono text-white">{editDInfo.couponCode}</span> ({editDInfo.discountBadge})
+                        </span>
+                        <span className="text-emerald-400 font-extrabold font-mono text-sm">
+                          {Number(editDInfo.discountedPrice).toLocaleString('pt-AO')} Kz
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>
@@ -908,6 +971,23 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                     ✓ Este curso será disponibilizado gratuitamente para todos os alunos.
                   </p>
                 )}
+                {newCourseForm.price > 0 && (() => {
+                  const newDInfo = getCourseDiscountInfo(newCourseForm.price, coupons);
+                  if (!newDInfo.hasDiscount) return null;
+                  return (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-[#e9c349]/10 border border-[#e9c349]/30 text-xs">
+                      <div className="flex items-center justify-between text-stone-300">
+                        <span className="flex items-center gap-1 font-bold text-[#e9c349]">
+                          <Tag className="w-3.5 h-3.5" />
+                          Cupom Ativo: <span className="font-mono text-white">{newDInfo.couponCode}</span> ({newDInfo.discountBadge})
+                        </span>
+                        <span className="text-emerald-400 font-extrabold font-mono text-sm">
+                          {Number(newDInfo.discountedPrice).toLocaleString('pt-AO')} Kz
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>

@@ -37,11 +37,13 @@ import {
   ChevronDown,
   ExternalLink,
   Copy,
-  ClipboardPaste
+  ClipboardPaste,
+  Tag
 } from 'lucide-react';
 import LessonModal from './LessonModal';
 
-import { LessonLink } from '../types';
+import { LessonLink, Coupon } from '../types';
+import { subscribeCoupons, getCourseDiscountInfo } from '../utils/discountUtils';
 
 interface Lesson {
   id: string;
@@ -81,6 +83,8 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
   const [isPublished, setIsPublished] = useState(false);
   const [modules, setModules] = useState<Module[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [authorId, setAuthorId] = useState<string>('');
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
 
   // NOVOS ESTADOS DE ESTRUTURA DO CURSO
   const [structureType, setStructureType] = useState<'modules' | 'single_lesson' | 'direct_link'>('modules');
@@ -122,6 +126,7 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             setTitle(data.title || '');
             setDescription(data.description || '');
             setCoverImage(data.coverImage || data.imageUrl || data.image || '');
+            setAuthorId(data.authorId || '');
             const p = Number(data.price) || 0;
             setPrice(p);
             setPriceType(p === 0 ? 'free' : 'paid');
@@ -179,6 +184,14 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     fetchCourseData();
     return () => { isMounted = false; };
   }, [courseId]);
+
+  // Carregar e sincronizar cupons ativos da plataforma
+  useEffect(() => {
+    const unsubCoupons = subscribeCoupons((loadedCoupons) => {
+      setCoupons(loadedCoupons);
+    });
+    return () => unsubCoupons();
+  }, []);
 
   // 2. Sistema de Auto-Save Inteligente (Dispara quando você altera os campos)
   useEffect(() => {
@@ -981,6 +994,9 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
     setDraggedOverModulePos(null);
   };
 
+  // Calcula desconto dinâmico com base nos cupons ativos
+  const discountInfo = getCourseDiscountInfo(price, coupons, courseId, authorId);
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 text-white max-w-6xl mx-auto min-h-screen">
       {/* Barra Superior / Header de Controle */}
@@ -1321,6 +1337,27 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                     Kz
                   </span>
                 </div>
+
+                {/* Exibição Dinâmica do Preço com Desconto com base no Cupom Ativo */}
+                {discountInfo.hasDiscount && (
+                  <div className="mt-3 p-3.5 rounded-xl bg-[#e9c349]/10 border border-[#e9c349]/30 text-xs animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between text-stone-300 mb-1.5">
+                      <span className="flex items-center gap-1.5 font-bold text-[#e9c349]">
+                        <Tag className="w-3.5 h-3.5" />
+                        Cupom Ativo: <span className="font-mono bg-[#e9c349]/20 px-1.5 py-0.5 rounded text-white">{discountInfo.couponCode}</span> ({discountInfo.discountBadge})
+                      </span>
+                      <span className="line-through text-stone-500 font-mono text-xs">
+                        {Number(discountInfo.originalPrice).toLocaleString('pt-AO')} Kz
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between pt-1.5 border-t border-[#e9c349]/20">
+                      <span className="text-[11px] text-stone-400 font-medium">Preço com desconto no checkout:</span>
+                      <span className="text-base font-extrabold text-emerald-400 font-mono">
+                        {Number(discountInfo.discountedPrice).toLocaleString('pt-AO')} Kz
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3.5 rounded-xl text-xs flex items-center gap-2">

@@ -84,7 +84,6 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   const [isCheckingEnrollment, setIsCheckingEnrollment] = useState(true);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
   const [enrollmentStatusLoaded, setEnrollmentStatusLoaded] = useState(false);
-  const [accessDeniedRedirectCountdown, setAccessDeniedRedirectCountdown] = useState<number | null>(null);
 
   // Active Lesson state
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
@@ -167,22 +166,26 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
     }
   }, [enrollmentStatusLoaded, activeCourseId, enrolledCourseIds, navigate]);
 
-  // Handle countdown redirection when user lacks permission to access activeCourseId
+  // Redirecionamento direto e silencioso para a página de apresentação do curso quando o usuário não tiver matrícula ativa
   useEffect(() => {
     if (enrollmentStatusLoaded && activeCourseId && !enrolledCourseIds.includes(activeCourseId)) {
-      setAccessDeniedRedirectCountdown(5);
-      const interval = setInterval(() => {
-        setAccessDeniedRedirectCountdown((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(interval);
-            const courseSlug = course.title ? slugify(course.title) : '';
-            navigate(courseSlug ? `/library/${courseSlug}` : '/library', { replace: true });
-            return 0;
+      if (course.title && course.title !== 'Curso CFA') {
+        const courseSlug = slugify(course.title);
+        navigate(`/library/${courseSlug}`, { replace: true });
+      } else {
+        // Se o título ainda não carregou no estado local, busca rapidamente o título no Firestore para direcionar ao slug correto
+        getDoc(doc(db, 'courses', activeCourseId)).then((snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const courseSlug = data.title ? slugify(data.title) : activeCourseId;
+            navigate(`/library/${courseSlug}`, { replace: true });
+          } else {
+            navigate('/library', { replace: true });
           }
-          return prev - 1;
+        }).catch(() => {
+          navigate('/library', { replace: true });
         });
-      }, 1000);
-      return () => clearInterval(interval);
+      }
     }
   }, [enrollmentStatusLoaded, activeCourseId, enrolledCourseIds, course.title, navigate]);
 
@@ -568,65 +571,10 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   }
 
   if (activeCourseId && !enrolledCourseIds.includes(activeCourseId)) {
-    const courseSlug = course.title ? slugify(course.title) : '';
-    const destinationUrl = courseSlug ? `/library/${courseSlug}` : '/library';
-
     return (
-      <div className="bg-[#131313] text-[#e5e2e1] min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-[#181818] border border-red-500/30 rounded-2xl p-6 sm:p-8 text-center space-y-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-amber-500 to-red-600"></div>
-          
-          <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center mx-auto shadow-inner">
-            <Lock className="w-8 h-8" />
-          </div>
-
-          <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-red-400 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
-              Acesso Restrito
-            </span>
-            <h2 className="text-xl font-headline font-bold text-white">
-              Curso Não Associado à Sua Conta
-            </h2>
-            <p className="text-xs sm:text-sm text-stone-400 leading-relaxed">
-              Você não possui uma matrícula ativa para o treinamento {course.title ? <strong className="text-stone-200">"{course.title}"</strong> : 'selecionado'}.
-              Para assistir a estas aulas, é necessário que o curso esteja devidamente associado à sua conta.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-left text-xs text-stone-400 space-y-2">
-            <p className="flex items-center gap-2 text-stone-300 font-semibold">
-              <ShieldAlert className="w-4 h-4 text-[#e9c349]" />
-              Regras de Acesso à Sala de Aula:
-            </p>
-            <ul className="list-disc list-inside space-y-1 text-[11px] text-stone-400">
-              <li>Cursos Pagos: requerem aquisição ou aprovação de comprovativo.</li>
-              <li>Cursos Gratuitos: requerem inscrição prévia (matrícula gratuita na página do curso).</li>
-            </ul>
-          </div>
-
-          {accessDeniedRedirectCountdown !== null && (
-            <p className="text-[11px] text-stone-500 font-mono">
-              Redirecionando para a página do curso em {accessDeniedRedirectCountdown}s...
-            </p>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button
-              onClick={() => navigate(destinationUrl)}
-              className="flex-1 py-3 px-4 rounded-xl bg-[#e9c349] hover:bg-[#d4b03f] text-stone-900 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-lg font-headline flex items-center justify-center gap-2"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Ver Página do Curso</span>
-            </button>
-            <button
-              onClick={() => navigate('/library')}
-              className="flex-1 py-3 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs sm:text-sm transition-all cursor-pointer border border-white/10 flex items-center justify-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Catálogo Geral</span>
-            </button>
-          </div>
-        </div>
+      <div className="bg-[#131313] min-h-screen flex flex-col items-center justify-center p-4 text-white">
+        <div className="w-8 h-8 border-3 border-[#e9c349] border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-xs text-stone-400 font-headline uppercase tracking-widest">A carregar apresentação do produto...</p>
       </div>
     );
   }
