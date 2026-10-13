@@ -4,6 +4,7 @@ import { ProducerContractModal } from '../components/ProducerContractModal';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { PlatformSettings, Coupon } from '../types';
+import { DEFAULT_PLATFORM_COUPONS } from '../utils/discountUtils';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 import { CertificateModal } from '../components/CertificateModal';
 import { compressImage, compressDataUrl } from '../utils/imageCompressor';
@@ -63,17 +64,7 @@ export default function Settings() {
   const [isTestCertOpen, setIsTestCertOpen] = useState(false);
 
   // Coupons State
-  const [coupons, setCoupons] = useState<Coupon[]>([
-    {
-      id: 'cp_cfa10',
-      code: 'CFA10',
-      type: 'percentage',
-      discountValue: 10,
-      scope: 'general',
-      active: true,
-      createdAt: new Date().toISOString()
-    }
-  ]);
+  const [coupons, setCoupons] = useState<Coupon[]>(DEFAULT_PLATFORM_COUPONS);
   const [availableCourses, setAvailableCourses] = useState<{ id: string; title: string }[]>([]);
 
   // Sub-modal for creating/editing a coupon
@@ -260,14 +251,32 @@ export default function Settings() {
 
       // 5. Coupons doc
       const couponsDoc = await getDoc(doc(db, 'settings', 'coupons'));
-      if (couponsDoc.exists() && Array.isArray(couponsDoc.data().list)) {
-        setCoupons(couponsDoc.data().list);
+      let loadedCouponsList: Coupon[] = [];
+      if (couponsDoc.exists() && Array.isArray(couponsDoc.data().list) && couponsDoc.data().list.length > 0) {
+        loadedCouponsList = couponsDoc.data().list;
       } else {
         const couponsSnap = await getDocs(collection(db, 'coupons'));
         if (!couponsSnap.empty) {
-          const list = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
-          setCoupons(list);
+          loadedCouponsList = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
         }
+      }
+
+      if (loadedCouponsList.length === 0) {
+        setCoupons(DEFAULT_PLATFORM_COUPONS);
+      } else {
+        // Normaliza para atualizar o cupom inicial de demonstração para os 75% oficiais
+        const normalized = loadedCouponsList.map(c => {
+          if (c.id === 'cp_cfa10' || (c.code === 'CFA10' && Number(c.discountValue) === 10)) {
+            return {
+              ...c,
+              id: 'cp_cfa75',
+              code: 'CFA75',
+              discountValue: 75
+            };
+          }
+          return c;
+        });
+        setCoupons(normalized);
       }
 
       // 6. Fetch courses for coupon scope

@@ -1323,16 +1323,16 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
             </div>
 
             {priceType === 'paid' ? (
-              <div className="space-y-3">
+              <div className="space-y-3.5">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                      Preço do Curso (Kz)
+                    <label className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>Preço Normal do Curso (Kz)</span>
                     </label>
                     {discountInfo.hasDiscount && (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30">
+                      <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#e9c349]/15 text-[#e9c349] border border-[#e9c349]/30">
                         <Tag className="w-3 h-3" />
-                        Cupom: <span className="font-mono text-white">{discountInfo.couponCode}</span> ({discountInfo.discountBadge})
+                        <span>Desconto: <strong>{discountInfo.discountBadge}</strong></span>
                       </span>
                     )}
                   </div>
@@ -1350,46 +1350,59 @@ export default function CourseEditor({ courseId, onBack }: CourseEditorProps) {
                   </div>
                 </div>
 
-                {/* Exibição Dinâmica do Preço com Desconto com base no Cupom Ativo */}
+                {/* Exibição Obrigatória e Clara do Preço com Desconto */}
                 {discountInfo.hasDiscount ? (
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-[#1a1810] to-[#121212] border border-[#e9c349]/40 shadow-lg text-xs space-y-2.5 animate-in fade-in duration-300">
-                    <div className="flex items-center justify-between text-stone-300">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-[#1a1710] to-[#111111] border-2 border-[#e9c349]/50 shadow-xl text-xs space-y-3 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between text-stone-300 pb-2 border-b border-gray-800">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-[#e9c349]/20 flex items-center justify-center text-[#e9c349]">
-                          <Tag className="w-3.5 h-3.5" />
+                        <div className="w-7 h-7 rounded-lg bg-[#e9c349]/20 flex items-center justify-center text-[#e9c349] shrink-0">
+                          <Tag className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="font-bold text-white flex items-center gap-1.5">
-                            Cupom Ativo: <span className="font-mono text-[#e9c349] bg-[#e9c349]/15 px-1.5 py-0.5 rounded border border-[#e9c349]/30">{discountInfo.couponCode}</span>
+                            <span>{discountInfo.scopeLabel}:</span>
+                            <span className="font-mono text-[#e9c349] bg-[#e9c349]/20 px-1.5 py-0.5 rounded border border-[#e9c349]/40 font-bold">
+                              {discountInfo.couponCode}
+                            </span>
                           </div>
-                          <div className="text-[10px] text-stone-400">
-                            Desconto de {discountInfo.discountBadge} aplicado automaticamente na compra
+                          <div className="text-[11px] text-stone-400 mt-0.5">
+                            {discountInfo.scopeType === 'course' 
+                              ? 'Cupom definido exclusivamente para este curso' 
+                              : discountInfo.scopeType === 'producer'
+                              ? 'Cupom do produtor deste curso'
+                              : 'Desconto de 75% ativo na plataforma para todos os cursos'}
                           </div>
                         </div>
                       </div>
-                      <span className="line-through text-stone-500 font-mono text-xs">
-                        {Number(discountInfo.originalPrice).toLocaleString('pt-AO')} Kz
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 font-extrabold text-xs border border-emerald-500/40">
+                        {discountInfo.discountBadge}
                       </span>
                     </div>
 
-                    <div className="pt-2.5 border-t border-gray-800 flex items-baseline justify-between">
+                    <div className="flex items-baseline justify-between pt-1">
                       <div>
-                        <span className="text-[11px] text-gray-400 font-medium block">Preço final com desconto:</span>
-                        <span className="text-[10px] text-emerald-400 font-medium">
-                          Economia: {Number(discountInfo.savingsAmount).toLocaleString('pt-AO')} Kz
-                        </span>
+                        <span className="text-[11px] text-gray-400 font-medium block">Preço com Desconto (a pagar):</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-stone-500 line-through font-mono">
+                            {Number(discountInfo.originalPrice).toLocaleString('pt-AO')} Kz
+                          </span>
+                          <span className="text-[11px] text-emerald-400 font-semibold">
+                            (Economiza {Number(discountInfo.savingsAmount).toLocaleString('pt-AO')} Kz)
+                          </span>
+                        </div>
                       </div>
+
                       <div className="text-right">
-                        <span className="text-xl font-extrabold text-emerald-400 font-mono tracking-tight">
-                          {Number(discountInfo.discountedPrice).toLocaleString('pt-AO')} Kz
-                        </span>
+                        <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
+                          {Number(discountInfo.discountedPrice).toLocaleString('pt-AO')} <span className="text-sm font-bold text-emerald-500">Kz</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-3 rounded-xl bg-black/40 border border-gray-800 text-xs text-gray-400 flex items-center justify-between">
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-gray-800 text-xs text-gray-400 flex items-center justify-between">
                     <span>Preço regular único:</span>
-                    <span className="font-mono font-bold text-white text-sm">
+                    <span className="font-mono font-bold text-white text-base">
                       {Number(price).toLocaleString('pt-AO')} Kz
                     </span>
                   </div>

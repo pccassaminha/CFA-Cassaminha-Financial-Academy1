@@ -786,13 +786,19 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                   const editDInfo = getCourseDiscountInfo(editForm.price, coupons, editingCourse?.id, editingCourse?.authorId);
                   if (!editDInfo.hasDiscount) return null;
                   return (
-                    <div className="mt-2.5 p-2.5 rounded-xl bg-[#e9c349]/10 border border-[#e9c349]/30 text-xs">
+                    <div className="mt-2.5 p-3 rounded-xl bg-gradient-to-br from-[#1a1710] to-[#111111] border border-[#e9c349]/40 text-xs space-y-1.5 shadow-md">
                       <div className="flex items-center justify-between text-stone-300">
-                        <span className="flex items-center gap-1 font-bold text-[#e9c349]">
+                        <span className="flex items-center gap-1.5 font-bold text-[#e9c349]">
                           <Tag className="w-3.5 h-3.5" />
-                          Cupom Ativo: <span className="font-mono text-white">{editDInfo.couponCode}</span> ({editDInfo.discountBadge})
+                          <span>{editDInfo.scopeLabel}: <strong className="font-mono text-white">{editDInfo.couponCode}</strong> ({editDInfo.discountBadge})</span>
                         </span>
-                        <span className="text-emerald-400 font-extrabold font-mono text-sm">
+                        <span className="text-stone-500 line-through font-mono text-[11px]">
+                          {Number(editDInfo.originalPrice).toLocaleString('pt-AO')} Kz
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between pt-1 border-t border-gray-800">
+                        <span className="text-[11px] text-gray-400">Preço com Desconto (a pagar):</span>
+                        <span className="text-emerald-400 font-extrabold font-mono text-base">
                           {Number(editDInfo.discountedPrice).toLocaleString('pt-AO')} Kz
                         </span>
                       </div>
@@ -975,13 +981,19 @@ export default function CoursesList({ onSelectCourse }: CoursesListProps) {
                   const newDInfo = getCourseDiscountInfo(newCourseForm.price, coupons);
                   if (!newDInfo.hasDiscount) return null;
                   return (
-                    <div className="mt-2.5 p-2.5 rounded-xl bg-[#e9c349]/10 border border-[#e9c349]/30 text-xs">
+                    <div className="mt-2.5 p-3 rounded-xl bg-gradient-to-br from-[#1a1710] to-[#111111] border border-[#e9c349]/40 text-xs space-y-1.5 shadow-md">
                       <div className="flex items-center justify-between text-stone-300">
-                        <span className="flex items-center gap-1 font-bold text-[#e9c349]">
+                        <span className="flex items-center gap-1.5 font-bold text-[#e9c349]">
                           <Tag className="w-3.5 h-3.5" />
-                          Cupom Ativo: <span className="font-mono text-white">{newDInfo.couponCode}</span> ({newDInfo.discountBadge})
+                          <span>{newDInfo.scopeLabel}: <strong className="font-mono text-white">{newDInfo.couponCode}</strong> ({newDInfo.discountBadge})</span>
                         </span>
-                        <span className="text-emerald-400 font-extrabold font-mono text-sm">
+                        <span className="text-stone-500 line-through font-mono text-[11px]">
+                          {Number(newDInfo.originalPrice).toLocaleString('pt-AO')} Kz
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between pt-1 border-t border-gray-800">
+                        <span className="text-[11px] text-gray-400">Preço com Desconto (a pagar):</span>
+                        <span className="text-emerald-400 font-extrabold font-mono text-base">
                           {Number(newDInfo.discountedPrice).toLocaleString('pt-AO')} Kz
                         </span>
                       </div>

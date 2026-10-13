@@ -5,6 +5,7 @@ import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { db } from '../firebase';
 import { sendSystemNotification } from '../services/notificationService';
 import { PlatformSettings, Transaction, Coupon } from '../types';
+import { DEFAULT_PLATFORM_COUPONS } from '../utils/discountUtils';
 import { DEFAULT_CFA_LOGO, getValidLogoUrl } from '../utils/constants';
 
 export default function Checkout() {
@@ -22,7 +23,7 @@ export default function Checkout() {
   const [logoUrl, setLogoUrl] = useState(DEFAULT_CFA_LOGO);
 
   // Coupon States
-  const [couponsList, setCouponsList] = useState<Coupon[]>([]);
+  const [couponsList, setCouponsList] = useState<Coupon[]>(DEFAULT_PLATFORM_COUPONS);
   const [showCouponInput, setShowCouponInput] = useState(false);
   const [couponCodeInput, setCouponCodeInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -165,13 +166,24 @@ export default function Checkout() {
 
         // Load Coupons
         let loadedCoupons: Coupon[] = [];
-        if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list)) {
+        if (couponsSnap?.exists() && Array.isArray(couponsSnap.data().list) && couponsSnap.data().list.length > 0) {
           loadedCoupons = couponsSnap.data().list;
         } else {
           const cSnap = await getDocs(collection(db, 'coupons')).catch(() => null);
           if (cSnap && !cSnap.empty) {
             loadedCoupons = cSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
           }
+        }
+
+        if (loadedCoupons.length === 0) {
+          loadedCoupons = DEFAULT_PLATFORM_COUPONS;
+        } else {
+          loadedCoupons = loadedCoupons.map(c => {
+            if (c.id === 'cp_cfa10' || (c.code === 'CFA10' && Number(c.discountValue) === 10)) {
+              return { ...c, id: 'cp_cfa75', code: 'CFA75', discountValue: 75 };
+            }
+            return c;
+          });
         }
         setCouponsList(loadedCoupons);
 
@@ -197,16 +209,17 @@ export default function Checkout() {
     if (couponsList.length > 0 && selectedCourse && !appliedCoupon && !couponError) {
       const activeCoupons = couponsList.filter(c => c && c.active !== false);
       if (activeCoupons.length > 0) {
-        const courseSpecific = activeCoupons.find(c => c.scope === 'course' && c.courseId === selectedCourse.id);
-        const producerSpecific = activeCoupons.find(c => c.scope === 'producer' && c.producerId === selectedCourse.authorId);
-        const general = activeCoupons.find(c => c.scope === 'all' || c.scope === 'general');
+        // Prioridade: 1) Cupom específico deste curso, 2) Produtor, 3) Desconto geral da plataforma (75%)
+        const courseSpecific = activeCoupons.find(c => c.scope === 'course' && (c.courseId === selectedCourse.id || (c as any).targetCourseId === selectedCourse.id));
+        const producerSpecific = activeCoupons.find(c => c.scope === 'producer' && (c.producerId === selectedCourse.authorId || (c as any).authorId === selectedCourse.authorId));
+        const general = activeCoupons.find(c => !c.scope || c.scope === 'all' || c.scope === 'general');
         const best = courseSpecific || producerSpecific || general;
         if (best) {
           setAppliedCoupon(best);
           const discountStr = best.type === 'percentage' 
             ? `${best.discountValue}%` 
             : `Kz ${Number(best.discountValue).toLocaleString('pt-AO')}`;
-          setCouponSuccessMsg(`Cupão ${best.code} aplicado com sucesso! (-${discountStr})`);
+          setCouponSuccessMsg(`Cupom ${best.code} aplicado com sucesso! (-${discountStr})`);
         }
       }
     }
