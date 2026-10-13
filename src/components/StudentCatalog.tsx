@@ -4,7 +4,7 @@ import { collection, getDocs, query, where, onSnapshot, doc, getDoc } from 'fire
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
-import { Play, SearchX, Plus, Check, BookmarkCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Play, SearchX, Plus, Check, BookmarkCheck, Sparkles, CheckCircle2, BookOpen } from 'lucide-react';
 import ExpandableSearch from './ExpandableSearch';
 import { Coupon } from '../types';
 import { EcosystemFooter } from './EcosystemFooter';
@@ -210,16 +210,8 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
 
   const checkUserHasAccess = (course: Course) => {
     if (!currentUser) return false;
-    // 1. Já matriculado explicitamente na conta (compra individual aprovada ou adicionado)
-    if (enrolledCourseIds.includes(course.id)) return true;
-    // 2. Administrador da plataforma (tem acesso completo a todos os cursos para suporte)
-    if (isAdmin) return true;
-    // 3. Instrutor / Produtor que cadastrou o curso
-    if (course.authorId && course.authorId === currentUser.uid) return true;
-    if (course.authorEmail && currentUser.email && course.authorEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
-    // 4. Assinatura ativa global
-    if (userProfile?.subscriptionStatus === 'active' && userProfile?.hasAllAccess) return true;
-    return false;
+    // Apenas quem possui matrícula explicitamente associada na conta
+    return enrolledCourseIds.includes(course.id);
   };
 
   useEffect(() => {
@@ -326,7 +318,7 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
                   onClick={() => onSelectCourse(currentCourse)}
                   className="w-full sm:w-auto bg-[#e9c349] text-black font-extrabold px-4 py-2.5 sm:px-6 sm:py-3.5 text-xs sm:text-sm rounded-lg sm:rounded-xl flex items-center justify-center gap-2 hover:bg-[#d4b03f] transition-all cursor-pointer shadow-lg active:scale-95"
                 >
-                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black" /> Aprender Agora
+                  <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" /> Ver Detalhes do Treinamento
                 </button>
                 {(() => {
                   const discountInfo = getCourseDiscountInfo(currentCourse);
@@ -465,15 +457,10 @@ export default function StudentCatalog({ onSelectCourse }: StudentCatalogProps) 
                           })()}
 
                           {isFree ? (
-                            <button
-                              type="button"
-                              onClick={(e) => handleQuickAddFreeCourse(e, course)}
-                              disabled={enrollingCourseId === course.id}
-                              className="bg-emerald-500 text-black px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold hover:bg-emerald-400 active:scale-95 transition-all flex items-center gap-1 shadow-md disabled:opacity-50 cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              {enrollingCourseId === course.id ? 'Adicionando...' : 'Adicionar aos Meus Cursos'}
-                            </button>
+                            <span className="bg-stone-800 text-[#e9c349] border border-[#e9c349]/30 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold hover:bg-stone-700 transition-all flex items-center gap-1">
+                              <BookOpen className="w-3.5 h-3.5" />
+                              Ver Detalhes (Grátis)
+                            </span>
                           ) : (
                             <span className="bg-[#e9c349] text-black px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold hover:bg-[#d4b03f] transition-all">
                               Ver Detalhes / Comprar

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check, Unlock, ArrowRight, Sparkles, Tag, Laptop, RefreshCw } from 'lucide-react';
+import { Lock, PlayCircle, ArrowLeft, CheckCircle2, Shield, Clock, Check, Unlock, ArrowRight, Sparkles, Tag, Laptop, RefreshCw, ShieldAlert, MessageCircle } from 'lucide-react';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { subscribeUserEnrollments, addCourseToUser } from '../services/enrollmentService';
@@ -25,6 +25,8 @@ interface CourseData {
   description: string;
   price: number;
   image?: string;
+  producerPhone?: string;
+  producerWhatsApp?: string;
   modules: CourseModule[];
 }
 
@@ -92,19 +94,11 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
   }, [courseId]);
 
   useEffect(() => {
-    const isMasterEmail = (email?: string | null) => {
-      if (!email) return false;
-      const clean = email.trim().toLowerCase();
-      return clean === 'grupocassaminha@gmail.com' || clean === 'exportacoes.extras@gmail.com';
-    };
-
     const user = auth.currentUser;
     if (!user) return;
 
     const unsub = subscribeUserEnrollments(user, (enrollData) => {
-      const isMaster = isMasterEmail(user.email);
-      const isAdmin = isMaster || enrollData.userProfile?.role === 'admin';
-      const isEnrolled = enrollData.enrolledCourses.includes(courseId) || isAdmin;
+      const isEnrolled = Array.isArray(enrollData.enrolledCourses) && enrollData.enrolledCourses.includes(courseId);
       setIsAlreadyEnrolled(isEnrolled);
     });
 
@@ -153,6 +147,8 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
             description: data.description || 'Treinamento prático da CFA Academy.',
             price: Number(data.price) || 0,
             image: data.coverImage || data.imageUrl || data.image || 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800',
+            producerPhone: data.producerPhone || '',
+            producerWhatsApp: data.producerWhatsApp || '',
             modules: formattedModules
           });
         } else {
@@ -245,7 +241,7 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
               
               <div className="space-y-3">
                 {course.modules.map((mod, idx) => {
-                  const isUnlocked = isAlreadyEnrolled || (!course.price || course.price === 0);
+                  const isUnlocked = isAlreadyEnrolled;
                   return (
                     <div 
                       key={idx} 
@@ -417,22 +413,32 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
                   <PlayCircle className="w-5 h-5" /> Assistir Aulas Agora
                 </button>
               ) : !course.price || course.price === 0 ? (
-                <button 
-                  id="btn-access-free-course"
-                  onClick={() => {
-                    const user = auth.currentUser;
-                    if (!user) {
-                      setAuthModalType('enroll');
-                      setShowAuthModal(true);
-                      return;
-                    }
-                    handleFreeEnroll();
-                  }}
-                  disabled={isEnrolling}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-4 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-base disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isEnrolling ? 'Liberando Acesso...' : 'Assistir Grátis'}
-                </button>
+                <div className="space-y-3">
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-stone-300 space-y-1.5 text-center">
+                    <div className="flex items-center justify-center gap-1.5 text-amber-400 font-headline font-bold text-xs uppercase tracking-wider">
+                      <ShieldAlert className="w-4 h-4" />
+                      <span>Liberação pelo Administrador</span>
+                    </div>
+                    <p className="text-xs text-stone-300 leading-relaxed">
+                      Este conteúdo é gratuito, porém a matrícula precisa ser vinculada à sua conta pelo administrador da plataforma.
+                    </p>
+                  </div>
+                  {(course.producerWhatsApp || course.producerPhone) ? (
+                    <a
+                      href={`https://wa.me/${(course.producerWhatsApp || course.producerPhone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Olá, gostaria de solicitar a liberação do curso gratuito "${course.title}" na minha conta da CFA Academy.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3.5 px-4 rounded-xl active:scale-95 transition-all transform cursor-pointer shadow-lg font-headline text-sm flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Solicitar Liberação com o Produtor</span>
+                    </a>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-stone-900 border border-white/5 text-center text-xs text-stone-400">
+                      Entre em contato com o suporte ou aguarde a aprovação administrativa.
+                    </div>
+                  )}
+                </div>
               ) : (
                 <button 
                   id="btn-buy-course-preview"
@@ -456,7 +462,7 @@ export default function CoursePreview({ courseId, onBack, onOpenCheckout }: Cour
                 {isAlreadyEnrolled || enrolledSuccess 
                   ? 'Acesso total e vitalício às aulas e aos materiais de apoio.' 
                   : (!course.price || course.price === 0 
-                      ? 'Assista aos vídeos do YouTube e estude os módulos sem restrições.' 
+                      ? 'Inscrição sob liberação do administrador. Após aprovado, as aulas são desbloqueadas.' 
                       : 'Acesso liberado imediatamente após validação do comprovativo pelo suporte.')}
               </p>
             </div>

@@ -4,7 +4,8 @@ import { doc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firesto
 import { onAuthStateChanged } from 'firebase/auth';
 import { logout, auth, db } from '../firebase';
 import { subscribeUserEnrollments } from '../services/enrollmentService';
-import { Lock } from 'lucide-react';
+import { Lock, ShieldAlert, ArrowLeft, BookOpen, AlertTriangle } from 'lucide-react';
+import { slugify } from '../utils/slugify';
 import WistiaPlayer from '../components/WistiaPlayer';
 import { LinkifiedText } from '../components/LinkifiedText';
 import { parseVideoUrlOrIframe } from '../utils/videoParser';
@@ -79,6 +80,12 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdminSimulating, setIsAdminSimulating] = useState(false);
 
+  // Strict enrollment verification states
+  const [isCheckingEnrollment, setIsCheckingEnrollment] = useState(true);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
+  const [enrollmentStatusLoaded, setEnrollmentStatusLoaded] = useState(false);
+  const [accessDeniedRedirectCountdown, setAccessDeniedRedirectCountdown] = useState<number | null>(null);
+
   // Active Lesson state
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
@@ -129,10 +136,17 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
             enrolledCourses: enrollData.enrolledCourses,
             completedLessons: enrollData.completedLessons
           } as UserProfile);
+          setEnrolledCourseIds(enrollData.enrolledCourses || []);
+          setEnrollmentStatusLoaded(true);
+          setIsCheckingEnrollment(false);
         });
       } else {
         setCurrentUserId(null);
         setUserProfile(null);
+        setEnrolledCourseIds([]);
+        setEnrollmentStatusLoaded(true);
+        setIsCheckingEnrollment(false);
+        navigate('/entrar', { replace: true });
       }
     });
 
@@ -140,7 +154,37 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
       unsubscribeAuth();
       unsubEnroll();
     };
-  }, []);
+  }, [navigate]);
+
+  // Handle case when no courseId is provided: redirect to first enrolled course or catalog
+  useEffect(() => {
+    if (enrollmentStatusLoaded && !activeCourseId) {
+      if (enrolledCourseIds.length > 0) {
+        navigate(`/classroom?courseId=${enrolledCourseIds[0]}`, { replace: true });
+      } else {
+        navigate('/library', { replace: true });
+      }
+    }
+  }, [enrollmentStatusLoaded, activeCourseId, enrolledCourseIds, navigate]);
+
+  // Handle countdown redirection when user lacks permission to access activeCourseId
+  useEffect(() => {
+    if (enrollmentStatusLoaded && activeCourseId && !enrolledCourseIds.includes(activeCourseId)) {
+      setAccessDeniedRedirectCountdown(5);
+      const interval = setInterval(() => {
+        setAccessDeniedRedirectCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(interval);
+            const courseSlug = course.title ? slugify(course.title) : '';
+            navigate(courseSlug ? `/library/${courseSlug}` : '/library', { replace: true });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [enrollmentStatusLoaded, activeCourseId, enrolledCourseIds, course.title, navigate]);
 
   // Monitor Course collection in Real-Time
   useEffect(() => {
@@ -265,68 +309,7 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
       }, (err) => {
         console.error("Erro ao buscar dados do curso em tempo real:", err);
       });
-    } else {
-      // If no courseId in URL, query the courses collection for the first available course
-      const coursesRef = collection(db, 'courses');
-      unsubscribeCourse = onSnapshot(coursesRef, (snap) => {
-        if (!snap.empty) {
-          const firstDoc = snap.docs[0];
-          const data = firstDoc.data() as Course;
-          const sType = data.structureType || 'modules';
-
-          if (sType === 'direct_link') {
-            if (data.directLinkUrl) {
-              window.location.replace(data.directLinkUrl);
-            }
-            return;
-          }
-
-          setCourse({
-            id: firstDoc.id,
-            title: data.title || 'Curso CFA',
-            coverImage: data.coverImage || (data as any).imageUrl || (data as any).image || '',
-            description: data.description || '',
-            structureType: sType,
-            directLinkUrl: data.directLinkUrl || '',
-            singleLessonVideoSource: data.singleLessonVideoSource || 'youtube',
-            singleLessonVideoData: data.singleLessonVideoData || '',
-            singleLessonMaterials: data.singleLessonMaterials || '',
-            singleLessonDescription: data.singleLessonDescription || '',
-            modules: Array.isArray(data.modules) ? data.modules : []
-          });
-
-          if (sType === 'single_lesson') {
-            const virtualLesson: Lesson = {
-              id: firstDoc.id,
-              title: data.title || 'Aula Única / Replay',
-              duration: 'Aula Única',
-              videoSource: data.singleLessonVideoSource || 'youtube',
-              videoData: data.singleLessonVideoData || '',
-              materials: data.singleLessonMaterials || '',
-              description: data.singleLessonDescription || '',
-              links: data.singleLessonLinks || (data.singleLessonMaterials ? [{ id: '1', label: 'Acesse o Material da Aula', url: data.singleLessonMaterials }] : [])
-            };
-            setActiveLesson(virtualLesson);
-            setActiveModuleId('single_lesson_module');
-          } else {
-            if (data.modules && data.modules.length > 0) {
-              const publishedModules = data.modules.filter(m => !m.status || m.status === 'published');
-              const modulesToSearch = publishedModules.length > 0 ? publishedModules : data.modules;
-              for (const mod of modulesToSearch) {
-                if (mod.lessons && mod.lessons.length > 0) {
-                  setActiveLesson(mod.lessons[0]);
-                  setActiveModuleId(mod.id);
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }, (err) => {
-        console.error("Erro ao buscar primeiro curso:", err);
-      });
     }
-
     return () => unsubscribeCourse();
   }, [activeCourseId]);
 
@@ -574,6 +557,79 @@ export default function VideoLibrary({ courseId }: VideoLibraryProps = {}) {
   };
 
   const comments = activeLesson ? (commentsByLesson[activeLesson.id] || []) : [];
+
+  if (isCheckingEnrollment || !enrollmentStatusLoaded) {
+    return (
+      <div className="bg-[#131313] min-h-screen flex flex-col items-center justify-center p-4 text-white">
+        <div className="w-10 h-10 border-4 border-[#e9c349] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-xs text-stone-400 font-headline uppercase tracking-widest">Validando matrícula e autorização...</p>
+      </div>
+    );
+  }
+
+  if (activeCourseId && !enrolledCourseIds.includes(activeCourseId)) {
+    const courseSlug = course.title ? slugify(course.title) : '';
+    const destinationUrl = courseSlug ? `/library/${courseSlug}` : '/library';
+
+    return (
+      <div className="bg-[#131313] text-[#e5e2e1] min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-[#181818] border border-red-500/30 rounded-2xl p-6 sm:p-8 text-center space-y-6 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-amber-500 to-red-600"></div>
+          
+          <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center mx-auto shadow-inner">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-red-400 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+              Acesso Restrito
+            </span>
+            <h2 className="text-xl font-headline font-bold text-white">
+              Curso Não Associado à Sua Conta
+            </h2>
+            <p className="text-xs sm:text-sm text-stone-400 leading-relaxed">
+              Você não possui uma matrícula ativa para o treinamento {course.title ? <strong className="text-stone-200">"{course.title}"</strong> : 'selecionado'}.
+              Para assistir a estas aulas, é necessário que o curso esteja devidamente associado à sua conta.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-left text-xs text-stone-400 space-y-2">
+            <p className="flex items-center gap-2 text-stone-300 font-semibold">
+              <ShieldAlert className="w-4 h-4 text-[#e9c349]" />
+              Regras de Acesso à Sala de Aula:
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-stone-400">
+              <li>Cursos Pagos: requerem aquisição ou aprovação de comprovativo.</li>
+              <li>Cursos Gratuitos: requerem liberação pelo administrador da plataforma.</li>
+            </ul>
+          </div>
+
+          {accessDeniedRedirectCountdown !== null && (
+            <p className="text-[11px] text-stone-500 font-mono">
+              Redirecionando para a página do curso em {accessDeniedRedirectCountdown}s...
+            </p>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              onClick={() => navigate(destinationUrl)}
+              className="flex-1 py-3 px-4 rounded-xl bg-[#e9c349] hover:bg-[#d4b03f] text-stone-900 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-lg font-headline flex items-center justify-center gap-2"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Ver Página do Curso</span>
+            </button>
+            <button
+              onClick={() => navigate('/library')}
+              className="flex-1 py-3 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs sm:text-sm transition-all cursor-pointer border border-white/10 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Catálogo Geral</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#131313] text-[#e5e2e1] font-body min-h-screen flex flex-col overflow-hidden">

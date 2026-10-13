@@ -150,7 +150,7 @@ export default function SalesPage() {
           const userDoc = await getDoc(doc(db, 'users', user.uid)).catch(() => null);
           if (userDoc && userDoc.exists()) {
             const data = userDoc.data();
-            if (data.role === 'admin' || data.role === 'producer') {
+            if (data.role === 'admin') {
               setIsAdmin(true);
             }
           }
@@ -235,7 +235,7 @@ export default function SalesPage() {
   // Handler for course CTA button clicks
   const handleCourseAction = async (course: Course) => {
     const isFree = !course.price || course.price === 0;
-    const isAlreadyEnrolled = enrolledCourseIds.includes(course.id) || isAdmin;
+    const isAlreadyEnrolled = enrolledCourseIds.includes(course.id);
     const courseSlug = slugify(course.title);
 
     // 1. Visitante SEM Sessão Iniciada
@@ -243,44 +243,31 @@ export default function SalesPage() {
       setSelectedCourseName(course.title);
       setSelectedCourseForAuth(course);
       setModalType(isFree ? 'free' : 'paid');
-      // Guarda nos session storage para garantir a continuidade imediata pós cadastro/login
+      // Guarda nos session storage para garantir a continuidade pós cadastro/login
       sessionStorage.setItem('post_register_course_id', course.id);
-      sessionStorage.setItem('post_register_action', isFree ? 'enroll' : 'preview');
+      sessionStorage.setItem('post_register_action', 'preview');
       sessionStorage.setItem('post_register_slug', courseSlug);
       setShowAuthModal(true);
       return;
     }
 
-    // 2. Aluno já comprou / matriculado (ou Administrador da plataforma)
+    // 2. Usuário com matrícula confirmada na sua conta
     if (isAlreadyEnrolled) {
-      // Direciona imediatamente para a sala de aula do curso, pulando vitrine e checkout
+      // Direciona imediatamente para a sala de aula do curso
       navigate(`/classroom?courseId=${course.id}`);
       return;
     }
 
-    // 3. Curso Gratuito com sessão iniciada
-    if (isFree) {
-      try {
-        // Assegura matrícula imediata caso ainda não esteja na lista
-        await addCourseToUser(currentUser.uid, currentUser.email, course.id);
-      } catch (err) {
-        console.warn("Aviso ao matricular automaticamente em curso grátis:", err);
-      }
-      // Direciona diretamente à sala de aula
-      navigate(`/classroom?courseId=${course.id}`);
-      return;
-    }
-
-    // 4. Curso Pago ainda não adquirido por aluno logado
-    // Direciona diretamente para a página de apresentação do curso (preview/apresentação)
+    // 3. Curso NÃO matriculado na conta (gratuito ou pago):
+    // Cursos gratuitos não são liberados automaticamente por ter conta; requerem vínculo pelo administrador.
+    // Direciona diretamente para a página de apresentação do curso (preview/detalhes)
     navigate(`/library/${courseSlug}`);
   };
 
   const handleModalAuthNavigate = (path: '/criar-conta' | '/entrar') => {
     if (selectedCourseForAuth) {
-      const isFree = !selectedCourseForAuth.price || selectedCourseForAuth.price === 0;
       sessionStorage.setItem('post_register_course_id', selectedCourseForAuth.id);
-      sessionStorage.setItem('post_register_action', isFree ? 'enroll' : 'preview');
+      sessionStorage.setItem('post_register_action', 'preview');
       sessionStorage.setItem('post_register_slug', slugify(selectedCourseForAuth.title));
     }
     setShowAuthModal(false);
@@ -380,7 +367,7 @@ export default function SalesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {courses.map((course) => {
                 const isFree = !course.price || course.price === 0;
-                const isAlreadyEnrolled = enrolledCourseIds.includes(course.id) || isAdmin;
+                const isAlreadyEnrolled = enrolledCourseIds.includes(course.id);
                 
                 return (
                   <div 
@@ -493,7 +480,7 @@ export default function SalesPage() {
 
                         {/* Direct Call to Action buttons */}
                         {(() => {
-                          const isAlreadyEnrolled = enrolledCourseIds.includes(course.id) || isAdmin;
+                          const isAlreadyEnrolled = enrolledCourseIds.includes(course.id);
 
                           if (isAlreadyEnrolled) {
                             return (
@@ -512,11 +499,11 @@ export default function SalesPage() {
                             return (
                               <button
                                 onClick={() => handleCourseAction(course)}
-                                className="w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-900/10 group-hover:scale-[1.01]"
-                                title="Acessar conteúdo gratuito"
+                                className="w-full py-3.5 rounded-xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-stone-800 hover:bg-stone-700 text-[#e9c349] border border-[#e9c349]/30 shadow-lg group-hover:scale-[1.01]"
+                                title="Ver apresentação do curso gratuito"
                               >
-                                <Play className="w-4 h-4 fill-white" />
-                                <span>Assistir Grátis</span>
+                                <BookOpen className="w-4 h-4" />
+                                <span>Ver Detalhes do Curso (Grátis)</span>
                               </button>
                             );
                           }

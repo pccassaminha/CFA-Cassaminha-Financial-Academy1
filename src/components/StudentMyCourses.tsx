@@ -61,16 +61,8 @@ export default function StudentMyCourses({ onExplore }: { onExplore: () => void 
 
   // 3. Filtrar cursos conforme a lista de matriculados
   useEffect(() => {
-    const user = auth.currentUser;
-    const cleanEmail = user?.email?.trim().toLowerCase() || '';
-    const isMaster = cleanEmail === 'grupocassaminha@gmail.com' || cleanEmail === 'exportacoes.extras@gmail.com';
-
-    if (isMaster) {
-      setCourses(allCourses);
-    } else {
-      const myFiltered = allCourses.filter(c => enrolledCourseIds.includes(c.id));
-      setCourses(myFiltered);
-    }
+    const myFiltered = allCourses.filter(c => enrolledCourseIds.includes(c.id));
+    setCourses(myFiltered);
   }, [allCourses, enrolledCourseIds]);
 
   if (loading) {

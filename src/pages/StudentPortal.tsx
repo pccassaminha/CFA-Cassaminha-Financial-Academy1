@@ -110,34 +110,14 @@ export default function StudentPortal() {
             const postRegId = sessionStorage.getItem('post_register_course_id');
             
             if (postRegId === matchedCourse.id) {
-              if (postRegAction === 'enroll' && (!matchedCourse.price || matchedCourse.price === 0)) {
-                // Se for curso gratuito pós-cadastro/login, adiciona a matrícula e vai para a sala de aula
-                const activeUser = auth.currentUser || user;
-                if (activeUser) {
-                  try {
-                    const { addCourseToUser } = await import('../services/enrollmentService');
-                    await addCourseToUser(activeUser.uid, activeUser.email, matchedCourse.id);
-                  } catch (e) {
-                    console.warn("Auto-enroll error:", e);
-                  }
-                }
-                sessionStorage.removeItem('post_register_action');
-                sessionStorage.removeItem('post_register_course_id');
-                sessionStorage.removeItem('post_register_slug');
-                navigate(`/classroom?courseId=${matchedCourse.id}`, { replace: true });
-                return;
-              } else if (postRegAction === 'checkout') {
+              if (postRegAction === 'checkout') {
                 setCurrentView('checkout');
-                sessionStorage.removeItem('post_register_action');
-                sessionStorage.removeItem('post_register_course_id');
-                sessionStorage.removeItem('post_register_slug');
               } else {
-                // postRegAction === 'preview'
                 setCurrentView('preview');
-                sessionStorage.removeItem('post_register_action');
-                sessionStorage.removeItem('post_register_course_id');
-                sessionStorage.removeItem('post_register_slug');
               }
+              sessionStorage.removeItem('post_register_action');
+              sessionStorage.removeItem('post_register_course_id');
+              sessionStorage.removeItem('post_register_slug');
             } else if (currentView !== 'checkout') {
               setCurrentView('preview');
             }

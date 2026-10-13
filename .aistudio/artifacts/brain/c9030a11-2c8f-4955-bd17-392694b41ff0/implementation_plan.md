@@ -1,110 +1,63 @@
-# Sistema de Cópia e Colagem de Módulos entre Cursos (Clonagem Segura)
+# Blindagem e Controle Rigoroso de Acesso aos Cursos
 
-Permite aos administradores copiar módulos completos com todas as suas aulas, vídeos, descrições e materiais de apoio de um curso existente e colá-los em qualquer outro curso na posição desejada, viabilizando a criação rápida de combos e packs sem recadastramento manual e com garantia de integridade no banco de dados.
+Este plano estabelece a correção definitiva do controle de acesso a cursos na plataforma CFA Academy, garantindo que **nenhuma conta** (seja de aluno, visitante ou outro produtor) tenha passe livre ou acesso automático a cursos nos quais não possua matrícula explicitamente ativa e aprovada.
 
-### User Review & Critical Decisions
+---
+
+### Decisões Críticas Alinhadas com o Usuário
 
 > [!IMPORTANT]
-> As decisões operacionais e de interface abaixo foram alinhadas com base nas suas preferências:
-
-- **Fluxo Selecionado**: Botão **"Copiar Módulo"** diretamente no cabeçalho de cada módulo, e botão **"Colar Módulo"** no curso de destino (com banner de área de transferência ativa).
-- **Escopo dos Dados Clonados**: Clonagem completa de todos os atributos das aulas (títulos, links de vídeo YouTube/Wistia, tempos de duração, descrições textuais, materiais de download e links personalizados de apoio).
-- **Posicionamento Customizado**: Janela modal de colagem permitindo escolher onde o módulo deve ser inserido (no final, no início ou entre módulos existentes), com renumeração sequencial automática.
-- **Integridade Garantida**: Cada módulo e aula colados recebem identificadores únicos (IDs) novos e independentes, assegurando que futuras edições ou exclusões em um curso nunca afetem o curso de origem.
+> As seguintes regras estritas foram confirmadas para guiar a implementação:
+> 1. **Cursos Gratuitos**: Ter uma conta ou clicar no curso gratuito **não** libera o acesso automaticamente. Apenas o administrador tem autorização para vincular o curso à conta do usuário.
+> 2. **Tentativa de Acesso Direto à Sala de Aula (`/classroom`)**: Usuários sem matrícula registrada para o curso específico terão o acesso bloqueado imediatamente e serão redirecionados para a página do curso com aviso claro de acesso não autorizado.
+> 3. **Isenção de Perfis**: **Nenhum perfil** tem passe livre para assistir cursos sem matrícula registrada na conta. Produtores não têm acesso aos cursos de outros produtores.
 
 ---
 
-### 1. Overview & Core Concept
+### 1. Diagnóstico das Vulnerabilidades Identificadas
 
-- **O que faz**: Adiciona um mecanismo de "Clipboard / Área de Transferência" na área administrativa que permite copiar um módulo (juntamente com todo o seu acervo de aulas e anexos) de um curso "A" e colá-lo em um curso "B" ou pacote de cursos ("3 em 1").
-- **Público-alvo**: Administradores e produtores da CFA Academy que criam formações modulares, trilhas especializadas ou ofertas empacotadas.
-- **Valor Principal**: Elimina centenas de cliques e minutos de retrabalho manual ao montar novos cursos ou packs, sem qualquer risco de corrupção ou dependência cruzada entre cursos.
+1. **Vulnerabilidade em `SalesPage.tsx`**:
+   - O código verificava `isUserAdmin = userProfile?.role === 'admin' || userProfile?.role === 'producer'`. Isso fazia com que qualquer conta com role `producer` recebesse passe de admin global, exibindo `"Assistir Curso (Acesso Liberado)"` em todos os cursos do catálogo.
+   - O botão em cursos com preço zero ou marcados como livres permitia abrir imediatamente a sala de aula sem verificação de matrícula no banco de dados.
 
----
+2. **Vulnerabilidade em `StudentCatalog.tsx`**:
+   - A função `checkUserHasAccess` continha regras frouxas (incluindo checagem de preço zero e auto-inclusão via `handleQuickAddFreeCourse`), exibindo botões de assistir sem que houvesse matrícula confirmada pelo administrador.
 
-### 2. User Experience & Visual Design
-
-#### Fluxo do Usuário Passo a Passo
-1. **Copiar o Módulo de Origem**:
-   - No editor do curso original (`CourseEditor`), o administrador localiza o módulo desejado.
-   - No cabeçalho do módulo (ao lado de "Adicionar Aula" e "Editar"), haverá o botão **"Copiar Módulo"** com ícone discreto e elegante.
-   - Ao clicar, o módulo é armazenado na área de transferência (`localStorage`). Um aviso flutuante elegante (toast) confirma: *"Módulo '[Nome]' copiado com sucesso! (X aulas incluídas)"*.
-
-2. **Indicador Visual de Transferência (Clipboard Ativo)**:
-   - Ao navegar para outro curso (ou novo curso), surge uma barra contextual discreta acima da grade curricular:
-     - Badge dourado: `📋 Módulo na Área de Transferência: [Título do Módulo] (X aulas do curso [Origem])`.
-     - Botões de ação rápida: **"Colar Módulo Aqui"** e **"Limpar Cópia"**.
-   - Junto ao botão principal **"+ Novo Módulo"**, fica ativo o botão **"Colar Módulo Copiado"**.
-
-3. **Escolha de Posição & Inserção**:
-   - Ao clicar em **"Colar Módulo"**, abre-se o modal **"Colar Módulo no Curso"**:
-     - Exibe pré-visualização: título do módulo e quantidade de aulas a serem clonadas.
-     - Campo de seleção de posição:
-       - *No final do curso (Módulo N+1)* [Padrão recomendado]
-       - *No início do curso (Módulo 1)*
-       - *Antes do Módulo [Selecionar da lista]*
-       - *Depois do Módulo [Selecionar da lista]*
-     - Opção de renomear o título do módulo antes de inserir (ex: ajustar a numeração automaticamente).
-   - Ao clicar em **"Confirmar e Colar"**, a clonagem é executada instantaneamente, a lista é reordenada e os dados são sincronizados no Firebase.
-
-4. **Estilo Visual & Microinterações**:
-   - Padrão visual escuro nativo do CFA Academy (`#0a0a0a` / `#131313`) com realce dourado (`#e9c349`).
-   - Sem uso de `window.alert` genérico; feedback imediato por meio de toasts visuais estilizados.
+3. **Vulnerabilidade em `VideoLibrary.tsx` (Sala de Aulas `/classroom`)**:
+   - A página de reprodução carregava o curso a partir do ID da URL (`?courseId=...`) sem verificar se o usuário autenticado possuía uma matrícula válida (`enrollment`) para aquele curso específico, permitindo que qualquer usuário autenticado assistisse a qualquer aula se soubesse ou recebesse o link.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
+### 2. Especificação das Mudanças
 
-- **Clonagem Profunda (Deep Copy) vs. Referenciamento Compartilhado**:
-  - *Abordagem Escolhida*: Clonagem profunda com novos IDs para o módulo e para cada aula.
-  - *Por quê*: Se as aulas fossem compartilhadas pelo mesmo ID, qualquer alteração futura (como trocar o vídeo ou mudar a descrição) no curso pack alteraria também o curso individual original. A clonagem profunda garante 100% de autonomia e segurança.
-  - *Trade-off*: Pequeno acréscimo de registros no documento do curso no Firestore, que é totalmente insignificante e seguro dentro dos limites do Firestore.
+#### A. Refatoração do `SalesPage.tsx` (Página Inicial & Vitrine de Cursos)
+- **Remoção do bypass de produtor**: Produtores não são considerados administradores com acesso livre aos cursos de outros instrutores.
+- **Checagem estrita de matrícula**: O status de "Acesso Liberado" só será exibido se o `course.id` estiver presente na lista de matrículas ativas do usuário (`enrolledCourseIds`).
+- **Tratamento de Cursos Gratuitos**:
+  - Se o usuário não tiver matrícula registrada, o botão exibirá **"Saiba Mais"** ou direcionará para a página de detalhes do curso, indicando que a matrícula requer liberação pelo administrador.
+  - Nunca exibirá "Assistir Curso (Acesso Liberado)" sem matrícula confirmada no banco.
 
-- **Persistência do Clipboard no `localStorage`**:
-  - *Abordagem Escolhida*: Salvar os dados do módulo copiado em `localStorage` com timestamp e metadados.
-  - *Por quê*: Permite que o usuário copie em um curso, volte para a lista geral de cursos, crie um novo curso do zero ou abra qualquer outro curso sem perder o que copiou.
+#### B. Refatoração do `StudentCatalog.tsx` (Catálogo do Aluno)
+- Atualizar `checkUserHasAccess` para validar estritamente a existência de um documento na coleção `enrollments` com status `active` associado ao `userId` e `courseId`.
+- Desativar a auto-matrícula irrestrita para cursos gratuitos, exibindo mensagem informando que o curso necessita de vinculação administrativa ou inscrição formal.
+
+#### C. Guarda de Segurança na Sala de Aula (`VideoLibrary.tsx`)
+- Implementar verificação imediata de acesso assim que o `activeCourse` for carregado:
+  - Consultar a coleção `enrollments` para o `currentUser.uid` e `activeCourse.id`.
+  - Se não houver matrícula ativa:
+    1. Bloquear a renderização dos vídeos e materiais.
+    2. Disparar notificação visual de alerta: *"Acesso restrito: este curso não está associado à sua conta. Entre em contato com o suporte ou adquira o curso."*
+    3. Redirecionar o usuário para a página de vendas/detalhes do curso (`/course/${activeCourse.id}` ou `/`).
+
+#### D. Ajustes no `enrollmentService.ts`
+- Padronizar a consulta `checkCourseEnrollment(userId, courseId)` para validação rápida e assíncrona, com cache local por sessão para evitar requisições redundantes no Firestore.
 
 ---
 
-### 4. Technical Architecture & Data Strategy *(Technical Reference)*
+### 3. Plano de Verificação e Testes
 
-#### Diagrama de Arquitetura & Fluxo de Dados
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                  Curso de Origem (Curso A)                   │
-│  [Módulo 2: Estratégias Avançadas] ──► [Botão Copiar Módulo] │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│             Área de Transferência (LocalStorage)             │
-│  { idOriginal, title, lessons: [...], copiedAt, sourceTitle } │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│                 Curso de Destino (Curso B / Pack)            │
-│  1. Detecta clipboard ativo -> Exibe barra de colar          │
-│  2. Modal de Posicionamento (Início / Final / Intermediário)  │
-│  3. Gerador de Clonagem Profunda (Novos IDs únicos)          │
-│     - newModId = m_${timestamp}_${rand}                      │
-│     - newLessonId = l_${timestamp}_${idx}_${rand}            │
-│     - courseId = targetCourseId                              │
-│  4. Reordenação e renumeração automática                     │
-│  5. Auto-Save sincronizado no Firestore (db.courses)         │
-└──────────────────────────────────────────────────────────────┘
-```
-
-#### Mapeamento de Estado e Handlers
-- `copiedModule`: Estado que lê e escuta o `cfa_copied_module` no `localStorage`.
-- `handleCopyModule(module: Module)`: Serializa o módulo com metadados do curso de origem e exibe toast de confirmação.
-- `handleClearCopiedModule()`: Remove o item do `localStorage` e limpa o estado.
-- `handleOpenPasteModal()`: Abre o modal de colagem e seleção de posição.
-- `handleConfirmPasteModule(targetPosition: number, customTitle?: string)`: Executa a clonagem profunda, atualiza o array `modules` no estado do componente, renumera e dispara o auto-save para persistência no Firebase.
-
-#### Verificação e Testes
-- Teste de cópia de módulo com 0 aulas e com múltiplas aulas (YouTube e Wistia).
-- Teste de colagem no mesmo curso (duplicação) e em cursos diferentes.
-- Teste de colagem no início, no meio e no final da lista.
-- Validação de compilação sem erros via `compile_applet`.
+- [ ] **Teste de Conta de Produtor**: Logar com conta de produtor e verificar que a Home Page **não** exibe "Acesso Liberado" em cursos de outros produtores.
+- [ ] **Teste de Curso Gratuito**: Acessar um curso gratuito com usuário autenticado sem matrícula e garantir que ele não entra diretamente na sala de aula.
+- [ ] **Teste de Acesso Direto por URL**: Tentar navegar diretamente para `/classroom?courseId=[ID_DE_CURSO_NAO_MATRICULADO]` e verificar o bloqueio com redirecionamento e mensagem de aviso.
+- [ ] **Teste de Aluno com Matrícula Válida**: Confirmar que alunos com matrícula ativa no Firestore continuam acessando seus cursos normalmente.
+- [ ] **Compilação e Linter**: Executar `compile_applet` para assegurar integridade sintática e ausência de regressões.
